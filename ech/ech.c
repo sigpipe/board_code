@@ -103,14 +103,17 @@ int main(void) {
   long long int ll;
 
 
-    
   
   if (myiio_init()) err("myiio fail");
 
   
-  printf("initial status");
+  printf("initial status\n");
   myiio_print_adc_status();
-
+  prompt("will rst");
+  myiio_rst_gth();
+  prompt("will stat");  
+  myiio_print_adc_status();
+  
   sfp_attn_dB = 0;
   //  sfp_attn_dB = ask_num("sfp_attn (dB)", sfp_attn_dB);
 
