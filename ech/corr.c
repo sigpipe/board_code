@@ -1,4 +1,4 @@
-
+#include "corr.h"
 #include "sys/param.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -169,36 +169,3 @@ void corr_find_peaks(double corr[], int num_probes) {
   printf("  noise floor %.1f   std %.03f\n", nf_mean, nf_std);
 }
 
-void notmain() {
-  int probe_i;
-  short int *rbuf;
-  double *corr;
-  size_t sz, sz_rd = probe_pd_samps*2*sizeof(short int);
-  int fd;
-  
-  fd = open("d_7.raw", O_RDONLY);
-  if (fd<0) printf("cant open d_7.raw\n");
-
-
-  sz = sizeof(int) * probe_len_bits * osamp;
-  probe=(int *)malloc(sz);
-
-  sz = sizeof(double) * probe_pd_samps;
-  corr= (double *)malloc(sz);
-  memset((void *)corr, 0, sz);
-  
-  
-  rbuf=(short int *)malloc(sz);
-  for(probe_i=0; probe_i<probe_qty; ++probe_i) {
-    sz_rd = read(fd, rbuf, sz);
-    if (sz_rd != sz) {
-      printf("ERR: probe_i %d: tried to read %zd but got %zd\n", probe_i, sz, sz_rd);
-      return;
-    }
-    corr_accum(corr, rbuf);
-  }
-
-  //  corr_find_peaks(corr, probe_qty);
-  
-  
-}
