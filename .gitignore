@@ -1,1 +1,8 @@
+*.zip
+*.o
 *~
+\#*
+*.bak
+build
+out
+
