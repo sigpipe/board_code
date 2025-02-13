@@ -24,12 +24,13 @@ int baseaddrs[]={BASEADDR_QREGS, BASEADDR_ADC};
 
 #define REG1_HDR_QTY_MIN1 (0x0000ffff)
 
+#define REG2_TX_UNSYNC    (0x80000000)
 #define REG2_TX_REQ       (0x40000000)
 #define REG2_USE_LFSR     (0x20000000)
 #define REG2_TX_ALWAYS    (0x10000000)
 #define REG2_TX_0         (0x08000000)
 #define REG2_HDR_LEN_MIN1 (0x0003f000)
-#define REG2_GTH_RST      (0x00000001)
+#define REG2_SFP_GTH_RST  (0x00000001)
 
 
 
@@ -214,10 +215,10 @@ void myiio_set_meas_noise(int en) {
   st.meas_noise_en = en;
 }
 
-void myiio_rst_gth(void) {
-  myiio_reg_w(0, 2, REG2_GTH_RST, 1);
+void myiio_rst_sfp_gth(void) {
+  myiio_reg_w(0, 2, REG2_SFP_GTH_RST, 1);
   usleep(1000);
-  myiio_reg_w(0, 2, REG2_GTH_RST, 0);
+  myiio_reg_w(0, 2, REG2_SFP_GTH_RST, 0);
 }
 
 void myiio_tx(int en) {

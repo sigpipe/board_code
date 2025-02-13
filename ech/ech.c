@@ -11,6 +11,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include "corr.h"
 #include <time.h>
 
 char errmsg[256];
@@ -22,6 +23,9 @@ void err(char *str) {
 
 #define NSAMP (1024)
 
+int dbg_lvl=0;
+
+#define NEW (1)
 
 void chan_en(struct iio_channel *ch) {
   iio_channel_enable(ch);
@@ -39,7 +43,11 @@ void set_blocking_mode(struct iio_buffer *buf, int en) {
 #define DAC_N (256)
 #define SYMLEN (4)
 #define PAT_LEN (DAC_N/SYMLEN)
-#define ADC_N (1024*16*16*8*4)
+// #define ADC_N (1024*16*16*8*4)
+//#define ADC_N (1024*16*16*8*4)
+// #define ADC_N 4144000
+#define ADC_N (2<<18)
+
 //  #define ADC_N (1024*16*32)
 
 
@@ -68,17 +76,21 @@ void prompt(char *prompt) {
 }
 
 
+int min(int a, int b) {
+  if (a<b) return a;
+  return b;
+}
 
 
-
-int main(void) {
+int main(int argc, char *argv[]) {
   int num_dev, i, j, k, n, e, itr, sfp_attn_dB;
-  char name[32], attr[32];
+  char name[32], attr[32], c;
   int pat[PAT_LEN] = {1,1,1,1,0,0,0,0,1,0,1,0,0,1,0,1,
        1,0,1,0,1,1,0,0,1,0,1,0,0,1,0,1,
        1,0,1,0,1,1,0,0,1,0,1,0,0,1,0,1,
        0,1,0,1,0,0,1,1,0,1,0,1,1,0,1,0};
   ssize_t sz, tx_sz, sz_rx;
+  int opt_save = 1, opt_corr=0, opt_periter=0;
   const char *r;
   struct iio_context *ctx;
   struct iio_device *dac, *adc;
@@ -97,104 +109,161 @@ int main(void) {
   //  short int corr[ADC_N];
 
 
-  int hdr_pd_samps, cap_len_bufs;
-  double d;
+  int num_bufs, p_i;
+  double d, *corr;
   
   long long int ll;
 
+  for(i=1;i<argc;++i) {
+    for(j=0; (c=argv[i][j]); ++j) {
+      if (c=='c') opt_corr=1;
+      else if (c=='s') opt_save=1;
+      else if (c=='d') opt_periter=0;  // detailed
+      else {
+	printf("USAGES:\n  ech c  = compute correlations\n  ech s  = save to file (default)\n  ech i = specify per iteration\n");
+	return 1;}
+    }
+  }
+  
 
-  
-  if (myiio_init()) err("myiio fail");
-
-  
-  printf("initial status\n");
-  myiio_print_adc_status();
-  prompt("will rst");
-  myiio_rst_gth();
-  prompt("will stat");  
-  myiio_print_adc_status();
-  
   sfp_attn_dB = 0;
   //  sfp_attn_dB = ask_num("sfp_attn (dB)", sfp_attn_dB);
-
+    
   
+  if (myiio_init()) err("myiio fail");
+  printf("just called myiio init\n");
+  myiio_print_adc_status();  
+
+  int meas_noise, noise_dith;
   int use_lfsr=1;
   int tx_always=0;
   int tx_0=0;  
-  int hdr_qty=25;
+  int tot_hdr_qty, hdr_qty=25, hdr_qty_req=25, max_hdr_per_buf, hdr_per_buf;
   int cap_len_samps, buf_len_samps;
   int num_itr, b_i;
-  int *times_s;
+  int *times_s, t0_s;
 
-  use_lfsr = (int)ask_num("use_lfsr", 1);
+  
+  meas_noise = (int)ask_num("meas_noise_0", 0);
+  if (meas_noise) {
+    use_lfsr=1;
+    tx_0=1;
+    tx_always=0;
+    noise_dith=(int)ask_num("noise_dith", 1);
+  }else {
+    use_lfsr = (int)ask_num("use_lfsr", 1);
+    tx_0=0;
+    noise_dith=0;
+    //  tx_0 = (int)ask_num("tx_0", 0);
+    tx_always = (int)ask_num("tx_always", 0);
+  }
+
+  myiio_set_meas_noise(noise_dith);
+  
   myiio_set_use_lfsr(use_lfsr);
 
-  tx_always = (int)ask_num("tx_always", 0);
   myiio_set_tx_always(tx_always);
-
-  tx_0=0;
-  //  tx_0 = (int)ask_num("tx_0", 0);
   myiio_set_tx_0(tx_0);
 
 
+  i=128;  
+  //  i = ask_num("hdr_len_bits", i);
+  myiio_set_hdr_len_bits(i);
+  printf("hdr_len_bits %d\n", st.hdr_len_bits);
 
-  d = 2;
-  // d=24;
+  
+  //  d = 2;
+  d=110;
   d = ask_num("hdr_pd (us)", d);
   i = myiio_dur_us2samps(d);
+  i = ((int)(i/64))*64;
 
   myiio_set_hdr_pd_samps(i);
   printf("hdr_pd_samps %d = %.1Lf us\n", st.hdr_pd_samps,
 	 myiio_dur_samps2us(st.hdr_pd_samps));
 
+  max_hdr_per_buf = (int)floor(ADC_N/st.hdr_pd_samps);
+  printf("max hdrs per buf %d\n", max_hdr_per_buf);
+  // NOTE: here, by "buf" we mean a libiio buf, which has
+  // its own set of constraints as determined by AD's libiio library.
+  
 
-
-
-    hdr_qty = (int)floor(ADC_N/st.hdr_pd_samps);
-    printf("max hdrs %d\n", hdr_qty);
-    hdr_qty=100;
-    hdr_qty = ask_num("hdr_qty", hdr_qty);
-    cap_len_samps = st.hdr_pd_samps * hdr_qty;
+  int dly_ms=100;
+  
+  if (opt_periter) {
+    // user explicitly ctls details of nested loops
+    num_itr = 10;
+    num_itr = ask_num("num_itr", num_itr);
+    if (num_itr>1) {
+      dly_ms = ask_num("delay per itr (ms)", dly_ms);
+      printf("test will take %d s\n", num_itr*dly_ms/1000);
+    }
+    hdr_qty_req = ask_num("hdr qty per itr", 100);
     
-    cap_len_bufs = (int)ceil((double)cap_len_samps / ADC_N);
-    printf(" num bufs %d\n", cap_len_bufs);
-
-
-    
-    buf_len_samps = cap_len_samps / cap_len_bufs;
+    num_bufs = ceil((double)hdr_qty_req / max_hdr_per_buf);
+    hdr_per_buf = ceil((double)hdr_qty_req / num_bufs);
+    hdr_qty = num_bufs * hdr_per_buf;
+    if (hdr_qty != hdr_qty_req)
+      printf(" ACTUALLY hdr qty per itr %d\n", hdr_qty);
+    buf_len_samps = hdr_per_buf * st.hdr_pd_samps;
     printf(" buf_len_samps %d\n", buf_len_samps);
 
-    cap_len_samps  = buf_len_samps * cap_len_bufs;
+    cap_len_samps = hdr_qty * st.hdr_pd_samps;
+    printf(" cap_len_samps %d\n", cap_len_samps);
+    // This is cap len per iter
 
+    
+  } else {
+    // user specifies desired total number of headers
+    // user wants to minimize the number of iterations.
+    // and code translates that to num iter, num buffers, and buf len
+    // it always uses four buffers or less per iter.
+    tot_hdr_qty = ask_num("hdr_qty", max_hdr_per_buf*4);
 
-    hdr_qty = (int)ceil(cap_len_samps / st.hdr_pd_samps);
+    num_itr = ceil((double)tot_hdr_qty / (max_hdr_per_buf*4));
+    printf(" num itr %d\n", num_itr);
+    hdr_qty = ceil((double)tot_hdr_qty / num_itr); // per iter
+
+    num_bufs = (int)ceil((double)hdr_qty / max_hdr_per_buf); // per iter
+    printf(" num bufs per iter %d\n", num_bufs);
+    hdr_per_buf = (int)(ceil((double)hdr_qty / num_bufs));
+    hdr_qty = hdr_per_buf * num_bufs;
+    printf(" hdr qty per itr %d\n", hdr_qty);
+
+    if (num_itr>1) {
+      dly_ms = 0;
+      dly_ms = ask_num("delay per itr (ms)", dly_ms);
+      printf("test will last %d s\n", num_itr*dly_ms/1000);
+    }
+
+    buf_len_samps = st.hdr_pd_samps * hdr_per_buf;
+    printf(" buf_len_samps %d\n", buf_len_samps);
+
     cap_len_samps = hdr_qty * st.hdr_pd_samps;
     printf(" cap_len_samps %d\n", cap_len_samps);
     
       //    printf("cap_len_samps %d must be < %d \n", cap_len_samps, ADC_N);
       //    printf("WARN: must increase buf size\n");
 
+
+  }
+   
   myiio_set_hdr_qty(hdr_qty);
   if (st.hdr_qty !=hdr_qty) {
     printf("ERR: hdr qty actually %d\n", st.hdr_qty);
-    err("fail");
   }
-   
-  printf("using hdr_qty %d\n", hdr_qty);
-    
+  //  printf("using hdr_qty %d\n", hdr_qty);
+
+  
   //  size of sz is 4!!
-  printf("size sz is %d\n", sizeof(ssize_t));
+  //  printf("size sz is %d\n", sizeof(ssize_t));
   
-  i=128;  
-  i = ask_num("hdr_len_bits", i);
-  myiio_set_hdr_len_bits(i);
-  printf("hdr_len_bits %d\n", st.hdr_len_bits);
 
-  num_itr=1;
-   num_itr = ask_num("num_itr", 1);
-  times_s = (int *)malloc(num_itr*sizeof(int));
 
-  
+
+  if (num_itr)
+    times_s = (int *)malloc(sizeof(int)*num_itr);
+  t0_s = time(0);
   
   ctx = iio_create_local_context();
   if (!ctx)
@@ -218,11 +287,9 @@ int main(void) {
   if (!dac_ch1)
     err("dac lacks channel");
   chan_en(dac_ch0);
-  chan_en(dac_ch1);
-  // iio_channel_disable(dac_ch1);  
+  // chan_en(dac_ch1);
+  iio_channel_disable(dac_ch1);  
 
-
-  
 
   adc_ch0 = iio_device_get_channel(adc, 0);
   if (!adc_ch0)  err("adc lacks ch 0");
@@ -233,10 +300,13 @@ int main(void) {
   //  sz = iio_device_get_sample_size(adc);
   //  printf("adc samp size %zd\n", sz); // is 4 when 2 chans en
 
+
+
   
   //  sz = iio_device_get_sample_size(dac);
   // DAC sample size is 2 bytes per channel.  if 2 chans enabled, sz is 4.
   //  printf("dac samp size %zd\n", sz);
+
 
   memset(mem, 0, sizeof(mem));
 
@@ -256,8 +326,6 @@ int main(void) {
     if (j!=DAC_N) printf("ERR: expected %d\n", DAC_N);
   }
 
-  printf("status after enabling adc chan");
-  myiio_print_adc_status();
 
   // basically there is no conversion
   //  printf("converted:\n");
@@ -275,61 +343,64 @@ int main(void) {
   // must enable channel befor creating buffer
   // sample size is 2 * number of enabled channels
 
-
+  if (opt_save) {
+   fd = open("out/d.raw", O_CREAT | O_WRONLY | O_TRUNC, S_IRWXO);
+   if (fd<0) err("cant open d.txt");
+  }
 
 
   // oddly, this create buffer seems to cause the dac to output
   // a sin wave!!!
   // sample size is 2 * number of enabled channels.
   // printf("dac samp size %zd\n", sz);
+  //  prompt("will create dac buf");  
   sz = iio_device_get_sample_size(dac);
-  dac_buf = iio_device_create_buffer(dac, (ssize_t) DAC_N * sz, false);
+  dac_buf = iio_device_create_buffer(dac, (ssize_t) DAC_N, false);
   if (!dac_buf) {
     sprintf(errmsg, "cant create dac bufer  nsamp %d", DAC_N);
     err(errmsg);
   }
-  printf("DBG: dac step is %d\n",  iio_buffer_step(dac_buf));
   
   //  prompt("first prompt ");
-
-  
+    prompt("will write chan");
+    
     // calls convert_inverse and copies data into buffer
     sz = iio_channel_write(dac_ch0, dac_buf, mem, sizeof(mem));
     // returned 256=DAC_N*2, makes sense
     printf("wrote ch0 to dac_buf sz %zd\n", sz);
 
 
+    myiio_print_adc_status();
+  
     set_blocking_mode(dac_buf, true); // default is blocking.  
 
-
-    //    tx_sz = iio_buffer_push(dac_buf);
-    //  printf("pushed %zd\n", tx_sz);  
-
-  
-
-
-   fd = open("out/d.raw", O_CREAT | O_WRONLY | O_TRUNC, S_IRWXO);
-   if (fd<0) err("cant open d.txt");
-
+#if (NEW)
+    // sinusoide before willpush    
+    //    prompt("will push");
+    tx_sz = iio_buffer_push(dac_buf);
+    printf("pushed %zd\n", tx_sz);  
+#endif
 
    
-  for (itr=0; itr<num_itr; ++itr) {
+    for (itr=0; !num_itr || (itr<num_itr); ++itr) {
 
-    printf("itr %d\n", itr);
+      printf("itr %d: time %d (s)\n", itr, time(0)-t0_s);
 
-    *(times_s + itr) = (int)time(0);
+      if (num_itr)
+        *(times_s + itr) = (int)time(0);
 
-    sz = iio_device_get_sample_size(adc);  // sz=4;
-    adc_buf_sz = sz * buf_len_samps;
-    adc_buf = iio_device_create_buffer(adc, buf_len_samps, false);
-    if (!adc_buf)
-      err("cant make adc buffer");
-    printf("made adc buf size %zd\n", (ssize_t) adc_buf_sz);
+      sz = iio_device_get_sample_size(adc);  // sz=4;
+      adc_buf_sz = sz * buf_len_samps;
+      adc_buf = iio_device_create_buffer(adc, buf_len_samps, false);
+      if (!adc_buf)
+        err("cant make adc buffer");
+      printf("made adc buf size %zd samps\n", (ssize_t)buf_len_samps);
 
-    myiio_print_adc_status();
+    //    myiio_print_adc_status();
     
-    
-    set_blocking_mode(adc_buf, false); // default is blocking.
+
+#if (!NEW)
+    //  set_blocking_mode(adc_buf, false); // default is blocking.
 
 
     //    myiio_print_adc_status();
@@ -338,53 +409,75 @@ int main(void) {
       printf("ERR: prepratory refill %zd\n", sz);
       printf("     did not expect that!!\n");
     }
-    //    myiio_print_adc_status();
+    printf("prep refil\n");
+    myiio_print_adc_status();
     
-    set_blocking_mode(adc_buf, true); // default is blocking.
-    
-
-    if (!use_lfsr) {
-      sz = iio_buffer_push(dac_buf);
-      if (sz<0)
-	err("buf push failed");
-      printf("pushed %zd\n", sz);
-    }
-    
+    set_blocking_mode(adc_buf, true); // default is blocking anyway
     myiio_tx(1);
-    
-  
 
-    for(b_i=0; b_i<cap_len_bufs; ++b_i) {
+#endif    
+
+    if (opt_corr) {
+      sz = sizeof(double) * st.hdr_pd_samps;
+      printf("hdr_pd_samps %d\n", st.hdr_pd_samps);
+      
+      // printf("will init size %zd  dbg %zd\n", sz, sizeof(double));
+      
+      corr = (double *)malloc (sz);
+      if (!corr) err("cant malloc");
+      memset((void *)corr, 0, sz);
+      corr_init(st.hdr_len_bits, st.hdr_pd_samps);
+    }
+
+    for(b_i=0; b_i<num_bufs; ++b_i) {
+      void *p;
       sz = iio_buffer_refill(adc_buf);
-      myiio_print_adc_status();
-   
       if (sz<0) err("cant refill buffer");
       if (sz != adc_buf_sz)
 	printf("tried to refill %d but got %d\n", adc_buf_sz, sz);
       // pushes double the dac_buf size.
-      //myiio_print_adc_status();      
+      //myiio_print_adc_status();
 
       // iio_buffer_start can return a non-zero ptr after a refill.
       adc_buf_p = iio_buffer_start(adc_buf);
-      left_sz = sz;
-      while(left_sz>0) {
-        sz = write(fd, adc_buf_p, left_sz);
-        if (sz<=0) err("write failed");
-        if (sz == left_sz) break;
-	printf("tried to write %zd but wrote %zd\n", left_sz, sz);
-	left_sz -= sz;
-	adc_buf_p = (void *)((char *)adc_buf_p + sz);
+      if (!adc_buf_p) err("iio_buffer_start returned 0");
+      p = iio_buffer_end(adc_buf);
+      // printf(" size %zd\n", p - adc_buf_p);
+      
+      if (opt_corr) {
+	for(p_i=0; p_i<hdr_per_buf; ++p_i) {
+	  //	  printf("p %d\n",p_i);
+	  p = adc_buf_p + sizeof(short int)*2*p_i*st.hdr_pd_samps;
+	  // printf("offset %zd\n",p - adc_buf_p);
+	  corr_accum(corr, adc_buf_p + sizeof(short int)*2*p_i*st.hdr_pd_samps);
+	}
+      }
+
+
+      if (opt_save) {
+	left_sz = sz;
+	while(left_sz>0) {
+	  sz = write(fd, adc_buf_p, left_sz);
+	  if (sz<=0) err("write failed");
+	  if (sz == left_sz) break;
+	  printf("tried to write %zd but wrote %zd\n", left_sz, sz);
+	  left_sz -= sz;
+	  adc_buf_p = (void *)((char *)adc_buf_p + sz);
+	}
+        // printf("wrote %zd\n", sz);
+        // dma req will go low.
       }
       
-      // printf("wrote %zd\n", sz);
-      // dma req will go low.
 
-      
     }
     myiio_tx(0);
 
+
+    if (opt_corr) {
+      corr_find_peaks(corr, hdr_qty);
+    }
     //    prompt("end loop prompt ");
-    myiio_print_adc_status();
+    // myiio_print_adc_status();
     
     // printf("adc buf p x%x\n", adc_buf_p);
 
@@ -424,10 +517,10 @@ int main(void) {
 
 
     iio_buffer_destroy(adc_buf);
-    
+    usleep(dly_ms * 1000);
+   
     
   }
-  close(fd);
   
 
 
@@ -442,10 +535,14 @@ int main(void) {
     printf("\t%d", rx_mem[i]);
   printf("\n");
   */
-
+      if (opt_save) {
+  close(fd);
+	
   fp = fopen("out/r.txt","w");
-  fprintf(fp,"sfp_attn_dB = %d;\n",   sfp_attn_dB);
+  //  fprintf(fp,"sfp_attn_dB = %d;\n",   sfp_attn_dB);
   fprintf(fp,"use_lfsr = %d;\n",   st.use_lfsr);
+  fprintf(fp,"meas_noise = %d;\n",   meas_noise);
+  fprintf(fp,"noise_dith = %d;\n",   noise_dith);
   fprintf(fp,"tx_always = %d;\n",  st.tx_always);
   fprintf(fp,"tx_0 = %d;\n",  st.tx_0);
   fprintf(fp,"hdr_qty = %d;\n",    st.hdr_qty);
@@ -458,13 +555,15 @@ int main(void) {
   fprintf(fp,"num_itr = %d;\n", num_itr);
   fprintf(fp,"time = %d;\n", (int)time(0));
   fprintf(fp,"itr_times = [");
-  for(i=0;i<num_itr;++i)
-    fprintf(fp," %d", *(times_s+i)-*(times_s));
+  if (num_itr) {
+    for(i=0;i<num_itr;++i)
+      fprintf(fp," %d", *(times_s+i)-*(times_s));
+  }
   fprintf(fp, "];\n");
-
-  
   fclose(fp);
-  
+
+  printf("wrote out/r.txt and p.raw\n");
+      }
   //  fp = fopen("dg.txt","w");
   //  for(i=0; i<ADC_N; ++i) {
   //    fprintf(fp, "%g %d\n", (double)i/1233333333*1e9, rx_mem[i]);

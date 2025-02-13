@@ -280,7 +280,7 @@ int main(void) {
   printf("qregd\n");
   printf("the demon that accesses quanet_regs\n");
 
-  printf("tst\n");  
+
   
   l_soc = socket(AF_INET, SOCK_STREAM, 0);
   if (l_soc<0) err("cant make socket to listen on ");
@@ -310,7 +310,7 @@ int main(void) {
   
   
   if (myiio_init()) err("myiio fail");
-  myiio_set_use_lfsr(0);
+  myiio_set_use_lfsr(1);
   myiio_set_tx_always(0);
   myiio_set_tx_0(0);
   i = myiio_dur_us2samps(2);

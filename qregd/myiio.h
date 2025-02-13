@@ -13,6 +13,7 @@ typedef struct myiio_st {
   int meas_noise_en;
   
   // int *m;
+  int *memmaps[2];
   int *m2;
 } myiio_st_t;
 
@@ -23,6 +24,10 @@ double myiio_dur_samps2us(int s);
   
 int  myiio_init();
 int  myiio_done();
+
+void myiio_set_meas_noise(int en);
+
+void myiio_rst_sfp_gth(void);
 
 void myiio_set_use_lfsr(int use_lfsr);
 
