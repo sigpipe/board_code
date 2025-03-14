@@ -1,11 +1,15 @@
 
+// This does not test QNICLL or QREGD.
+// rather, it tests libiio locally.
+
+
 #include <stdio.h>
 #include <string.h>
 #include <getopt.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <iio.h>
-#include "myiio.h"
+#include "qregs.h"
 #include <math.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -118,9 +122,9 @@ int main(int argc, char *argv[]) {
     for(j=0; (c=argv[i][j]); ++j) {
       if (c=='c') opt_corr=1;
       else if (c=='s') opt_save=1;
-      else if (c=='d') opt_periter=0;  // detailed
-      else {
-	printf("USAGES:\n  ech c  = compute correlations\n  ech s  = save to file (default)\n  ech i = specify per iteration\n");
+      else if (c=='i') opt_periter=i;
+      else if (c!='-') {
+	printf("USAGES:\n  tst c  = compute correlations\n  tst s  = save to file (default)\n  tst i = specify per iteration\n");
 	return 1;}
     }
   }
@@ -130,15 +134,19 @@ int main(int argc, char *argv[]) {
   //  sfp_attn_dB = ask_num("sfp_attn (dB)", sfp_attn_dB);
     
   
-  if (myiio_init()) err("myiio fail");
-  printf("just called myiio init\n");
-  myiio_print_adc_status();  
+  if (qregs_init()) err("qregs fail");
+  printf("just called qregs init\n");
+  qregs_print_adc_status();  
 
+
+  qregs_dbg_new_go(1);
+
+  
   int meas_noise, noise_dith;
   int use_lfsr=1;
   int tx_always=0;
   int tx_0=0;  
-  int tot_hdr_qty, hdr_qty=25, hdr_qty_req=25, max_hdr_per_buf, hdr_per_buf;
+  int tot_probe_qty, probe_qty=25, probe_qty_req=25, max_probe_per_buf, probe_per_buf;
   int cap_len_samps, buf_len_samps;
   int num_itr, b_i;
   int *times_s, t0_s;
@@ -158,32 +166,32 @@ int main(int argc, char *argv[]) {
     tx_always = (int)ask_num("tx_always", 0);
   }
 
-  myiio_set_meas_noise(noise_dith);
+  qregs_set_meas_noise(noise_dith);
   
-  myiio_set_use_lfsr(use_lfsr);
+  qregs_set_use_lfsr(use_lfsr);
 
-  myiio_set_tx_always(tx_always);
-  myiio_set_tx_0(tx_0);
+  qregs_set_tx_always(tx_always);
+  qregs_set_tx_0(tx_0);
 
 
   i=128;  
-  //  i = ask_num("hdr_len_bits", i);
-  myiio_set_hdr_len_bits(i);
-  printf("hdr_len_bits %d\n", st.hdr_len_bits);
+  //  i = ask_num("probe_len_bits", i);
+  qregs_set_probe_len_bits(i);
+  printf("probe_len_bits %d\n", st.probe_len_bits);
 
   
   //  d = 2;
-  d=110;
-  d = ask_num("hdr_pd (us)", d);
-  i = myiio_dur_us2samps(d);
+  d=10;
+  d = ask_num("probe_pd (us)", d);
+  i = qregs_dur_us2samps(d);
   i = ((int)(i/64))*64;
 
-  myiio_set_hdr_pd_samps(i);
-  printf("hdr_pd_samps %d = %.1Lf us\n", st.hdr_pd_samps,
-	 myiio_dur_samps2us(st.hdr_pd_samps));
+  qregs_set_probe_pd_samps(i);
+  printf("probe_pd_samps %d = %.1Lf us\n", st.probe_pd_samps,
+	 qregs_dur_samps2us(st.probe_pd_samps));
 
-  max_hdr_per_buf = (int)floor(ADC_N/st.hdr_pd_samps);
-  printf("max hdrs per buf %d\n", max_hdr_per_buf);
+  max_probe_per_buf = (int)floor(ADC_N/st.probe_pd_samps);
+  printf("max probes per buf %d\n", max_probe_per_buf);
   // NOTE: here, by "buf" we mean a libiio buf, which has
   // its own set of constraints as determined by AD's libiio library.
   
@@ -192,23 +200,23 @@ int main(int argc, char *argv[]) {
   
   if (opt_periter) {
     // user explicitly ctls details of nested loops
-    num_itr = 10;
+    num_itr = 1;
     num_itr = ask_num("num_itr", num_itr);
     if (num_itr>1) {
       dly_ms = ask_num("delay per itr (ms)", dly_ms);
       printf("test will take %d s\n", num_itr*dly_ms/1000);
     }
-    hdr_qty_req = ask_num("hdr qty per itr", 100);
+    probe_qty_req = ask_num("probe qty per itr", 10);
     
-    num_bufs = ceil((double)hdr_qty_req / max_hdr_per_buf);
-    hdr_per_buf = ceil((double)hdr_qty_req / num_bufs);
-    hdr_qty = num_bufs * hdr_per_buf;
-    if (hdr_qty != hdr_qty_req)
-      printf(" ACTUALLY hdr qty per itr %d\n", hdr_qty);
-    buf_len_samps = hdr_per_buf * st.hdr_pd_samps;
+    num_bufs = ceil((double)probe_qty_req / max_probe_per_buf);
+    probe_per_buf = ceil((double)probe_qty_req / num_bufs);
+    probe_qty = num_bufs * probe_per_buf;
+    if (probe_qty != probe_qty_req)
+      printf(" ACTUALLY probe qty per itr %d\n", probe_qty);
+    buf_len_samps = probe_per_buf * st.probe_pd_samps;
     printf(" buf_len_samps %d\n", buf_len_samps);
 
-    cap_len_samps = hdr_qty * st.hdr_pd_samps;
+    cap_len_samps = probe_qty * st.probe_pd_samps;
     printf(" cap_len_samps %d\n", cap_len_samps);
     // This is cap len per iter
 
@@ -218,17 +226,17 @@ int main(int argc, char *argv[]) {
     // user wants to minimize the number of iterations.
     // and code translates that to num iter, num buffers, and buf len
     // it always uses four buffers or less per iter.
-    tot_hdr_qty = ask_num("hdr_qty", max_hdr_per_buf*4);
+    tot_probe_qty = ask_num("probe_qty", max_probe_per_buf*4);
 
-    num_itr = ceil((double)tot_hdr_qty / (max_hdr_per_buf*4));
+    num_itr = ceil((double)tot_probe_qty / (max_probe_per_buf*4));
     printf(" num itr %d\n", num_itr);
-    hdr_qty = ceil((double)tot_hdr_qty / num_itr); // per iter
+    probe_qty = ceil((double)tot_probe_qty / num_itr); // per iter
 
-    num_bufs = (int)ceil((double)hdr_qty / max_hdr_per_buf); // per iter
+    num_bufs = (int)ceil((double)probe_qty / max_probe_per_buf); // per iter
     printf(" num bufs per iter %d\n", num_bufs);
-    hdr_per_buf = (int)(ceil((double)hdr_qty / num_bufs));
-    hdr_qty = hdr_per_buf * num_bufs;
-    printf(" hdr qty per itr %d\n", hdr_qty);
+    probe_per_buf = (int)(ceil((double)probe_qty / num_bufs));
+    probe_qty = probe_per_buf * num_bufs;
+    printf(" hdr qty per itr %d\n", probe_qty);
 
     if (num_itr>1) {
       dly_ms = 0;
@@ -236,10 +244,10 @@ int main(int argc, char *argv[]) {
       printf("test will last %d s\n", num_itr*dly_ms/1000);
     }
 
-    buf_len_samps = st.hdr_pd_samps * hdr_per_buf;
+    buf_len_samps = st.probe_pd_samps * probe_per_buf;
     printf(" buf_len_samps %d\n", buf_len_samps);
 
-    cap_len_samps = hdr_qty * st.hdr_pd_samps;
+    cap_len_samps = probe_qty * st.probe_pd_samps;
     printf(" cap_len_samps %d\n", cap_len_samps);
     
       //    printf("cap_len_samps %d must be < %d \n", cap_len_samps, ADC_N);
@@ -248,11 +256,11 @@ int main(int argc, char *argv[]) {
 
   }
    
-  myiio_set_hdr_qty(hdr_qty);
-  if (st.hdr_qty !=hdr_qty) {
-    printf("ERR: hdr qty actually %d\n", st.hdr_qty);
+  qregs_set_probe_qty(probe_qty);
+  if (st.probe_qty !=probe_qty) {
+    printf("ERR: hdr qty actually %d\n", st.probe_qty);
   }
-  //  printf("using hdr_qty %d\n", hdr_qty);
+  //  printf("using probe_qty %d\n", probe_qty);
 
   
   //  size of sz is 4!!
@@ -370,7 +378,7 @@ int main(int argc, char *argv[]) {
     printf("wrote ch0 to dac_buf sz %zd\n", sz);
 
 
-    myiio_print_adc_status();
+    qregs_print_adc_status();
   
     set_blocking_mode(dac_buf, true); // default is blocking.  
 
@@ -389,54 +397,48 @@ int main(int argc, char *argv[]) {
       if (num_itr)
         *(times_s + itr) = (int)time(0);
 
+      qregs_txrx(1);
+
+      qregs_print_adc_status();
+      prompt("will make adc buf");
+
       sz = iio_device_get_sample_size(adc);  // sz=4;
       adc_buf_sz = sz * buf_len_samps;
       adc_buf = iio_device_create_buffer(adc, buf_len_samps, false);
       if (!adc_buf)
         err("cant make adc buffer");
       printf("made adc buf size %zd samps\n", (ssize_t)buf_len_samps);
-
-    //    myiio_print_adc_status();
-    
-
-#if (!NEW)
-    //  set_blocking_mode(adc_buf, false); // default is blocking.
+      // supposedly creating buffer commences DMA
 
 
-    //    myiio_print_adc_status();
-    sz = iio_buffer_refill(adc_buf);
-    if (sz>0) {
-      printf("ERR: prepratory refill %zd\n", sz);
-      printf("     did not expect that!!\n");
-    }
-    printf("prep refil\n");
-    myiio_print_adc_status();
-    
-    set_blocking_mode(adc_buf, true); // default is blocking anyway
-    myiio_tx(1);
+      qregs_print_adc_status();
+      prompt("made buf, next will refill buf");
 
-#endif    
 
-    if (opt_corr) {
-      sz = sizeof(double) * st.hdr_pd_samps;
-      printf("hdr_pd_samps %d\n", st.hdr_pd_samps);
+      if (opt_corr) {
+	sz = sizeof(double) * st.probe_pd_samps;
+	printf("probe_pd_samps %d\n", st.probe_pd_samps);
       
-      // printf("will init size %zd  dbg %zd\n", sz, sizeof(double));
+	// printf("will init size %zd  dbg %zd\n", sz, sizeof(double));
       
-      corr = (double *)malloc (sz);
-      if (!corr) err("cant malloc");
-      memset((void *)corr, 0, sz);
-      corr_init(st.hdr_len_bits, st.hdr_pd_samps);
-    }
+	corr = (double *)malloc (sz);
+	if (!corr) err("cant malloc");
+	memset((void *)corr, 0, sz);
+	corr_init(st.probe_len_bits, st.probe_pd_samps);
+      }
 
     for(b_i=0; b_i<num_bufs; ++b_i) {
       void *p;
       sz = iio_buffer_refill(adc_buf);
+
+      qregs_print_adc_status();
       if (sz<0) err("cant refill buffer");
+      prompt("refilled buf");
+      
       if (sz != adc_buf_sz)
 	printf("tried to refill %d but got %d\n", adc_buf_sz, sz);
       // pushes double the dac_buf size.
-      //myiio_print_adc_status();
+      //qregs_print_adc_status();
 
       // iio_buffer_start can return a non-zero ptr after a refill.
       adc_buf_p = iio_buffer_start(adc_buf);
@@ -445,11 +447,11 @@ int main(int argc, char *argv[]) {
       // printf(" size %zd\n", p - adc_buf_p);
       
       if (opt_corr) {
-	for(p_i=0; p_i<hdr_per_buf; ++p_i) {
+	for(p_i=0; p_i<probe_per_buf; ++p_i) {
 	  //	  printf("p %d\n",p_i);
-	  p = adc_buf_p + sizeof(short int)*2*p_i*st.hdr_pd_samps;
+	  p = adc_buf_p + sizeof(short int)*2*p_i*st.probe_pd_samps;
 	  // printf("offset %zd\n",p - adc_buf_p);
-	  corr_accum(corr, adc_buf_p + sizeof(short int)*2*p_i*st.hdr_pd_samps);
+	  corr_accum(corr, adc_buf_p + sizeof(short int)*2*p_i*st.probe_pd_samps);
 	}
       }
 
@@ -470,14 +472,14 @@ int main(int argc, char *argv[]) {
       
 
     }
-    myiio_tx(0);
+    qregs_txrx(0);
 
 
     if (opt_corr) {
-      corr_find_peaks(corr, hdr_qty);
+      corr_find_peaks(corr, probe_qty);
     }
     //    prompt("end loop prompt ");
-    // myiio_print_adc_status();
+    // qregs_print_adc_status();
     
     // printf("adc buf p x%x\n", adc_buf_p);
 
@@ -524,7 +526,7 @@ int main(int argc, char *argv[]) {
   
 
 
-  if (myiio_done()) err("myiio done fail");
+  if (qregs_done()) err("qregs_done fail");
 
   
   /*
@@ -545,10 +547,10 @@ int main(int argc, char *argv[]) {
   fprintf(fp,"noise_dith = %d;\n",   noise_dith);
   fprintf(fp,"tx_always = %d;\n",  st.tx_always);
   fprintf(fp,"tx_0 = %d;\n",  st.tx_0);
-  fprintf(fp,"hdr_qty = %d;\n",    st.hdr_qty);
-  fprintf(fp,"hdr_pd_samps = %d;\n", st.hdr_pd_samps);
+  fprintf(fp,"probe_qty = %d;\n",    st.probe_qty);
+  fprintf(fp,"probe_pd_samps = %d;\n", st.probe_pd_samps);
   
-  fprintf(fp,"hdr_len_bits = %d;\n", st.hdr_len_bits);
+  fprintf(fp,"probe_len_bits = %d;\n", st.probe_len_bits);
   fprintf(fp,"data_hdr = 'i_adc q_adc';\n");
   fprintf(fp,"data_len_samps = %d;\n", cap_len_samps);
   fprintf(fp,"data_in_other_file = 2;\n");

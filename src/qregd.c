@@ -13,7 +13,7 @@
 #include <ifaddrs.h>
 #include <stdlib.h>
 #include <errno.h>
-#include "myiio.h"
+#include "qregs.h"
 #include "cmd.h"
 #include "parse.h"
 #include "qna_usb.h"
@@ -62,7 +62,7 @@ int wr_pkt(int soc, char *buf, int buf_sz) {
   ssize_t sz;
   l = htonl(buf_sz);
   sz = write(soc, (void *)&l, 4);
-  if (sz<4) err("write hdr fail");
+  if (sz<4) err("write probe fail");
   
   sz = write(soc, (void *)buf, buf_sz);
   if (sz<buf_sz) {
@@ -98,11 +98,11 @@ int cmd_probe_len(int arg) {
   int len;
   if (!parse_int(&len)) {
     printf("probe_len %d (bits)\n", len);
-    myiio_set_hdr_len_bits(len);
+    qregs_set_probe_len_bits(len);
   }
-  if (st.hdr_len_bits != len)
-    printf("WARN: hdr len actually %d\n", st.hdr_len_bits);
-  sprintf(rbuf, "0 %d", st.hdr_len_bits);
+  if (st.probe_len_bits != len)
+    printf("WARN: probe len actually %d\n", st.probe_len_bits);
+  sprintf(rbuf, "0 %d", st.probe_len_bits);
   return 0;
 }
 
@@ -111,7 +111,7 @@ int cmd_lfsr_en(int arg) {
   int en;
   if (!parse_int(&en)) {
     printf("lfsr_en %d\n", en);
-    myiio_set_use_lfsr(en);
+    qregs_set_use_lfsr(en);
   }
   sprintf(rbuf, "0 %d", en);
   return 0;
@@ -121,9 +121,9 @@ int cmd_probe_pd(int arg) {
   int pd;
   if (!parse_int(&pd)) {
     printf("probe_pd %d\n", pd);
-    myiio_set_hdr_pd_samps(pd);
+    qregs_set_probe_pd_samps(pd);
   }
-  sprintf(rbuf, "0 %d", st.hdr_pd_samps);
+  sprintf(rbuf, "0 %d", st.probe_pd_samps);
   return 0;
 }
 
@@ -131,16 +131,16 @@ int cmd_probe_qty(int arg) {
   int qty;
   if (parse_int(&qty)) return CMD_ERR_NO_INT;
   printf("probe_qty %d\n", qty);
-  myiio_set_hdr_qty(qty);
-  sprintf(rbuf, "0 %d", st.hdr_qty);
+  qregs_set_probe_qty(qty);
+  sprintf(rbuf, "0 %d", st.probe_qty);
   return 0;
 }
 
 int cmd_tx(int arg) { // DEPRECATED
   int en;
   if (parse_int(&en)) return CMD_ERR_NO_INT;
-  printf("tx %d\n (DEPRECATED)", en);
-  myiio_tx(en);
+  printf("tx %d\n", en);
+  qregs_txrx(en);
   sprintf(rbuf, "0 %d", en);  
   return 0;
 }
@@ -149,7 +149,7 @@ int cmd_tx_0(int arg) {
   int en;
   if (parse_int(&en)) return CMD_ERR_NO_INT;
   printf("tx_0 %d\n", en);
-  myiio_set_tx_0(en);
+  qregs_set_tx_0(en);
   sprintf(rbuf, "0 %d", st.tx_0);
   return 0;
 }
@@ -157,7 +157,7 @@ int cmd_tx_always(int arg) {
   int en;
   if (parse_int(&en)) return CMD_ERR_NO_INT;
   printf("tx_always %d\n", en);
-  myiio_set_tx_always(en);
+  qregs_set_tx_always(en);
   sprintf(rbuf, "0 %d", st.tx_always);
   return 0;
 }
@@ -309,16 +309,16 @@ int main(void) {
   printf("   port %d\n", QREGD_PORT);
   
   
-  if (myiio_init()) err("myiio fail");
-  myiio_set_use_lfsr(1);
-  myiio_set_tx_always(0);
-  myiio_set_tx_0(0);
-  i = myiio_dur_us2samps(2);
-  myiio_set_hdr_pd_samps(i);
+  if (qregs_init()) err("qregs fail");
+  qregs_set_use_lfsr(1);
+  qregs_set_tx_always(0);
+  qregs_set_tx_0(0);
+  i = qregs_dur_us2samps(2);
+  qregs_set_probe_pd_samps(i);
 
   
 
-  myiio_set_hdr_qty(10);
+  qregs_set_probe_qty(10);
 
   
   while (1) {
@@ -327,7 +327,7 @@ int main(void) {
     handle(c_soc);
   }
   
-  if (myiio_done()) err("myiio done fail");
+  if (qregs_done()) err("qregs_done fail");
   
   return 0;
 }

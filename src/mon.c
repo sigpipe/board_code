@@ -5,7 +5,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <iio.h>
-#include "myiio.h"
+#include "qregs.h"
 #include <math.h>
 
 
@@ -24,12 +24,12 @@ int main(void) {
   int sum[4];
     
 
-  if (myiio_init()) err("myiio fail");
+  if (qregs_init()) err("qregs fail");
   while(1) {
     for (k=0;k<4;++k)
       sum[k]=0;
     for(j=0;j<N;++j) {
-      myiio_get_adc_samp(v);
+      qregs_get_adc_samp(v);
       for (k=0;k<4;++k)
 	sum[k] += v[k];
       usleep(10000);
@@ -39,6 +39,6 @@ int main(void) {
     printf("\n");
     usleep(200000);    
   }
-  myiio_done();
+  qregs_done();
   return 0;
 }

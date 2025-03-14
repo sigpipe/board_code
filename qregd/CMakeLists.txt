@@ -1,8 +1,0 @@
-cmake_minimum_required(VERSION 2.8.7)
-project(qregd C)
-add_executable(tst tst.c qna_usb.c util.c)
-add_executable(mon mon.c myiio.c)
-add_executable(qregd qregd.c myiio.c cmd.c parse.c qna_usb.c util.c)
-Find_library(IIOLIB libiio-dev)
-target_link_libraries(mon iio m)
-target_link_libraries(qregd iio m)
