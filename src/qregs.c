@@ -20,35 +20,44 @@ int baseaddrs[]={BASEADDR_QREGS, BASEADDR_ADC};
 #define REGSSIZE  (64)
 
 
+
+// DAC regs
+// in baseaddr space 0
 #define REG0_PROBE_PD_MIN1  (0x00ffffff)
 
 #define REG1_PROBE_QTY_MIN1 (0x0000ffff)
 
-#define REG2_TX_UNSYNC    (0x80000000)
-#define REG2_TX_REQ       (0x40000000)
-#define REG2_USE_LFSR     (0x20000000)
-#define REG2_TX_ALWAYS    (0x10000000)
-#define REG2_TX_0         (0x08000000)
+#define REG2_TX_UNSYNC      (0x80000000)
+#define REG2_TX_REQ         (0x40000000)
+#define REG2_USE_LFSR       (0x20000000)
+#define REG2_TX_ALWAYS      (0x10000000)
+#define REG2_TX_0           (0x08000000)
+#define REG2_MEMTX_CIRC     (0x04000000)
 #define REG2_PROBE_LEN_MIN1 (0x000ff000)
-#define REG2_SFP_GTH_RST  (0x00000001)
+#define REG2_SFP_GTH_RST    (0x00000001)
 
 
 
-
+// ADC regs
 // in baseaddr space 1
 #define REG0_CLR_CTRS      (0x00000001)
 #define REG0_MEAS_NOISE_EN (0x00000002)
 #define REG0_TXRX_EN       (0x00000004)
 #define REG0_NEW_GO_EN     (0x00000008)
 #define REG0_CLR_OVF       (0x00000010)
+#define REG0_RD_MAX        (0x00000020)
+#define REG0_RD_MAX_SEL    (0x000000c0)
 
 #define REG1_VERSION        (0xff000000)
+#define REG1_RD_MAX_OK      (0x00000000)
 #define REG1_DMAREQ_CNT     (0x0000f000)
 #define REG1_ADC_GO_CNT     (0x00000f00)
 #define REG1_DMA_WREADY_CNT (0x000000f0)
 #define REG1_ADCFIFO_OVF    (0x00000008)
 #define REG1_ADCFIFO_BUG    (0x00000004)
 #define REG1_DMAREQ         (0x00000001)
+
+#define REG2_SAMP           (0x00000fff)
 
 // In vhdl, the num_probes works, so does probe_pd.
 // non-lfsr only transmots one probe.
@@ -183,6 +192,14 @@ void qregs_set_tx_always(int en) {
   st.tx_always = i;
 }
 
+
+void qregs_set_tx_mem_circ(int en) {
+  int i = !!en;
+  i = qregs_reg_w(0, 2, REG2_MEMTX_CIRC, i);
+  st.tx_mem_circ = i;
+}
+
+
 void qregs_set_probe_qty(int probe_qty) {
   int i = MIN(probe_qty-1, REG1_PROBE_QTY_MIN1);
   i = qregs_reg_w(0, 1, REG1_PROBE_QTY_MIN1, i);
@@ -206,7 +223,7 @@ void qregs_set_probe_pd_samps(int probe_pd_samps) {
 
 void qregs_print_adc_status(void) {
 // for dbg  
-  int v, v2;
+  int v, v2, i;
 
   v =qregs_reg_r(1, 1);
   printf("adc stat x%08x  ", v);
@@ -220,6 +237,20 @@ void qregs_print_adc_status(void) {
   printf("      cnt %d\n", ext(v, REG1_DMAREQ_CNT));
   printf(" adc_go_cnt %d\n", ext(v, REG1_ADC_GO_CNT));
   printf(" dma_wready_cnt %d\n", ext(v, REG1_DMA_WREADY_CNT));
+
+
+  /*
+  qregs_reg_w(1, 0, REG0_RD_MAX, 1);
+  while(!qregs_reg_r_fld(1, 1, REG1_RD_MAX_OK));
+  for(i=0;i<4;++i) {
+    qregs_reg_w(1, 0, REG0_RD_MAX_SEL, i);
+    v = qregs_reg_r_fld(1, 2, REG2_SAMP);
+    printf(" %d: %d x%x\n", i, v, v);
+  }
+  qregs_reg_w(1, 0, REG0_RD_MAX, 0);
+  while(qregs_reg_r_fld(1, 1, REG1_RD_MAX_OK));
+  */
+  
   qregs_clr_ctrs();
   //  printf("   ctrs:   core_vlds %d   wrs %d   reqs %d   isk %d\n",
   //	 (v>>20)&0xf, (v>>16)&0xf, (v>>12)&0xf, (v>>8)&0xf);

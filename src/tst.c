@@ -44,9 +44,9 @@ void set_blocking_mode(struct iio_buffer *buf, int en) {
 }
 
 
-#define DAC_N (256)
+#define DAC_N (128)
 #define SYMLEN (4)
-#define PAT_LEN (DAC_N/SYMLEN)
+#define PAT_LEN (256/SYMLEN)
 // #define ADC_N (1024*16*16*8*4)
 //#define ADC_N (1024*16*16*8*4)
 // #define ADC_N 4144000
@@ -85,6 +85,10 @@ int min(int a, int b) {
   return b;
 }
 
+
+double sq(double a) {
+  return a*a;
+}
 
 int main(int argc, char *argv[]) {
   int num_dev, i, j, k, n, e, itr, sfp_attn_dB;
@@ -170,24 +174,27 @@ int main(int argc, char *argv[]) {
   
   qregs_set_use_lfsr(use_lfsr);
 
-  qregs_set_tx_always(tx_always);
+
+
+  qregs_set_tx_always(0); // set for real further down.
+  
   qregs_set_tx_0(tx_0);
 
 
-  i=128;  
-  //  i = ask_num("probe_len_bits", i);
+  i=16;  
+  i = ask_num("probe_len_bits", i);
   qregs_set_probe_len_bits(i);
   printf("probe_len_bits %d\n", st.probe_len_bits);
 
   
   //  d = 2;
-  d=10;
+  d=1;
   d = ask_num("probe_pd (us)", d);
   i = qregs_dur_us2samps(d);
   i = ((int)(i/64))*64;
 
   qregs_set_probe_pd_samps(i);
-  printf("probe_pd_samps %d = %.1Lf us\n", st.probe_pd_samps,
+  printf("probe_pd_samps %d = %.2Lf us\n", st.probe_pd_samps,
 	 qregs_dur_samps2us(st.probe_pd_samps));
 
   max_probe_per_buf = (int)floor(ADC_N/st.probe_pd_samps);
@@ -209,6 +216,7 @@ int main(int argc, char *argv[]) {
     probe_qty_req = ask_num("probe qty per itr", 10);
     
     num_bufs = ceil((double)probe_qty_req / max_probe_per_buf);
+    printf("  so num_bufs %d\n", num_bufs);
     probe_per_buf = ceil((double)probe_qty_req / num_bufs);
     probe_qty = num_bufs * probe_per_buf;
     if (probe_qty != probe_qty_req)
@@ -295,8 +303,8 @@ int main(int argc, char *argv[]) {
   if (!dac_ch1)
     err("dac lacks channel");
   chan_en(dac_ch0);
-  // chan_en(dac_ch1);
-  iio_channel_disable(dac_ch1);  
+  chan_en(dac_ch1);
+  //  iio_channel_disable(dac_ch1);  
 
 
   adc_ch0 = iio_device_get_channel(adc, 0);
@@ -319,19 +327,33 @@ int main(int argc, char *argv[]) {
   memset(mem, 0, sizeof(mem));
 
 
+  #define DMX (1<<14)
   if (!use_lfsr) {
-    j=0;
-    printf("pattern: ");
-    for(i=0; i<PAT_LEN; ++i) {
-      n=(pat[i]*2-1) * (32768/2);
-      if (i<8)
-	printf(" %d", n);
-      for(k=0;k<SYMLEN;++k)
-	mem[j++] = n;
+    int ch;
+    ch = ask_num("pattern (1=hdr, 2=ramp)", 2);
+
+    if (ch==2) {
+      printf("pattern: RAMP\n");
+      for(i=0; i<DAC_N; ++i) {
+	//	mem[i] = (int)((2.0*sq((double)i/DAC_N)-1.0) * (1<<13));
+	mem[i] = i*(1<<14)/DAC_N - (1<<13);
+	printf(" %d", mem[i]);
+      }
+      printf("\n");
+    }else {
+      j=0;
+      printf("pattern: ");
+      for(i=0; i<PAT_LEN; ++i) {
+	n=(pat[i]*2-1) * (32768/2);
+	if (i<8)
+	  printf(" %d", n);
+	for(k=0;k<SYMLEN;++k)
+	  mem[j++] = n;
+      }
+      printf("...\n");
+      printf("  %d DAC samps\n", j);
+      if (j!=DAC_N) printf("ERR: expected %d\n", DAC_N);
     }
-    printf("...\n");
-    printf("  %d DAC samps\n", j);
-    if (j!=DAC_N) printf("ERR: expected %d\n", DAC_N);
   }
 
 
@@ -369,14 +391,23 @@ int main(int argc, char *argv[]) {
     err(errmsg);
   }
   
-  //  prompt("first prompt ");
-    prompt("will write chan");
+
+  //    prompt("will write chan");
     
     // calls convert_inverse and copies data into buffer
     sz = iio_channel_write(dac_ch0, dac_buf, mem, sizeof(mem));
     // returned 256=DAC_N*2, makes sense
     printf("wrote ch0 to dac_buf sz %zd\n", sz);
 
+
+  qregs_set_use_lfsr(use_lfsr);
+  if (!use_lfsr) {
+    qregs_set_tx_mem_circ(1);
+  }
+
+  qregs_set_tx_always(tx_always);
+
+    
 
     qregs_print_adc_status();
   
@@ -400,7 +431,7 @@ int main(int argc, char *argv[]) {
       qregs_txrx(1);
 
       qregs_print_adc_status();
-      prompt("will make adc buf");
+      //    prompt("will make adc buf");
 
       sz = iio_device_get_sample_size(adc);  // sz=4;
       adc_buf_sz = sz * buf_len_samps;
@@ -411,8 +442,8 @@ int main(int argc, char *argv[]) {
       // supposedly creating buffer commences DMA
 
 
-      qregs_print_adc_status();
-      prompt("made buf, next will refill buf");
+      //      qregs_print_adc_status();
+      //      prompt("made buf, next will refill buf");
 
 
       if (opt_corr) {
@@ -431,9 +462,12 @@ int main(int argc, char *argv[]) {
       void *p;
       sz = iio_buffer_refill(adc_buf);
 
-      qregs_print_adc_status();
-      if (sz<0) err("cant refill buffer");
-      prompt("refilled buf");
+      //      qregs_print_adc_status();
+      if (sz<0) {
+	sprintf(errmsg, "cant refill adc bufer %d", b_i);
+	err(errmsg);
+      }
+      //      prompt("refilled buf");
       
       if (sz != adc_buf_sz)
 	printf("tried to refill %d but got %d\n", adc_buf_sz, sz);

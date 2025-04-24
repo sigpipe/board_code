@@ -6,6 +6,7 @@
 typedef struct qregs_st {
   int use_lfsr;
   int tx_always;
+  int tx_mem_circ;
   int tx_0;
   int probe_pd_samps;
   int probe_len_bits;
@@ -30,10 +31,18 @@ void qregs_set_meas_noise(int en);
 void qregs_rst_sfp_gth(void);
 
 void qregs_set_use_lfsr(int use_lfsr);
+// en: 1 = code generates a header from an LFSR, sends to DAC
+//     0 = code reads memory and sends that to DAC.
+//     
 
 void qregs_set_tx_always(int en);
 
 void qregs_set_tx_0(int tx_0);
+
+void qregs_set_tx_mem_circ(int en);
+// Only has an effect when not using lfsr and txing from mem.
+// en: 0 = mem read once, then it stops
+//     1 = mem is re-read circularly.
 
 void qregs_set_probe_pd_samps(int probe_pd_samps);
 
