@@ -97,12 +97,12 @@ int check(char *buf, char *key, int *param) {
 int cmd_probe_len(int arg) {
   int len;
   if (!parse_int(&len)) {
-    printf("probe_len %d (bits)\n", len);
-    qregs_set_probe_len_bits(len);
+    printf("hdr_len %d (bits)\n", len);
+    qregs_set_hdr_len_bits(len);
   }
-  if (st.probe_len_bits != len)
-    printf("WARN: probe len actually %d\n", st.probe_len_bits);
-  sprintf(rbuf, "0 %d", st.probe_len_bits);
+  if (st.hdr_len_bits != len)
+    printf("WARN: hdr len actually %d\n", st.hdr_len_bits);
+  sprintf(rbuf, "0 %d", st.hdr_len_bits);
   return 0;
 }
 
@@ -117,22 +117,22 @@ int cmd_lfsr_en(int arg) {
   return 0;
 }
 
-int cmd_probe_pd(int arg) {
+int cmd_frame_pd(int arg) {
   int pd;
   if (!parse_int(&pd)) {
-    printf("probe_pd %d\n", pd);
-    qregs_set_probe_pd_samps(pd);
+    printf("frame_pd %d\n", pd);
+    qregs_set_frame_pd_asamps(pd);
   }
-  sprintf(rbuf, "0 %d", st.probe_pd_samps);
+  sprintf(rbuf, "0 %d", st.frame_pd_asamps);
   return 0;
 }
 
-int cmd_probe_qty(int arg) {
+int cmd_frame_qty(int arg) {
   int qty;
   if (parse_int(&qty)) return CMD_ERR_NO_INT;
-  printf("probe_qty %d\n", qty);
-  qregs_set_probe_qty(qty);
-  sprintf(rbuf, "0 %d", st.probe_qty);
+  printf("frame_qty %d\n", qty);
+  qregs_set_frame_qty(qty);
+  sprintf(rbuf, "0 %d", st.frame_qty);
   return 0;
 }
 
@@ -208,8 +208,8 @@ cmd_info_t cmds_info[]={
   {"tx",        cmd_tx,        0, 0},
   {"tx_always", cmd_tx_always, 0, 0},
   {"tx_0",      cmd_tx_0,      0, 0},
-  {"probe_pd",  cmd_probe_pd,  0, 0},
-  {"probe_qty", cmd_probe_qty, 0, 0},
+  {"frame_pd",  cmd_frame_pd,  0, 0},
+  {"frame_qty", cmd_frame_qty, 0, 0},
   {"probe_len", cmd_probe_len, 0, 0},
   {"q",         cmd_q,         0, 0},
   {"shutdown",  cmd_shutdown,  0, 0},
@@ -314,11 +314,11 @@ int main(void) {
   qregs_set_tx_always(0);
   qregs_set_tx_0(0);
   i = qregs_dur_us2samps(2);
-  qregs_set_probe_pd_samps(i);
-
+  qregs_set_frame_pd_asamps(i);
+  qregs_set_osamp(4);
   
 
-  qregs_set_probe_qty(10);
+  qregs_set_frame_qty(10);
 
   
   while (1) {
