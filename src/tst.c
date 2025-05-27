@@ -185,7 +185,7 @@ int main(int argc, char *argv[]) {
 
 
   if (tst_sync) {
-    is_alice = ask_num("is alice", 1);
+    is_alice = ask_num("is alice", 0);
     qregs_set_alice_syncing(is_alice);
     qregs_set_tx_same_hdrs(!is_alice);
   }else {
@@ -632,6 +632,8 @@ int main(int argc, char *argv[]) {
   fprintf(fp,"meas_noise = %d;\n",   meas_noise);
   fprintf(fp,"noise_dith = %d;\n",   noise_dith);
   fprintf(fp,"tx_always = %d;\n",    st.tx_always);
+  fprintf(fp,"tx_same_hdrs = %d;\n", st.tx_same_hdrs);
+  fprintf(fp,"alice_syncing = %d;\n", st.alice_syncing);
   fprintf(fp,"search = %d;\n",       search);
   fprintf(fp,"osamp = %d;\n",        st.osamp);
   fprintf(fp,"rand_body_en = %d;\n", st.rand_body_en);

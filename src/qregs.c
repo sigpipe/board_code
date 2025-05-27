@@ -8,6 +8,10 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include "qregs.h"
+
+// constants for register fields (H_*) are defined in this file:
+#include "h_vhdl_extract.h"
+
 #include <sys/param.h>
 
 
@@ -63,7 +67,7 @@ int baseaddrs[]={BASEADDR_QREGS, BASEADDR_ADC};
 //#define REG0_RD_MAX_SEL    (0x000000c0)
 #define AREG0_SEARCH        (0x00000040)
 #define AREG0_CORRSTART     (0x00000080)
-#define AREG0_PROC_CLR_CNTS (0x00000100)
+//#define AREG0_PROC_CLR_CNTS (0x00000100)
 #define AREG0_LFSR_RST_ST   (0x07ff0000)
 
 
@@ -93,7 +97,7 @@ int baseaddrs[]={BASEADDR_QREGS, BASEADDR_ADC};
 #define AREG5_PWR_THRESH     (0x00003fff)
 #define AREG5_CORR_THRESH    (0x00ffc000)
 
-#define AREG6_SYNC_DLY       (0x00ffffff)
+// #define AREG6_SYNC_DLY       (0x00ffffff)
 // In vhdl, the num_probes works, so does frame_pd.
 // non-lfsr only transmots one probe.
 
@@ -167,9 +171,64 @@ unsigned ext(int v, unsigned int fldmsk) {
   return v & fldmsk;
 }
 
+
+
+
 unsigned qregs_reg_r_fld(int map_i, int reg_i, unsigned int fldmsk) {
   return ext(qregs_reg_r(map_i, reg_i), fldmsk);
 }
+
+
+
+
+
+// these conform to the h_access_funcs prototypes:
+
+int qregs_r(int regconst) {
+// desc: reads an entire register, returns the value
+  int rv, rs = H_2SPACE(regconst);
+  int reg_i = H_2REG(regconst);  
+  rv = *(st.memmaps[rs] + reg_i);
+  qregs_regs[rs][reg_i] = rv;
+  return rv;
+}
+
+int qregs_r_fld(int regconst) {
+  int rv=qregs_r(regconst);
+  return H_EXT(regconst, rv);
+}
+
+void qregs_w(int regconst, int v){
+// desc: writes an entire register  
+  int rs = H_2SPACE(regconst);
+  int reg_i = H_2REG(regconst);
+  *(st.memmaps[rs] + reg_i) = v;
+  qregs_regs[rs][reg_i] = v;
+}
+
+void qregs_w_fld(int regconst, int v){
+// desc: writes an entire register using the cached register value,
+//       and filling in the specified field.
+//       Might or might not be more efficent than qregs_rmw_fld.
+  int rs = H_2SPACE(regconst);
+  int reg_i = H_2REG(regconst);
+  int rv = qregs_regs[rs][reg_i];
+  qregs_w(regconst, H_INS(regconst, rv, v));
+}
+
+void qregs_rmw_fld(int regconst, int v){
+// desc: read-modify-write, filling in the specified field  
+  int rs    = H_2SPACE(regconst);
+  int reg_i = H_2REG(regconst);
+  int rv = qregs_r(regconst);
+  qregs_w(regconst, H_INS(regconst, rv, v));
+}
+
+void qregs_pulse(int regconst) {
+  qregs_w_fld(regconst, 1);
+  qregs_w_fld(regconst, 0);
+}
+
 
 void qregs_clr_ctrs(void) {
   qregs_reg_w(1, 0, REG0_CLR_CTRS, 1);
@@ -247,61 +306,64 @@ void qregs_set_sync_dly_asamps(int sync_dly_asamps) {
   dly = (sync_dly_asamps + 10*st.frame_pd_asamps) % st.frame_pd_asamps;
   printf("dly %d\n", dly);
   st.sync_dly = dly;
-  qregs_reg_w(1, 6, AREG6_SYNC_DLY, dly);
+  qregs_w_fld(H_ADC_SYNC_DLY, dly);// reg_w(1, 6, AREG6_SYNC_DLY, dly);
 }
 
 void qregs_set_hdr_det_thresh(int hdr_pwr, int hdr_corr) {
   if (qregs_ver[1]<2) return;
-  hdr_pwr = MIN(hdr_pwr, msk2maxval(AREG5_PWR_THRESH));
-  qregs_reg_w(1, 5, AREG5_PWR_THRESH, hdr_pwr);
+
+#define MAX_PWR_THRESH H_2VMASK(H_ADC_HDR_PWR_THRESH)
+  hdr_pwr = MIN(hdr_pwr, MAX_PWR_THRESH);
+  qregs_w_fld(H_ADC_HDR_PWR_THRESH, hdr_pwr);
   st.hdr_pwr_thresh = hdr_pwr;
-  hdr_corr = MIN(hdr_corr, msk2maxval(AREG5_CORR_THRESH));
-  qregs_reg_w(1, 5, AREG5_CORR_THRESH, hdr_corr);
+  
+#define MAX_CORR_THRESH   H_2VMASK(H_ADC_HDR_THRESH)
+  hdr_corr = MIN(hdr_corr, MAX_CORR_THRESH);
+  qregs_w_fld(H_ADC_HDR_THRESH, hdr_corr);
   st.hdr_corr_thresh = hdr_corr;
 }
 
 void qregs_set_lfsr_rst_st(int lfsr_rst_st) {
-  qregs_reg_w(0, 5, DREG5_LFSR_RST_ST, lfsr_rst_st);
-  qregs_reg_w(1, 0, AREG0_LFSR_RST_ST, lfsr_rst_st);
+  qregs_w_fld(H_ADC_ACTL_LFSR_RST_ST, lfsr_rst_st);
+  qregs_w_fld(H_DAC_HDR_LFSR_RST_ST, lfsr_rst_st);
   st.lfsr_rst_st = lfsr_rst_st;
 }
 
 void qregs_set_use_lfsr(int use_lfsr) {
   int i = !!use_lfsr;
-  i = qregs_reg_w(0, 2, REG2_USE_LFSR, i);
+  qregs_w_fld(H_DAC_CTL_USE_LFSR, i);
   st.use_lfsr = i;
-  
 }
 
 void qregs_set_rand_body_en(int en) {
   int i = !!en;
-  i = qregs_reg_w(0, 2, REG2_RAND_BODY_EN, i);
+  qregs_w_fld(H_DAC_CTL_RAND_BODY, i);
   st.rand_body_en = i;
 }
 
 
 void qregs_set_tx_0(int tx_0) {
   int i = !!tx_0;
-  i = qregs_reg_w(0, 2, REG2_TX_0, i);
+  qregs_w_fld(H_DAC_CTL_TX_0, i);
   st.tx_0 = i;  
 }
 
 void qregs_set_tx_always(int en) {
   int i = !!en;
-  i = qregs_reg_w(0, 2, REG2_TX_ALWAYS, i);
+  qregs_w_fld(H_DAC_CTL_TX_ALWAYS, i);  
   st.tx_always = i;
 }
 
 
 void qregs_set_tx_mem_circ(int en) {
   int i = !!en;
-  i = qregs_reg_w(0, 2, REG2_MEMTX_CIRC, i);
+  qregs_w_fld(H_DAC_CTL_MEMTX_CIRC, i);
   st.tx_mem_circ = i;
 }
 
 void qregs_set_tx_same_hdrs(int same) {
   int i = !!same;
-  i = qregs_reg_w(0, 2, REG2_SAME_HDRS, i);
+  qregs_w_fld(H_DAC_CTL_SAME_HDRS, i);
   st.tx_same_hdrs = i;
 }
 
@@ -360,32 +422,33 @@ void qregs_set_frame_pd_asamps(int frame_pd_asamps) {
 void qregs_print_hdr_det_status(void) {
   int v, qty;
   short int s;
-  qregs_reg_w(1, 2, AREG2_PROC_SEL, 0);
+  qregs_w_fld(H_ADC_CSTAT_PROC_SEL, 0);
+  
   v=qregs_reg_r(1, 2);
+  printf("\nHDR DET STATUS\n");
   printf("  search_success %d\n", ext(v, AREG2_PS0_HDR_FOUND));
   printf("    pd_ctr_going %d\n", ext(v, AREG2_PS0_PD_CTR_GOING));
   printf("         hdr_cyc %d\n", ext(v, AREG2_PS0_HDR_CYC));
   
-  qregs_reg_w(1, 2, AREG2_PROC_SEL, 3);
-  v=qregs_reg_r(1, 2);
+  qregs_w_fld(H_ADC_CSTAT_PROC_SEL, 3);
+  v = qregs_r_fld(H_ADC_CSTAT_PROC_DOUT);
   qty  = ext(v, AREG2_PS2_HDR_DET_CNT);
   printf("    hdr_det_qty %d\n", qty);
 
-  qregs_reg_w(1, 2, AREG2_PROC_SEL, 1);
-  v=qregs_reg_r(1, 2);
+  qregs_w_fld(H_ADC_CSTAT_PROC_SEL, 1);
+  v = qregs_r_fld(H_ADC_CSTAT_PROC_DOUT);  
   printf("        hdr_mag %d\n", v);
 
   if (qty) {
-  qregs_reg_w(1, 2, AREG2_PROC_SEL, 2);
-  v=qregs_reg_r(1, 2);
-  s = ext(v, AREG2_PS2_HDR_CYC_SUM);
-  printf("    hdr_cyc_sum %d\n", (int)s);
-  printf("    hdr_cyc_avg %d\n", (int)s/qty);
+    qregs_w_fld(H_ADC_CSTAT_PROC_SEL, 2);  
+    v = qregs_r_fld(H_ADC_CSTAT_PROC_DOUT);  
+    s = ext(v, AREG2_PS2_HDR_CYC_SUM);
+    printf("    hdr_cyc_sum %d\n", (int)s);
+    printf("    hdr_cyc_avg %d\n", (int)s/qty);
   }
   
 
-  qregs_reg_w(1, 0, AREG0_PROC_CLR_CNTS, 1);  
-  qregs_reg_w(1, 0, AREG0_PROC_CLR_CNTS, 0);
+  qregs_pulse(H_ADC_PCTL_PROC_CLR_CNTS);
   
 }
 

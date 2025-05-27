@@ -7,9 +7,9 @@ default: qregd tst
 
 
 qregd: $(QSRCS:%=obj/%.o)
-	gcc $(QSRCS:%=obj/%.o) -lm -liio -o $@ 
+	gcc -L. $(QSRCS:%=obj/%.o) -lm -liio  -o $@ 
 tst: $(TSRCS:%=obj/%.o)
-	gcc $(TSRCS:%=obj/%.o) -lm -liio -o $@ 
+	gcc -L. $(TSRCS:%=obj/%.o) -lm -liio  -o $@ 
 
 obj/%.o: src/%.c
 	gcc $< -c -o $@
