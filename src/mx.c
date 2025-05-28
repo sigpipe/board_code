@@ -28,7 +28,7 @@ static void strcat_s(char *dst, int dst_size, char *src) {
 
 #define MX_CLOSE_TO_0 (1e-16)
 
-extern int dbg_lvl;
+int mx_dbg_lvl;
 
 char mx_errmsg[512];
 void mx_bug(mx_t m, char *func, char *msg) {
@@ -213,7 +213,7 @@ void mx_realloc(mx_t m, int mem_size) {
     mem_size = (mem_size+MX_MEM_ALLOC_INC-1)/MX_MEM_ALLOC_INC;
     mem_size *= MX_MEM_ALLOC_INC;
 
-    if (dbg_lvl==19)
+    if (mx_dbg_lvl==19)
       printf("\nrealloc %dx%d  mem %d -> %d\n",
 	     mx_h(m), mx_w(m),
 	     m->mem_size, mem_size);
@@ -271,23 +271,23 @@ void mx_set(mx_t m, int r, int c, double v) {
   if ((r>=ho)||(c>=wo)) {
     hn = local_max(r+1, ho);
     wn = local_max(c+1, wo);
-    if (dbg_lvl==19)
+    if (mx_dbg_lvl==19)
       printf("  new size %dx%d\n", hn, wn);
     mx_realloc(m, hn*wn);
     // resize, copying data
-    if (dbg_lvl==19)
+    if (mx_dbg_lvl==19)
       printf("\nresize %dx%d -> %dx%d: ", ho, wo, hn, wn);
     for (rr=hn-1;rr>=0;--rr) {
       for (cc=wn-1; cc>=0; --cc) {
-	if (dbg_lvl==19)
+	if (mx_dbg_lvl==19)
 	  printf("m[%d,%d]=", rr,cc);
         if ((cc>=wo)||(rr>=ho)) {
 	  m->mem[rr*wn+cc]=0;
-	  if (dbg_lvl==19) printf("DBG: 0 %d %d", rr,cc);
+	  if (mx_dbg_lvl==19) printf("DBG: 0 %d %d", rr,cc);
 	}
 	else if (rr*wn+cc==rr*wo+cc) break;
 	else {
-	  if (dbg_lvl==19)
+	  if (mx_dbg_lvl==19)
 	    printf(" %g", m->mem[rr*wo+cc]);
 	  m->mem[rr*wn+cc]=m->mem[rr*wo+cc];
 	}
@@ -298,7 +298,7 @@ void mx_set(mx_t m, int r, int c, double v) {
     wo=wn;
   }
   m->mem[wo*r+c]=v;
-  if (dbg_lvl==19) {
+  if (mx_dbg_lvl==19) {
     printf("%dx%d\n", m->h, m->w);
 
     for (rr=0; rr<m->h; ++rr) {

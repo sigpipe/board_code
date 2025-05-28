@@ -21,88 +21,19 @@
 int baseaddrs[]={BASEADDR_QREGS, BASEADDR_ADC};
 #define BASEADDRS_NUM (sizeof(baseaddrs)/sizeof(int))
 
-#define REGSSIZE  (64)
-
-
-
-// DAC regs
-// in baseaddr space 0
-//#define REG0_FRAME_PD_CYCS_MIN1  (0x00ffffff)
-
-//#define REG1_FRAME_QTY_MIN1 (0x0000ffff)
-
-
-//#define REG2_TX_UNSYNC      (0x80000000)
-//#define REG2_RAND_BODY_EN   (0x40000000)
-//#define REG2_USE_LFSR       (0x20000000)
-//#define REG2_TX_ALWAYS      (0x10000000)
-//#define REG2_TX_0           (0x08000000)
-//#define REG2_MEMTX_CIRC     (0x04000000)
-//#define REG2_ALICE_SYNCING  (0x02000000)
-//#define REG2_SAME_HDRS      (0x01000000)
-//#define REG2_HDR_LEN_CYCS_MIN1 (0x000ff000)
-#define REG2_SFP_GTH_RST    (0x00100000)
-//#define REG2_OSAMP_MIN1     (0x00000c00)
-//#define REG2_BODY_LEN_CYCS_MIN1  (0x000003ff)
-
-//#define REG3_VERSION        (0x000000f0)
-//#define REG3_GTH_STATUS     (0x0000000f)
-
-//#define REG4_IM_HDR         (0xffff0000)
-//#define REG4_IM_BODY        (0x0000ffff)
-
-//#define DREG5_LFSR_RST_ST    (0x000007ff)
-
-
-
-// ADC regs
-// in baseaddr space 1
-#define REG0_CLR_CTRS      (0x00000001)
-//#define REG0_MEAS_NOISE_EN (0x00000002)
-//#define AREG0_TXRX_EN       (0x00000004)
-//#define AREG0_NEW_GO_EN     (0x00000008)
-//#define AREG0_OSAMP_MIN1    (0x00000030)
-//#define REG0_CLR_OVF       (0x00000010)
-//#define REG0_RD_MAX        (0x00000020)
-//#define REG0_RD_MAX_SEL    (0x000000c0)
-//#define AREG0_SEARCH        (0x00000040)
-//#define AREG0_CORRSTART     (0x00000080)
-//#define AREG0_PROC_CLR_CNTS (0x00000100)
-//#define AREG0_LFSR_RST_ST   (0x07ff0000)
-
-
-//#define REG1_VERSION        (0xff000000)
-//#define REG1_TXRX_CNT       (0x000f0000)
-//#define REG1_DMAREQ_CNT     (0x0000f000)
-//#define REG1_ADC_GO_CNT     (0x00000f00)
-//#define REG1_DMA_WREADY_CNT (0x000000f0)
-//#define REG1_ADCFIFO_OVF    (0x00000008)
-//#define REG1_ADCFIFO_BUG    (0x00000004)
-//#define REG1_DMAREQ         (0x00000001)
+#define MMAP_REGSSIZE  (64)
 
 
 //#define AREG2_PROC_SEL         (0x00000003)
 
 #define AREG2_PS0_HDR_FOUND    (0x80000000)
-#define AREG2_PS0_PD_CTR_GOING (0x40000000)
+#define AREG2_PS0_FRAMER_GOING (0x40000000)
 #define AREG2_PS0_HDR_CYC      (0x03ffffff)
 #define AREG2_PS2_HDR_CYC_SUM  (0x0000ffff)
 #define AREG2_PS2_HDR_DET_CNT  (0x0000ffff)
 
-//#define AREG3_FRAME_PD_CYCS_MIN1 (0x00ffffff)
-
-//#define AREG4_FRAME_QTY_MIN1    (0xffff0000)
-//#define AREG4_HDR_LEN_CYCS_MIN1 (0x000000ff)
-
-//#define AREG5_PWR_THRESH     (0x00003fff)
-//#define AREG5_CORR_THRESH    (0x00ffc000)
-
-// #define AREG6_SYNC_DLY       (0x00ffffff)
-// In vhdl, the num_probes works, so does frame_pd.
-// non-lfsr only transmots one probe.
 
 
-// static int *p;
 
 qregs_st_t st={0};
 
@@ -144,6 +75,7 @@ int msk2maxval(unsigned int msk) {
 int qregs_regs[2][8];
 int qregs_ver;
 
+/*
 unsigned qregs_reg_w(int map_i, int reg_i, unsigned int fldmsk, unsigned val) {
   int v = qregs_regs[map_i][reg_i];
   int s = msk2bpos(fldmsk);
@@ -154,12 +86,15 @@ unsigned qregs_reg_w(int map_i, int reg_i, unsigned int fldmsk, unsigned val) {
   qregs_regs[map_i][reg_i] = v;
   return val;
 }
+*/
+/*
 unsigned qregs_reg_r(int map_i, int reg_i) {
   int v;
   v = *(st.memmaps[map_i] + reg_i);
   qregs_regs[map_i][reg_i] = v;
   return v;
 }
+*/
 
 unsigned ext(int v, unsigned int fldmsk) {
   int i;
@@ -174,9 +109,9 @@ unsigned ext(int v, unsigned int fldmsk) {
 
 
 
-unsigned qregs_reg_r_fld(int map_i, int reg_i, unsigned int fldmsk) {
-  return ext(qregs_reg_r(map_i, reg_i), fldmsk);
-}
+//unsigned qregs_reg_r_fld(int map_i, int reg_i, unsigned int fldmsk) {
+//  return ext(qregs_reg_r(map_i, reg_i), fldmsk);
+//}
 
 
 
@@ -231,12 +166,9 @@ void qregs_pulse(int regconst) {
 }
 
 
-void qregs_clr_ctrs(void) {
-  qregs_reg_w(1, 0, REG0_CLR_CTRS, 1);
-  //  qregs_reg_w(1, 0, REG0_CLR_OVF, 1);
-  qregs_reg_w(1, 0, REG0_CLR_CTRS, 0);
-  //  qregs_reg_w(1, 0, REG0_CLR_OVF, 0);
-}
+//void qregs_clr_ctrs(void) {
+//  qregs_pulse(H_ADC_PCTL_PROC_CLR_CNTS);
+//}
 
 
 void mprompt(char *prompt) {
@@ -258,7 +190,7 @@ int qregs_init(void) {
   qregs_fd = open("/dev/mem", O_RDWR | O_SYNC);
   if (qregs_fd < 0) return qregs_err("cannot open /dev/mem");
   for(i=0;i<BASEADDRS_NUM; ++i) {
-    p = (int *)mmap(0, REGSSIZE, PROT_READ | PROT_WRITE,
+    p = (int *)mmap(0, MMAP_REGSSIZE, PROT_READ | PROT_WRITE,
     			      MAP_SHARED, // | MAP_FIXED,
 			      qregs_fd, baseaddrs[i]);
     st.memmaps[i]=p;
@@ -282,10 +214,10 @@ int qregs_init(void) {
 
 
   qregs_ver = H_FWVER;
-  i = qregs_r_fld(H_DAC_STATUS_VERSION);
+  i = qregs_r_fld(H_DAC_STATUS_FWVER);
   if (qregs_ver != i)
     printf("ERR: quanet_dac fwver not %d\n", i, qregs_ver);
-  i = qregs_r_fld(H_ADC_STAT_ADCFIFO_VER);
+  i = qregs_r_fld(H_ADC_STAT_FWVER);
   if (qregs_ver != i)
     printf("ERR: quanet_adc fwver %d not %d\n", i, qregs_ver);
   
@@ -434,12 +366,12 @@ void qregs_set_frame_pd_asamps(int frame_pd_asamps) {
 void qregs_print_hdr_det_status(void) {
   int v, qty;
   short int s;
-  qregs_w_fld(H_ADC_CSTAT_PROC_SEL, 0);
   
-  v=qregs_reg_r(1, 2);
+  qregs_w_fld(H_ADC_CSTAT_PROC_SEL, 0);
+  v=qregs_r_fld(H_ADC_CSTAT_PROC_DOUT);
   printf("\nHDR DET STATUS\n");
-  printf("  search_success %d\n", ext(v, AREG2_PS0_HDR_FOUND));
-  printf("    pd_ctr_going %d\n", ext(v, AREG2_PS0_PD_CTR_GOING));
+  printf("       hdr_found %d\n", ext(v, AREG2_PS0_HDR_FOUND));
+  printf("    framer_going %d\n", ext(v, AREG2_PS0_FRAMER_GOING));
   printf("         hdr_cyc %d\n", ext(v, AREG2_PS0_HDR_CYC));
 
   qregs_w_fld(H_ADC_CSTAT_PROC_SEL, 5);
@@ -499,10 +431,10 @@ void qregs_print_adc_status(void) {
 	 H_EXT(H_ADC_STAT_DMA_XFER_REQ_RC, v));
 
   printf("     dmareq_cnt %d\n", H_EXT(H_ADC_STAT_XFER_REQ_CNT, v));
-  printf("     adc_go_cnt %d\n", H_EXT(H_ADC_STAT_ADC_GO_CNT, v));
+  printf("    save_go_cnt %d\n", H_EXT(H_ADC_STAT_SAVE_GO_CNT, v));
   printf(" dma_wready_cnt %d\n", H_EXT(H_ADC_STAT_DMA_WREADY_CNT, v));
 
-  
+  qregs_pulse(H_ADC_PCTL_CLR_CTRS);
   /*
   qregs_reg_w(1, 0, REG0_RD_MAX, 1);
   while(!qregs_reg_r_fld(1, 1, REG1_RD_MAX_OK));
@@ -515,7 +447,7 @@ void qregs_print_adc_status(void) {
   while(qregs_reg_r_fld(1, 1, REG1_RD_MAX_OK));
   */
   
-  qregs_clr_ctrs();
+  //  qregs_clr_ctrs();
   //  printf("   ctrs:   core_vlds %d   wrs %d   reqs %d   isk %d\n",
   //	 (v>>20)&0xf, (v>>16)&0xf, (v>>12)&0xf, (v>>8)&0xf);
   //  printf("isk %d   dev_rst %d   core_rst %d   core_vld %d   link_vld %d   req %d\n",
@@ -575,9 +507,7 @@ void qregs_set_im_hdr_dac(int hdr_dac) {
 void qregs_rst_sfp_gth(void) {
 // resets the GTH that is the reference for the SFP.
 // When Corundum is integrated, this will go away.
-  qregs_reg_w(0, 2, REG2_SFP_GTH_RST, 1);
-  usleep(1000);
-  qregs_reg_w(0, 2, REG2_SFP_GTH_RST, 0);
+  qregs_pulse(H_DAC_PCTL_GTH_RST);
 }
 
 
@@ -586,12 +516,19 @@ void qregs_search_en(int en) {
   qregs_w_fld(H_ADC_ACTL_SEARCH, i);
 }
 
+void qregs_alice_sync_en(int en) {
+  int v = qregs_r(H_ADC_ACTL);
+  v = H_INS(H_ADC_ACTL_SEARCH, v, en);
+  v = H_INS(H_ADC_ACTL_TXRX_EN, v, en);
+  qregs_w(H_ADC_ACTL, v);
+}
+
 void qregs_txrx(int en) {
   // desc: we only take ADC samples, and transmit DAC samps,
   //       while txrx is high.
   int v=!!en;
-  if (qregs_ver >= 1)
-    qregs_w_fld(H_ADC_ACTL_TXRX_EN, v);
+
+  qregs_w_fld(H_ADC_ACTL_TXRX_EN, v);
   
 }
 
@@ -607,7 +544,7 @@ int qregs_done() {
   int e, i;
   for(i=0;i<BASEADDRS_NUM; ++i)
     if (st.memmaps[i]) {
-      e = munmap(st.memmaps[i], REGSSIZE);
+      e = munmap(st.memmaps[i], MMAP_REGSSIZE);
       if (e) return qregs_err("mem unmap failed");
     }
   return 0;

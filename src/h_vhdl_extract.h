@@ -1,7 +1,7 @@
 // h_vhdl_extract.h
 // hardware access constants
 // This file was automatically generated
-// by Register Extractor (ver 4.13) on Tue May 27 20:45:19 2025
+// by Register Extractor (ver 4.13) on Wed May 28 18:59:43 2025
 // compile version Tue Jun 29 16:33:14 2021
 // current dir:  C:\reilly\proj\quanet\quanet_hdl\projects\daq3\zcu106
 // DO NOT MODIFY THIS FILE!
@@ -14,11 +14,13 @@
 #ifndef __H_VHDL_EXTRACT_H__
 #define __H_VHDL_EXTRACT_H__
 
+//#include <xparameters.h>
+//#include <xio.h>
 
 // version constants
 #define H_VHDL_EXTRACT_VER (4)
 #define H_VHDL_EXTRACT_SUBVER (13)
-#define H_VHDL_EXTRACT_DATE "Tue May 27 20:45:19 2025"
+#define H_VHDL_EXTRACT_DATE "Wed May 28 18:59:43 2025"
 #define H_VHDL_EXTRACT_DIR "C:\reilly\proj\quanet\quanet_hdl\projects\daq3\zcu106"
 
 
@@ -26,7 +28,6 @@
           // -- std_logic_vector(31 downto 0) := x"8fffffff");
           // -- std_logic_vector(31 downto 0) := x"80000000";  -- start addr in DDR
           // -- std_logic_vector(G_BODY_CHAR_POLY)'length;
-#define H_FWVER (2)
 #define H_CORR_MEM_D_W (16)
 #define H_CTR_W (4)
 #define H_PASS_W (6)
@@ -39,6 +40,7 @@
 #define H_OSAMP_W (2)
 #define H_HDR_LEN_W (8)
 #define H_FRAME_PD_W (24)
+#define H_FWVER (2)
 
 // regextractor can handle more than one register space
 #define H_NUM_REGSPACES (2)
@@ -53,20 +55,23 @@
 #define H_DAC (0)
 
 #define H_DAC_FR1                     0x00000000  /* 0 */
-#define H_DAC_FR1_FRAME_PD_MIN1       0x00000300  /* 0x00ffffff  rw */
+#define H_DAC_FR1_REG_W               0x00000400  /* 0xffffffff  r  */
+#define H_DAC_FR1_FRAME_PD_MIN1       0x00000300  /* 0x00ffffff   w */
                                        // r 0xffffffff
-                                       // w 0xffffffff
+                                       // w 0x00ffffff
 
 #define H_DAC_FR2                     0x00001000  /* 1 */
-#define H_DAC_FR2_FRAME_QTY_MIN1      0x00001200  /* 0x0000ffff  rw */
+#define H_DAC_FR2_REG_W               0x00001400  /* 0xffffffff  r  */
+#define H_DAC_FR2_FRAME_QTY_MIN1      0x00001200  /* 0x0000ffff   w */
                                        // r 0xffffffff
-                                       // w 0xffffffff
+                                       // w 0x0000ffff
 
 #define H_DAC_CTL                     0x00002000  /* 2 */
 #define H_DAC_CTL_REG_W               0x00002400  /* 0xffffffff  r  */
 #define H_DAC_CTL_BODY_LEN_MIN1       0x00002140  /* 0x000003ff   w */
 #define H_DAC_CTL_OSAMP_MIN1          0x0000204a  /* 0x00000c00   w -- oversampling: 0=1,1=2,3=4 */
 #define H_DAC_CTL_HDR_LEN_MIN1        0x0000210c  /* 0x000ff000   w -- in cycles, minus 1 */
+#define H_DAC_CTL_ALICE_TXING         0x00002035  /* 0x00200000   w */
 #define H_DAC_CTL_IM_PREEMPH          0x00002036  /* 0x00400000   w -- preemphasis for IM */
 #define H_DAC_CTL_TX_DBITS            0x00002037  /* 0x00800000   w -- alice transmits data */
 #define H_DAC_CTL_SAME_HDRS           0x00002038  /* 0x01000000   w -- tx all the same hdr */
@@ -78,11 +83,11 @@
 #define H_DAC_CTL_RAND_BODY           0x0000203e  /* 0x40000000   w -- bob sets to scramble frame bodies */
 #define H_DAC_CTL_TX_UNSYNC           0x0000203f  /* 0x80000000   w -- PROBALY WILL GO AWAY */
                                        // r 0xffffffff
-                                       // w 0xffcfffff
+                                       // w 0xffefffff
 
 #define H_DAC_STATUS                  0x00003000  /* 3 */
 #define H_DAC_STATUS_GTH_STATUS       0x00003080  /* 0x0000000f  r  */
-#define H_DAC_STATUS_VERSION          0x00003084  /* 0x000000f0  r  -- assign reg3_r[31:8] = 24'h0; */
+#define H_DAC_STATUS_FWVER            0x00003084  /* 0x000000f0  r  */
                                        // r 0x000000ff
                                        // w 0x00000000
 
@@ -106,6 +111,11 @@
                                        // r 0xffffffff
                                        // w 0x00000000
 
+#define H_DAC_PCTL                    0x00007000  /* 7 */
+#define H_DAC_PCTL_GTH_RST            0x0000703f  /* 0x80000000  rw */
+                                       // r 0xffffffff
+                                       // w 0xffffffff
+
 //
 // register space ADC
 //
@@ -119,18 +129,19 @@
 #define H_ADC_ACTL_OSAMP_MIN1      0x10000044  /* 0x00000030   w */
 #define H_ADC_ACTL_SEARCH          0x10000026  /* 0x00000040   w */
 #define H_ADC_ACTL_CORRSTART       0x10000027  /* 0x00000080   w */
+#define H_ADC_ACTL_ALICE_TXING     0x10000028  /* 0x00000100   w */
 #define H_ADC_ACTL_ALICE_SYNCING   0x10000029  /* 0x00000200   w */
 #define H_ADC_ACTL_LFSR_RST_ST     0x10000170  /* 0x07ff0000   w */
                                        // r 0xffffffff
-                                       // w 0x07ff02f6
+                                       // w 0x07ff03f6
 
 #define H_ADC_STAT                 0x10001000  /* 1 */
 #define H_ADC_STAT_DMA_XFER_REQ_RC 0x10001020  /* 0x00000001  r  -- for dbg */
 #define H_ADC_STAT_DMA_WREADY_CNT  0x10001084  /* 0x000000f0  r  */
-#define H_ADC_STAT_ADC_GO_CNT      0x10001088  /* 0x00000f00  r  */
+#define H_ADC_STAT_SAVE_GO_CNT     0x10001088  /* 0x00000f00  r  */
 #define H_ADC_STAT_XFER_REQ_CNT    0x1000108c  /* 0x0000f000  r  */
-#define H_ADC_STAT_ADCFIFO_VER     0x10001118  /* 0xff000000  r  */
-                                       // r 0xff00fff1
+#define H_ADC_STAT_FWVER           0x10001098  /* 0x0f000000  r  */
+                                       // r 0x0f00fff1
                                        // w 0x00000000
 
 #define H_ADC_CSTAT                0x10002000  /* 2 */
@@ -141,7 +152,7 @@
 
 #define H_ADC_FR1                  0x10003000  /* 3 */
 #define H_ADC_FR1_AREG_W           0x10003400  /* 0xffffffff  r  */
-#define H_ADC_FR1_FRAME_PD_MIN1    0x10003300  /* 0x00ffffff   w */
+#define H_ADC_FR1_FRAME_PD_MIN1    0x10003300  /* 0x00ffffff   w -- in cycles */
 #define H_ADC_FR1_NUM_PASS_MIN1    0x100030d8  /* 0x3f000000   w */
                                        // r 0xffffffff
                                        // w 0x3fffffff

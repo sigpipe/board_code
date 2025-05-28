@@ -1,17 +1,29 @@
 
 
 QSRCS = qregd cmd parse qna_usb util qregs
+QOBJS = $(QSRCS:%=obj/%.o)
 
 TSRCS = util qregs corr mx ini parse h_vhdl_extract
+TOBJS = obj/tst.o $(TSRCS:%=obj/%.o)
+THDRS = $(TSRCS:%=src/%.h)
+
+USRCS = util qregs corr mx ini parse h_vhdl_extract
+UOBJS = $(USRCS:%=obj/%.o)
+
+default: tst q
 
 
-default: qregd tst
+qregd: obj/qregd.o $(QOBJS)
+	gcc obj/qregd.o $(QOBJS) -lm -liio  -o $@
+
+tst:  $(TOBJS)
+	gcc $(TOBJS) -lm -liio  -o $@ 
+
+q:  obj/q.o $(UOBJS)
+	gcc obj/q.o $(UOBJS) -lm -liio  -o $@ 
 
 
-qregd: $(QSRCS:%=obj/%.o)
-	gcc -L. $(QSRCS:%=obj/%.o) -lm -liio  -o $@ 
-tst: obj/tst.o $(TSRCS:%=obj/%.o) $(TSRCS:%=src/%.h)
-	gcc -L. obj/tst.o $(TSRCS:%=obj/%.o) -lm -liio  -o $@ 
+$(TOBJS): $(THDRS)
 
 obj/%.o: src/%.c
 	gcc $< -c -o $@

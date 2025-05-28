@@ -251,7 +251,7 @@ int main(int argc, char *argv[]) {
 
   
   //  qregs_set_sync_dly_asamps(-346);
-  qregs_set_hdr_det_thresh(100, 50);
+  qregs_set_hdr_det_thresh(400, 40);
   qregs_set_sync_dly_asamps(-1020);
 
   i=32;  
@@ -259,7 +259,7 @@ int main(int argc, char *argv[]) {
   qregs_set_hdr_len_bits(i);
   printf("hdr_len_bits %d = %.2Lf ns\n", st.hdr_len_bits,
 	 qregs_dur_samps2us(st.hdr_len_bits*st.osamp)*1000);
-  printf("body_len_samps %d\n", st.body_len_samps);
+  printf("body_len_samps %d\n", st.body_len_asamps);
 
   i=0;
   i = ask_nnum("rand_body_en", i);
@@ -267,7 +267,7 @@ int main(int argc, char *argv[]) {
 
 
   search = ask_num("search for hdr", "search", 1);
-  qregs_set_rand_body_en(i);
+
   
   
   //qregs_set_im_hdr_dac(0);
@@ -512,8 +512,21 @@ int main(int argc, char *argv[]) {
       if (num_itr)
         *(times_s + itr) = (int)time(0);
 
-      qregs_search_en(search);      
-      qregs_txrx(1);
+      if (is_alice) {
+
+	/*
+  qregs_print_hdr_det_status();
+  prompt("OK");
+  qregs_print_hdr_det_status();
+  prompt("OK");
+	*/	
+	
+	printf("a sync\n");
+	qregs_alice_sync_en(1);
+      }else {
+        qregs_search_en(search);      
+        qregs_txrx(1);
+      }
 
       //      qregs_print_adc_status();
       //    prompt("will make adc buf");

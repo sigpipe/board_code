@@ -107,6 +107,8 @@ void qregs_print_hdr_det_status(void);
 void qregs_search_en(int en);
 // en: 1=starts a search for hdr
 
+void qregs_alice_sync_en(int en);
+
 void qregs_txrx(int en);
 
 
@@ -114,5 +116,17 @@ void qregs_txrx(int en);
 
 
 void qregs_dbg_new_go(int en);
+
+
+
+
+// lower level routines
+// (maybe should not be exported)
+int qregs_r_fld(int regconst);
+int qregs_r(int regconst);
+void qregs_w(int regconst, int v);
+void qregs_w_fld(int regconst, int v);
+void qregs_rmw_fld(int regconst, int v);
+void qregs_pulse(int regconst);
 
 #endif
