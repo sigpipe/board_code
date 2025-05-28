@@ -16,6 +16,7 @@
 #include <unistd.h>
 #include "corr.h"
 #include <time.h>
+#include "ini.h"
 
 char errmsg[256];
 void err(char *str) {
@@ -54,17 +55,48 @@ void set_blocking_mode(struct iio_buffer *buf, int en) {
 //  #define ADC_N (1024*16*32)
 
 
-double ask_num(char *prompt, double dflt) {
+ini_val_t *tvars;
+
+
+double ask_yn(char *prompt, char *var_name, int dflt) {
+  char c;
+  char buf[32];
+  int n, v;
+  if (var_name)
+    ini_get_int(tvars, var_name, &dflt);
+  printf("%s (y/n) ? [%c] > ", prompt, dflt?'y':'n');
+  n=scanf("%[^\n]", buf);
+  getchar();
+  if (n==1)
+    n=sscanf(buf, "%c", &c);
+  if (n!=1) v=dflt;
+  else v = (c=='y');
+  if (var_name)
+    ini_set_int(tvars, var_name, v);
+  return v;
+  
+}
+double ask_num(char *prompt, char *var_name, double dflt) {
   char buf[32];
   int n;
   double v;
-  printf("%s (%g)> ", prompt, dflt);
+
+  if (var_name)
+    ini_get_double(tvars, var_name, &dflt);
+  
+  printf("%s [%g] > ", prompt, dflt);
   n=scanf("%[^\n]", buf);
   getchar();
   if (n==1)
     n=sscanf(buf, "%Lf", &v);
   if (n!=1) v=dflt;
+  if (var_name)
+    ini_set_double(tvars, var_name, v);
   return v;
+}
+
+double ask_nnum(char *var_name, double dflt) {
+  return ask_num(var_name, var_name, dflt);
 }
 
 
@@ -118,7 +150,6 @@ int main(int argc, char *argv[]) {
 
   int num_bufs, p_i;
   double d, *corr;
-  
   long long int ll;
 
   for(i=1;i<argc;++i) {
@@ -132,8 +163,14 @@ int main(int argc, char *argv[]) {
 	return 1;}
     }
   }
-  
 
+  int meas_noise, noise_dith;
+  e =  ini_read("tvars.txt", &tvars);
+  if (e)
+    printf("ini err %d\n",e);
+
+
+  
   sfp_attn_dB = 0;
   //  sfp_attn_dB = ask_num("sfp_attn (dB)", sfp_attn_dB);
     
@@ -148,7 +185,7 @@ int main(int argc, char *argv[]) {
   
   int tst_sync=1;
   int is_alice;
-  int meas_noise, noise_dith;
+
   int use_lfsr=1;
   int tx_always=0;
   int tx_0=0;  
@@ -158,19 +195,19 @@ int main(int argc, char *argv[]) {
   int *times_s, t0_s;
 
   
-  meas_noise = (int)ask_num("meas_noise_0", 0);
+  meas_noise = ask_yn("meas_noise", "meas_noise", 0);
   if (meas_noise) {
     use_lfsr=1;
     tx_0=1;
     tx_always=0;
-    noise_dith=(int)ask_num("noise_dith", 1);
+    noise_dith=(int)ask_num("noise_dith", "noise_dith", 1);
   }else {
     use_lfsr=1;
     //    use_lfsr = (int)ask_num("use_lfsr", 1);
     tx_0=0;
     noise_dith=0;
     //  tx_0 = (int)ask_num("tx_0", 0);
-    tx_always = (int)ask_num("tx_always", 0);
+    tx_always = ask_yn("tx_always", "tx_always", 0);
   }
 
   qregs_set_meas_noise(noise_dith);
@@ -185,7 +222,7 @@ int main(int argc, char *argv[]) {
 
 
   if (tst_sync) {
-    is_alice = ask_num("is alice", 0);
+    is_alice = ask_yn("is_alice", "is_alice", 1);
     qregs_set_alice_syncing(is_alice);
     qregs_set_tx_same_hdrs(!is_alice);
   }else {
@@ -193,15 +230,15 @@ int main(int argc, char *argv[]) {
     qregs_set_tx_same_hdrs(0);
   }
   
-  d=4;
-  d = ask_num("osamp (1,2,4)", d);
+
+  d = ask_num("osamp (1,2,4)", "osamp", 4);
   qregs_set_osamp(d);
-  printf("osamps %d\n", st.osamp);
+  // printf("osamps %d\n", st.osamp);
 
   
   //  d = 2;
   d=1;
-  d = ask_num("frame_pd (us)", d);
+  d = ask_num("frame_pd (us)", "frame_pd_us", d);
   i = qregs_dur_us2samps(d);
   // printf("adc samp freq %lg Hz\n", st.asamp_Hz);
   i = ((int)(i/64))*64;
@@ -214,22 +251,22 @@ int main(int argc, char *argv[]) {
 
   
   //  qregs_set_sync_dly_asamps(-346);
-  qregs_set_hdr_det_thresh(400, 100);
-  qregs_set_sync_dly_asamps(-1018);
+  qregs_set_hdr_det_thresh(100, 50);
+  qregs_set_sync_dly_asamps(-1020);
 
   i=32;  
-  i = ask_num("hdr_len_bits", i);
+  i = ask_nnum("hdr_len_bits", i);
   qregs_set_hdr_len_bits(i);
   printf("hdr_len_bits %d = %.2Lf ns\n", st.hdr_len_bits,
 	 qregs_dur_samps2us(st.hdr_len_bits*st.osamp)*1000);
   printf("body_len_samps %d\n", st.body_len_samps);
 
   i=0;
-  i = ask_num("rand_body_en", i);
+  i = ask_nnum("rand_body_en", i);
   qregs_set_rand_body_en(i);
 
 
-  search = ask_num("search for hdr", 1);
+  search = ask_num("search for hdr", "search", 1);
   qregs_set_rand_body_en(i);
   
   
@@ -250,12 +287,12 @@ int main(int argc, char *argv[]) {
     // user explicitly ctls details of nested loops
     num_itr = 1;
     if (opt_ask_iter)
-      num_itr = ask_num("num_itr", num_itr);
+      num_itr = ask_nnum("num_itr", num_itr);
     if (num_itr>1) {
-      dly_ms = ask_num("delay per itr (ms)", dly_ms);
+      dly_ms = ask_num("delay per itr (ms)", "dly_ms", dly_ms);
       printf("test will take %d s\n", num_itr*dly_ms/1000);
     }
-    frame_qty_req = ask_num("frames per itr", 10);
+    frame_qty_req = ask_num("frames per itr", "frames_per_itr", 10);
     
     num_bufs = ceil((double)frame_qty_req / max_frames_per_buf);
     printf("  so num_bufs %d\n", num_bufs);
@@ -276,7 +313,7 @@ int main(int argc, char *argv[]) {
     // user wants to minimize the number of iterations.
     // and code translates that to num iter, num buffers, and buf len
     // it always uses four buffers or less per iter.
-    tot_frame_qty = ask_num("frame_qty", max_frames_per_buf*4);
+    tot_frame_qty = ask_nnum("frame_qty", max_frames_per_buf*4);
 
     num_itr = ceil((double)tot_frame_qty / (max_frames_per_buf*4));
     printf(" num itr %d\n", num_itr);
@@ -290,7 +327,7 @@ int main(int argc, char *argv[]) {
 
     if (num_itr>1) {
       dly_ms = 0;
-      dly_ms = ask_num("delay per itr (ms)", dly_ms);
+      dly_ms = ask_num("delay per itr (ms)", "dly_ms", dly_ms);
       printf("test will last %d s\n", num_itr*dly_ms/1000);
     }
 
@@ -372,7 +409,7 @@ int main(int argc, char *argv[]) {
   #define DMX (1<<14)
   if (!use_lfsr) {
     int ch;
-    ch = ask_num("pattern (1=hdr, 2=ramp)", 2);
+    ch = ask_num("pattern (1=hdr, 2=ramp)", "pattern", 2);
 
     if (ch==2) {
       printf("pattern: RAMP\n");
@@ -415,7 +452,12 @@ int main(int argc, char *argv[]) {
   // must enable channel befor creating buffer
   // sample size is 2 * number of enabled channels
 
+
+  ini_write("tvars.txt", tvars);
+
+  
   if (opt_save) {
+    
    fd = open("out/d.raw", O_CREAT | O_WRONLY | O_TRUNC, S_IRWXO);
    if (fd<0) err("cant open d.txt");
   }
@@ -552,12 +594,14 @@ int main(int argc, char *argv[]) {
     
     qregs_print_adc_status();
     
-    qregs_txrx(0);
     if (search) {
+      // prompt("OK");
+  
       qregs_print_hdr_det_status();
       
       qregs_search_en(0);
     }
+    qregs_txrx(0);
     
     if (opt_corr) {
       corr_find_peaks(corr, frame_qty);
@@ -621,46 +665,53 @@ int main(int argc, char *argv[]) {
     printf("\t%d", rx_mem[i]);
   printf("\n");
   */
-      if (opt_save) {
-  close(fd);
-	
-  fp = fopen("out/r.txt","w");
-  //  fprintf(fp,"sfp_attn_dB = %d;\n",   sfp_attn_dB);
-  fprintf(fp,"asamp_Hz = %lg;\n",    st.asamp_Hz);
-  fprintf(fp,"use_lfsr = %d;\n",     st.use_lfsr);
-  fprintf(fp,"lfsr_rst_st = '%x';\n", st.lfsr_rst_st);
-  fprintf(fp,"meas_noise = %d;\n",   meas_noise);
-  fprintf(fp,"noise_dith = %d;\n",   noise_dith);
-  fprintf(fp,"tx_always = %d;\n",    st.tx_always);
-  fprintf(fp,"tx_same_hdrs = %d;\n", st.tx_same_hdrs);
-  fprintf(fp,"alice_syncing = %d;\n", st.alice_syncing);
-  fprintf(fp,"search = %d;\n",       search);
-  fprintf(fp,"osamp = %d;\n",        st.osamp);
-  fprintf(fp,"rand_body_en = %d;\n", st.rand_body_en);
-  fprintf(fp,"tx_0 = %d;\n",  st.tx_0);
-  fprintf(fp,"frame_qty = %d;\n",    st.frame_qty);
-  fprintf(fp,"frame_pd_asamps = %d;\n", st.frame_pd_asamps);
+  if (opt_save) {
+    char hostname[32];	
+    close(fd);
+    gethostname(hostname, sizeof(hostname));
+    hostname[31]=0;
+    fp = fopen("out/r.txt","w");
+    //  fprintf(fp,"sfp_attn_dB = %d;\n",   sfp_attn_dB);
+    fprintf(fp,"host = '%s';\n",       hostname);  
+    fprintf(fp,"asamp_Hz = %lg;\n",    st.asamp_Hz);
+    fprintf(fp,"use_lfsr = %d;\n",     st.use_lfsr);
+    fprintf(fp,"lfsr_rst_st = '%x';\n", st.lfsr_rst_st);
+    fprintf(fp,"meas_noise = %d;\n",   meas_noise);
+    fprintf(fp,"noise_dith = %d;\n",   noise_dith);
+    fprintf(fp,"tx_always = %d;\n",    st.tx_always);
+    fprintf(fp,"is_alice = %d;\n",    is_alice);
+    if (is_alice) 
+      fprintf(fp,"rx_same_hdrs = 1;\n");
+    else
+      fprintf(fp,"rx_same_hdrs = %d;\n", st.tx_same_hdrs);
+    fprintf(fp,"alice_syncing = %d;\n", st.alice_syncing);
+    fprintf(fp,"search = %d;\n",       search);
+    fprintf(fp,"osamp = %d;\n",        st.osamp);
+    fprintf(fp,"rand_body_en = %d;\n", st.rand_body_en);
+    fprintf(fp,"tx_0 = %d;\n",  st.tx_0);
+    fprintf(fp,"frame_qty = %d;\n",    st.frame_qty);
+    fprintf(fp,"frame_pd_asamps = %d;\n", st.frame_pd_asamps);
 
-  fprintf(fp,"hdr_pwr_thresh = %d;\n", st.hdr_pwr_thresh);
-  fprintf(fp,"hdr_corr_thresh = %d;\n", st.hdr_corr_thresh);
-  fprintf(fp,"sync_dly = %d;\n", st.sync_dly);
+    fprintf(fp,"hdr_pwr_thresh = %d;\n", st.hdr_pwr_thresh);
+    fprintf(fp,"hdr_corr_thresh = %d;\n", st.hdr_corr_thresh);
+    fprintf(fp,"sync_dly = %d;\n", st.sync_dly);
   
-  fprintf(fp,"hdr_len_bits = %d;\n", st.hdr_len_bits);
-  fprintf(fp,"data_hdr = 'i_adc q_adc';\n");
-  fprintf(fp,"data_len_samps = %d;\n", cap_len_samps);
-  fprintf(fp,"data_in_other_file = 2;\n");
-  fprintf(fp,"num_itr = %d;\n", num_itr);
-  fprintf(fp,"time = %d;\n", (int)time(0));
-  fprintf(fp,"itr_times = [");
-  if (num_itr) {
-    for(i=0;i<num_itr;++i)
-      fprintf(fp," %d", *(times_s+i)-*(times_s));
-  }
-  fprintf(fp, "];\n");
-  fclose(fp);
+    fprintf(fp,"hdr_len_bits = %d;\n", st.hdr_len_bits);
+    fprintf(fp,"data_hdr = 'i_adc q_adc';\n");
+    fprintf(fp,"data_len_samps = %d;\n", cap_len_samps);
+    fprintf(fp,"data_in_other_file = 2;\n");
+    fprintf(fp,"num_itr = %d;\n", num_itr);
+    fprintf(fp,"time = %d;\n", (int)time(0));
+    fprintf(fp,"itr_times = [");
+    if (num_itr) {
+      for(i=0;i<num_itr;++i)
+	fprintf(fp," %d", *(times_s+i)-*(times_s));
+    }
+    fprintf(fp, "];\n");
+    fclose(fp);
 
-  printf("wrote out/r.txt and p.raw\n");
-      }
+    printf("wrote out/r.txt and p.raw\n");
+  }
   //  fp = fopen("dg.txt","w");
   //  for(i=0; i<ADC_N; ++i) {
   //    fprintf(fp, "%g %d\n", (double)i/1233333333*1e9, rx_mem[i]);

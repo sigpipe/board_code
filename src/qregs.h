@@ -1,7 +1,12 @@
 #ifndef _QREGS_H_
 #define _QREGS_H_
 
-
+// Notation:
+//   an "asamp" is the duration of one ADC or DAC sample,
+//       typically 1/1.23GHz or 1/1GHz.
+//
+//   a "cyc" is one cycle in the main HDL datapath,
+//       and is 4*asamp.
 
 typedef struct qregs_st {
   int use_lfsr;
@@ -13,10 +18,10 @@ typedef struct qregs_st {
   int alice_syncing; // set by Alice when she syncs to bob
   int tx_0;
   int frame_pd_asamps; // in units of 1.23GHz ADC samples
-  int osamp; // oversampling rate in units of samples. currently 1 2 or 4
+  int osamp; // oversampling rate in units of asamps. currently 1 2 or 4
   int hdr_len_bits; // hdr = probe = pilot
-  int hdr_len_samps;
-  int body_len_samps; // frame = hdr + body
+  int hdr_len_asamps;
+  int body_len_asamps; // frame = hdr + body
 
   int hdr_pwr_thresh; // used for hdr detection
   int hdr_corr_thresh; // used for hdr detection

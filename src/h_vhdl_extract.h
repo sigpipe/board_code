@@ -26,6 +26,7 @@
           // -- std_logic_vector(31 downto 0) := x"8fffffff");
           // -- std_logic_vector(31 downto 0) := x"80000000";  -- start addr in DDR
           // -- std_logic_vector(G_BODY_CHAR_POLY)'length;
+#define H_FWVER (2)
 #define H_CORR_MEM_D_W (16)
 #define H_CTR_W (4)
 #define H_PASS_W (6)
