@@ -29,6 +29,9 @@ typedef struct cmd_info_st {
   char  *usage;
 } cmd_info_t;
 
+
+void cmd_print_errcode(int err);
+
 int cmd_exec(char *line, cmd_info_t *ci_p);
 // parses and executes a null-terminated string
 // returns ERR_*

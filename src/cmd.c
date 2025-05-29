@@ -15,6 +15,21 @@ char cmd_path[CMD_MAXPATH];
 void cmd_print_err(char *s) {
   printf("ERR: %s\n", s);
 }
+void cmd_print_errcode(int err) {
+  switch(err) {
+    case 0:  break;
+    case CMD_ERR_MT_LINE   : break;
+    case CMD_ERR_AMBIGUOUS : cmd_print_err("ambiguous"); break;
+    case CMD_ERR_SYNTAX    : cmd_print_err("syntax");  break;
+    case CMD_ERR_BAD_CMD   : cmd_print_err("bad cmd"); break;
+    case CMD_ERR_NO_INT    : cmd_print_err("no int");  break;
+    case CMD_ERR_BAD_VAL   : cmd_print_err("bad val"); break;
+    case CMD_ERR_ABORTED   : cmd_print_err("aborted"); break;
+    case CMD_ERR_TIMO      : cmd_print_err("timeout"); break;
+    case CMD_ERR_FAIL:
+    default:            cmd_print_err("failed"); break;
+  }
+}
 
 #define DESCCOL 20
 int cmd_help(cmd_info_t *ci_p) {
@@ -82,11 +97,13 @@ int cmd_do_token(char *token, cmd_info_t *ci_p) {
   else             return CMD_ERR_AMBIGUOUS;
 }
 
+char cmd_token[512];
+
 int cmd_subcmd(int arg) {
   cmd_info_t *ci_p = (cmd_info_t *)arg;
   if (cmd_path[0])  strcat(cmd_path, " ");
   strcat(cmd_path, ci_p[0].name);
-  return cmd_do_token(parse_token(), ci_p);
+  return cmd_do_token(parse_token(cmd_token, 512), ci_p);
 }
 
 int cmd_exec(char *line, cmd_info_t *ci_p) {
@@ -95,7 +112,7 @@ int cmd_exec(char *line, cmd_info_t *ci_p) {
   char *t;
   int err;
   parse_set_line(line);
-  t=parse_token();
+  t=parse_token(cmd_token, 512);
   if(!t[0]) return CMD_ERR_MT_LINE;
   cmd_path[0]=0;
   err = cmd_do_token(t, ci_p);

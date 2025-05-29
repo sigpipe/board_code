@@ -235,6 +235,10 @@ int qregs_init(void) {
   return 0;  
 }
 
+void qregs_calibrate_bpsk(int en) {
+  qregs_rmw_fld(H_DAC_CTL_BPSK_CALIBRATE, 1);
+}
+
 void qregs_set_sync_dly_asamps(int sync_dly_asamps) {
 //   sync_dly_asamps: sync delay in units of 1.23GHz ADC samples.
 //                    may be positive or negative.  
@@ -376,7 +380,8 @@ void qregs_print_hdr_det_status(void) {
 
   qregs_w_fld(H_ADC_CSTAT_PROC_SEL, 5);
   v = qregs_r_fld(H_ADC_CSTAT_PROC_DOUT);  
-  printf("     pwr_avg_max %d\n", v);
+  printf("     pwr_avg     %d\n", (v>>16)&0xffff);
+  printf("     pwr_avg_max %d\n", v&0xffff);
 
   
   qregs_w_fld(H_ADC_CSTAT_PROC_SEL, 4);
@@ -401,6 +406,11 @@ void qregs_print_hdr_det_status(void) {
     printf("     hdr_cyc_avg %d\n", (int)s/qty);
   }
 
+  qregs_w_fld(H_ADC_CSTAT_PROC_SEL, 6);
+  v = qregs_r_fld(H_ADC_CSTAT_PROC_DOUT);  
+  printf("     hdr_phase:  Q %d  I %d\n", (v>>16)&0xffff,  v&0xffff);
+
+  
   qregs_pulse(H_ADC_PCTL_PROC_CLR_CNTS);
   
 }

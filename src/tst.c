@@ -61,16 +61,19 @@ ini_val_t *tvars;
 double ask_yn(char *prompt, char *var_name, int dflt) {
   char c;
   char buf[32];
-  int n, v;
+  int n, v=-1;
   if (var_name)
     ini_get_int(tvars, var_name, &dflt);
-  printf("%s (y/n) ? [%c] > ", prompt, dflt?'y':'n');
-  n=scanf("%[^\n]", buf);
-  getchar();
-  if (n==1)
-    n=sscanf(buf, "%c", &c);
-  if (n!=1) v=dflt;
-  else v = (c=='y');
+  while (v<0) {
+    printf("%s (y/n) ? [%c] > ", prompt, dflt?'y':'n');
+    n=scanf("%[^\n]", buf);
+    getchar(); // get cr
+    if (n==1)
+      n=sscanf(buf, "%c", &c);
+    if (n==0) v=dflt;
+    else if ((c=='y')||(c=='1')) v=1;
+    else if ((c=='n')||(c=='0')) v=0;
+  }
   if (var_name)
     ini_set_int(tvars, var_name, v);
   return v;
@@ -251,7 +254,7 @@ int main(int argc, char *argv[]) {
 
   
   //  qregs_set_sync_dly_asamps(-346);
-  qregs_set_hdr_det_thresh(400, 40);
+  qregs_set_hdr_det_thresh(500, 40);
   qregs_set_sync_dly_asamps(-1020);
 
   i=32;  
@@ -485,6 +488,7 @@ int main(int argc, char *argv[]) {
 
 
   qregs_set_use_lfsr(use_lfsr);
+  qregs_set_lfsr_rst_st(0x733);
   if (!use_lfsr) {
     qregs_set_tx_mem_circ(1);
   }
@@ -611,6 +615,14 @@ int main(int argc, char *argv[]) {
       // prompt("OK");
   
       qregs_print_hdr_det_status();
+
+
+      prompt("OK");
+      qregs_print_hdr_det_status();
+
+      prompt("OK");
+      qregs_print_hdr_det_status();
+
       
       qregs_search_en(0);
     }

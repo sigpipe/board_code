@@ -7,10 +7,10 @@ TSRCS = util qregs corr mx ini parse h_vhdl_extract
 TOBJS = obj/tst.o $(TSRCS:%=obj/%.o)
 THDRS = $(TSRCS:%=src/%.h)
 
-USRCS = util qregs corr mx ini parse h_vhdl_extract
+USRCS = util qregs corr mx ini parse h_vhdl_extract cmd
 UOBJS = $(USRCS:%=obj/%.o)
 
-default: tst q
+default: tst u
 
 
 qregd: obj/qregd.o $(QOBJS)
@@ -19,8 +19,9 @@ qregd: obj/qregd.o $(QOBJS)
 tst:  $(TOBJS)
 	gcc $(TOBJS) -lm -liio  -o $@ 
 
-q:  obj/q.o $(UOBJS)
-	gcc obj/q.o $(UOBJS) -lm -liio  -o $@ 
+# utilities
+u:  obj/u.o $(UOBJS)
+	gcc obj/u.o $(UOBJS) -lm -liio  -o $@ 
 
 
 $(TOBJS): $(THDRS)

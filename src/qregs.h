@@ -118,6 +118,9 @@ void qregs_txrx(int en);
 void qregs_dbg_new_go(int en);
 
 
+// calibration functions
+
+void qregs_calibrate_bpsk(int en);
 
 
 // lower level routines

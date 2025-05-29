@@ -1,7 +1,7 @@
 // h_vhdl_extract.h
 // hardware access constants
 // This file was automatically generated
-// by Register Extractor (ver 4.13) on Wed May 28 18:59:43 2025
+// by Register Extractor (ver 4.13) on Thu May 29 16:05:34 2025
 // compile version Tue Jun 29 16:33:14 2021
 // current dir:  C:\reilly\proj\quanet\quanet_hdl\projects\daq3\zcu106
 // DO NOT MODIFY THIS FILE!
@@ -20,7 +20,7 @@
 // version constants
 #define H_VHDL_EXTRACT_VER (4)
 #define H_VHDL_EXTRACT_SUBVER (13)
-#define H_VHDL_EXTRACT_DATE "Wed May 28 18:59:43 2025"
+#define H_VHDL_EXTRACT_DATE "Thu May 29 16:05:34 2025"
 #define H_VHDL_EXTRACT_DIR "C:\reilly\proj\quanet\quanet_hdl\projects\daq3\zcu106"
 
 
@@ -80,6 +80,7 @@
 #define H_DAC_CTL_TX_0                0x0000203b  /* 0x08000000   w -- header contains zeros */
 #define H_DAC_CTL_TX_ALWAYS           0x0000203c  /* 0x10000000   w -- used for dbg to view on scope */
 #define H_DAC_CTL_USE_LFSR            0x0000203d  /* 0x20000000   w -- header contains lfsr */
+#define H_DAC_CTL_BPSK_CALIBRATE      0x0000203e  /* 0x40000000   w -- cont drive PM with BPSK from lfsr */
 #define H_DAC_CTL_RAND_BODY           0x0000203e  /* 0x40000000   w -- bob sets to scramble frame bodies */
 #define H_DAC_CTL_TX_UNSYNC           0x0000203f  /* 0x80000000   w -- PROBALY WILL GO AWAY */
                                        // r 0xffffffff
