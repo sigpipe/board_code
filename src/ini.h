@@ -81,5 +81,5 @@ ini_val_t *ini_first(ini_val_t *vals);
 ini_val_t *ini_next(ini_val_t *vals);
 
 void ini_set_fname(ini_val_t *vals, char *fname);
-
+int ini_free(ini_val_t *vals);
 #endif

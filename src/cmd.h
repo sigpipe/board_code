@@ -29,6 +29,7 @@ typedef struct cmd_info_st {
   char  *usage;
 } cmd_info_t;
 
+int cmd_help(cmd_info_t *ci_p);
 
 void cmd_print_errcode(int err);
 

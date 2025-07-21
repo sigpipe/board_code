@@ -24,6 +24,7 @@ void parse_set_line(char *s) {
   //  parse_i = 0;
   p_st.s=s;
   p_st.i=0;
+  int i;
 }
 
 char *parse_get_ptr(void) {

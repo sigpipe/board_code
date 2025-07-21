@@ -18,6 +18,21 @@
 #include <time.h>
 #include "ini.h"
 
+#if OPT_QNICLL
+#include <qnicll.h>
+int use_qnicll=1;
+void crash(int e, char *str) {
+// desc: crashes wih informative messages
+  printf("ERR: %d\n", e);
+  printf("     %s\n", qnicll_error_desc());
+  if (errno)
+    printf("     errno %d = %s\n", errno, strerror(errno));
+  exit(1);
+}
+// check and crash if error
+#define C(CALL)     {int e = CALL; if (e) crash(e, "");}
+#endif
+
 char errmsg[256];
 void err(char *str) {
   printf("ERR: %s\n", str);
@@ -44,7 +59,7 @@ void set_blocking_mode(struct iio_buffer *buf, int en) {
 }
 
 
-#define DAC_N (128)
+#define DAC_N (4095*2)
 #define SYMLEN (4)
 #define PAT_LEN (256/SYMLEN)
 // #define ADC_N (1024*16*16*8*4)
@@ -55,15 +70,21 @@ void set_blocking_mode(struct iio_buffer *buf, int en) {
 //  #define ADC_N (1024*16*32)
 
 
-ini_val_t *tvars;
+ini_val_t *tvars, ivars;
 
+int opt_dflt=0;
 
-double ask_yn(char *prompt, char *var_name, int dflt) {
+int ask_yn(char *prompt, char *var_name, int dflt) {
   char c;
   char buf[32];
   int n, v=-1;
   if (var_name)
     ini_get_int(tvars, var_name, &dflt);
+  if (opt_dflt) {
+    printf("%s (y/n) ? [%c] > ", prompt, dflt?'y':'n');
+    printf("\n");
+    return dflt;
+  }
   while (v<0) {
     printf("%s (y/n) ? [%c] > ", prompt, dflt?'y':'n');
     n=scanf("%[^\n]", buf);
@@ -79,6 +100,28 @@ double ask_yn(char *prompt, char *var_name, int dflt) {
   return v;
   
 }
+
+char *ask_str(char *prompt, char *var_name, char *dflt) {
+  static char buf[512];
+  int n;
+  if (var_name)
+    ini_get_string(tvars, var_name, &dflt);
+  printf("%s [%s] > ", prompt, dflt);
+  
+  if (opt_dflt) {
+    printf("\n");
+    strcpy(buf, dflt);
+    return buf;
+  }
+  n=scanf("%[^\n]", buf);
+  getchar();
+  if (n!=1)
+    strcpy(buf, dflt);
+  if (var_name)
+    ini_set_string(tvars, var_name, buf);
+  return buf;
+}
+
 double ask_num(char *prompt, char *var_name, double dflt) {
   char buf[32];
   int n;
@@ -86,8 +129,8 @@ double ask_num(char *prompt, char *var_name, double dflt) {
 
   if (var_name)
     ini_get_double(tvars, var_name, &dflt);
-  
   printf("%s [%g] > ", prompt, dflt);
+  if (opt_dflt) {printf("\n"); return dflt;}
   n=scanf("%[^\n]", buf);
   getchar();
   if (n==1)
@@ -138,7 +181,7 @@ int main(int argc, char *argv[]) {
   struct iio_device *dac, *adc;
   struct iio_channel *dac_ch0, *dac_ch1, *adc_ch0, *adc_ch1;
   struct iio_buffer *dac_buf, *adc_buf;
-  ssize_t adc_buf_sz, left_sz;
+  ssize_t adc_buf_sz, dac_buf_sz, left_sz;
   void * adc_buf_p;
   FILE *fp;
   int fd;
@@ -147,6 +190,7 @@ int main(int argc, char *argv[]) {
   // cat iio:device3/scan_elements/out_voltage0_type contains
   // le:s15/16>>0 so I think it's short int.  By default 1233333333 Hz
   short int mem[DAC_N];
+  ssize_t mem_sz;
   //  short int rx_mem_i[ADC_N], rx_mem_q[ADC_N]; 
   //  short int corr[ADC_N];
 
@@ -158,15 +202,20 @@ int main(int argc, char *argv[]) {
   for(i=1;i<argc;++i) {
     for(j=0; (c=argv[i][j]); ++j) {
       if (c=='c') opt_corr=1;
+      else if (c=='d') opt_dflt=1;
       else if (c=='n') opt_save=0;
       else if (c=='i') { opt_ask_iter=1; opt_periter=1;}
       else if (c=='a') opt_periter=0;
       else if (c!='-') {
-	printf("USAGES:\n  tst c  = compute correlations\n  tst n  = dont save to file\n  tst a = auto buf size calc\n  tst i = ask num iters");
+	printf("USAGES:\n  tst c  = compute correlations\n  tst n  = dont save to file\n  tst a = auto buf size calc\n  tst i = ask num iters\n tst d =use all defaults");
 	return 1;}
     }
   }
 
+
+  
+  
+  
   int meas_noise, noise_dith;
   e =  ini_read("tvars.txt", &tvars);
   if (e)
@@ -179,21 +228,20 @@ int main(int argc, char *argv[]) {
     
   
   if (qregs_init()) err("qregs fail");
-  printf("just called qregs init\n");
-  qregs_print_adc_status();  
-  printf("\n");
+  // printf("just called qregs init\n");
+  //  qregs_print_adc_status();   printf("\n");
 
 
-  qregs_dbg_new_go(1);
-  
   int tst_sync=1;
   int is_alice;
 
   int use_lfsr=1;
+  int  hdr_preemph_en=0;
+  char hdr_preemph_fname[256];
   int tx_always=0;
   int tx_0=0;  
-  int tot_frame_qty, frame_qty=25, frame_qty_req=25, max_frames_per_buf, probe_per_buf;
-  int cap_len_samps, buf_len_samps;
+  int tot_frame_qty, frame_qty=25, frame_qty_req=25, max_frames_per_buf, frames_per_buf;
+  int cap_len_samps, buf_len_asamps;
   int num_itr, b_i;
   int *times_s, t0_s;
 
@@ -202,14 +250,17 @@ int main(int argc, char *argv[]) {
   if (meas_noise) {
     use_lfsr=1;
     tx_0=1;
+    mem_sz=0;
     tx_always=0;
     noise_dith=(int)ask_num("noise_dith", "noise_dith", 1);
   }else {
     use_lfsr=1;
     //    use_lfsr = (int)ask_num("use_lfsr", 1);
+    qregs_set_lfsr_rst_st(0x50f);
+    
     tx_0=0;
     noise_dith=0;
-    //  tx_0 = (int)ask_num("tx_0", 0);
+    // tx_0 = ask_yn("tx_0", "tx_0", 0);
     tx_always = ask_yn("tx_always", "tx_always", 0);
   }
 
@@ -219,21 +270,43 @@ int main(int argc, char *argv[]) {
 
 
 
-  qregs_set_tx_always(0); // set for real further down.
-  
+  //  qregs_set_tx_always(0); // set for real further down.
+  qregs_set_cipher_en(0, st.osamp, 2);
   qregs_set_tx_0(tx_0);
 
 
   if (tst_sync) {
+    qregs_set_tx_same_hdrs(1);
     is_alice = ask_yn("is_alice", "is_alice", 1);
     qregs_set_alice_syncing(is_alice);
-    qregs_set_tx_same_hdrs(!is_alice);
+#if OPT_QNICLL
+    if (!is_alice) {
+      use_qnicll=ask_yn("use qnicll", "use_qnicll",0);
+      if (use_qnicll) {
+	char *h = ask_str("remote host", "remote_host", "");
+	qnicll_init_info_libiio_t libiio_init;
+	//	strcpy(libiio_init.ipaddr,"10.0.0.5");
+	strcpy(libiio_init.ipaddr, h);
+	C(qnicll_init(&libiio_init));
+	C(qnicll_set_mode(QNICLL_MODE_QSDC));
+      }
+    }
+#endif    
   }else {
     qregs_set_alice_syncing(0);
     qregs_set_tx_same_hdrs(0);
   }
-  
 
+
+  hdr_preemph_en = 0;  
+  if (!is_alice) {
+    hdr_preemph_en = ask_yn("use IM preemphasis","hdr_preemph_en",1);
+    if (hdr_preemph_en)
+      strcpy(hdr_preemph_fname,
+	     ask_str("preemph_file", "preemph.bin","src/hdr.bin"));
+  }
+  qregs_hdr_preemph_en(hdr_preemph_en);
+  
   d = ask_num("osamp (1,2,4)", "osamp", 4);
   qregs_set_osamp(d);
   // printf("osamps %d\n", st.osamp);
@@ -254,8 +327,6 @@ int main(int argc, char *argv[]) {
 
   
   //  qregs_set_sync_dly_asamps(-346);
-  qregs_set_hdr_det_thresh(500, 40);
-  qregs_set_sync_dly_asamps(-1020);
 
   i=32;  
   i = ask_nnum("hdr_len_bits", i);
@@ -264,13 +335,25 @@ int main(int argc, char *argv[]) {
 	 qregs_dur_samps2us(st.hdr_len_bits*st.osamp)*1000);
   printf("body_len_samps %d\n", st.body_len_asamps);
 
-  i=0;
-  i = ask_nnum("rand_body_en", i);
-  qregs_set_rand_body_en(i);
+
+  i = ask_yn("cipher_en", "cipher_en", 0);
+  j = ask_num("cipher_m (for m-psk)", "cipher_m", 2);
+  qregs_set_cipher_en(i, st.osamp, j);
+  if (st.osamp!=st.cipher_symlen_asamps)
+    printf("  actually symlen = %d\n", st.cipher_symlen_asamps);
+  if (j!=st.cipher_m)
+    printf("  actually m = %d\n", st.cipher_m);
 
 
-  search = ask_num("search for hdr", "search", 1);
-
+  search = ask_yn("search for hdr", "search", 1);
+  if (search) {
+    i = ask_nnum("init_pwr_thresh", 100);
+    qregs_dbg_set_init_pwr(i);
+    j = ask_nnum("hdr_pwr_thresh", 100);
+    k = ask_nnum("hdr_det_thresh", 40);
+    qregs_set_hdr_det_thresh(j, k);
+    qregs_set_sync_dly_asamps(-1020);
+  }
   
   
   //qregs_set_im_hdr_dac(0);
@@ -297,16 +380,19 @@ int main(int argc, char *argv[]) {
     }
     frame_qty_req = ask_num("frames per itr", "frames_per_itr", 10);
     
-    num_bufs = ceil((double)frame_qty_req / max_frames_per_buf);
+    num_bufs = ceil((double)(frame_qty_req+1) / max_frames_per_buf);
     printf("  so num_bufs %d\n", num_bufs);
-    probe_per_buf = ceil((double)frame_qty_req / num_bufs);
-    frame_qty = num_bufs * probe_per_buf;
+    frames_per_buf = ceil((double)(frame_qty_req+1) / num_bufs);
+    frame_qty = num_bufs * frames_per_buf;
     if (frame_qty != frame_qty_req)
-      printf(" ACTUALLY probe qty per itr %d\n", frame_qty);
-    buf_len_samps = probe_per_buf * st.frame_pd_asamps;
-    printf(" buf_len_samps %d\n", buf_len_samps);
+      printf(" ACTUALLY saving %d frames per itr\n", frame_qty);
+    buf_len_asamps = frames_per_buf * st.frame_pd_asamps;
+    //    if (tst_sync)
+    //      buf_len_asamps *= 2;
+    printf(" buf_len_asamps %d\n", buf_len_asamps);
 
-    cap_len_samps = frame_qty * st.frame_pd_asamps;
+    // THIS might not be used
+    cap_len_samps = num_bufs & buf_len_asamps;
     printf(" cap_len_samps %d\n", cap_len_samps);
     // This is cap len per iter
 
@@ -324,8 +410,8 @@ int main(int argc, char *argv[]) {
 
     num_bufs = (int)ceil((double)frame_qty / max_frames_per_buf); // per iter
     printf(" num bufs per iter %d\n", num_bufs);
-    probe_per_buf = (int)(ceil((double)frame_qty / num_bufs));
-    frame_qty = probe_per_buf * num_bufs;
+    frames_per_buf = (int)(ceil((double)frame_qty / num_bufs));
+    frame_qty = frames_per_buf * num_bufs;
     printf(" hdr qty per itr %d\n", frame_qty);
 
     if (num_itr>1) {
@@ -334,8 +420,8 @@ int main(int argc, char *argv[]) {
       printf("test will last %d s\n", num_itr*dly_ms/1000);
     }
 
-    buf_len_samps = st.frame_pd_asamps * probe_per_buf;
-    printf(" buf_len_samps %d\n", buf_len_samps);
+    buf_len_asamps = st.frame_pd_asamps * frames_per_buf;
+    printf(" buf_len_asamps %d\n", buf_len_asamps);
 
     cap_len_samps = frame_qty * st.frame_pd_asamps;
     printf(" cap_len_samps %d\n", cap_len_samps);
@@ -344,13 +430,14 @@ int main(int argc, char *argv[]) {
       //    printf("WARN: must increase buf size\n");
 
 
+
   }
    
-  qregs_set_frame_qty(frame_qty);
-  if (st.frame_qty !=frame_qty) {
+  qregs_set_frame_qty(frame_qty_req);
+  if (st.frame_qty !=frame_qty_req) {
     printf("ERR: hdr qty actually %d\n", st.frame_qty);
   }
-  //  printf("using frame_qty %d\n", frame_qty);
+
 
   
   //  size of sz is 4!!
@@ -409,35 +496,51 @@ int main(int argc, char *argv[]) {
   memset(mem, 0, sizeof(mem));
 
 
-  #define DMX (1<<14)
-  if (!use_lfsr) {
-    int ch;
-    ch = ask_num("pattern (1=hdr, 2=ramp)", "pattern", 2);
+  mem_sz = 0;
+  if (hdr_preemph_en) {
+    int fd = open(hdr_preemph_fname,O_RDWR);
+    if (fd<0) {
+      sprintf(errmsg, "cant open preemph file %s", hdr_preemph_fname);
+      err(errmsg);
+    }
+    mem_sz = read(fd, mem, DAC_N);
+    printf("read %zd bytes from %s\n", mem_sz, hdr_preemph_fname);
+    //for(i=0;i<16;++i)
+    //  printf("%04x %d\n", mem[i], mem[i]);
+    // printf("\n");
 
-    if (ch==2) {
-      printf("pattern: RAMP\n");
-      for(i=0; i<DAC_N; ++i) {
-	//	mem[i] = (int)((2.0*sq((double)i/DAC_N)-1.0) * (1<<13));
-	mem[i] = i*(1<<14)/DAC_N - (1<<13);
-	printf(" %d", mem[i]);
+  }else {
+  
+    #define DMX (1<<14)
+    if (!use_lfsr) {
+      int ch;
+      ch = ask_num("pattern (1=hdr, 2=ramp)", "pattern", 2);
+
+      if (ch==2) {
+	printf("pattern: RAMP\n");
+	for(i=0; i<DAC_N; ++i) {
+	  //	mem[i] = (int)((2.0*sq((double)i/DAC_N)-1.0) * (1<<13));
+	  mem[i] = i*(1<<14)/DAC_N - (1<<13);
+	  printf(" %d", mem[i]);
+	}
+	printf("\n");
+      }else {
+	j=0;
+	printf("pattern: ");
+	for(i=0; i<PAT_LEN; ++i) {
+	  n=(pat[i]*2-1) * (32768/2);
+	  if (i<8)
+	    printf(" %d", n);
+	  for(k=0;k<SYMLEN;++k)
+	    mem[j++] = n;
+	}
+	printf("...\n");
+	printf("  %d DAC samps\n", j);
+	if (j!=DAC_N) printf("ERR: expected %d\n", DAC_N);
       }
-      printf("\n");
-    }else {
-      j=0;
-      printf("pattern: ");
-      for(i=0; i<PAT_LEN; ++i) {
-	n=(pat[i]*2-1) * (32768/2);
-	if (i<8)
-	  printf(" %d", n);
-	for(k=0;k<SYMLEN;++k)
-	  mem[j++] = n;
-      }
-      printf("...\n");
-      printf("  %d DAC samps\n", j);
-      if (j!=DAC_N) printf("ERR: expected %d\n", DAC_N);
+      mem_sz = DAC_N;
     }
   }
-
 
   // basically there is no conversion
   //  printf("converted:\n");
@@ -466,32 +569,60 @@ int main(int argc, char *argv[]) {
   }
 
 
-  // oddly, this create buffer seems to cause the dac to output
-  // a sin wave!!!
-  // sample size is 2 * number of enabled channels.
-  // printf("dac samp size %zd\n", sz);
-  //  prompt("will create dac buf");  
-  sz = iio_device_get_sample_size(dac);
-  dac_buf = iio_device_create_buffer(dac, (ssize_t) DAC_N, false);
-  if (!dac_buf) {
-    sprintf(errmsg, "cant create dac bufer  nsamp %d", DAC_N);
-    err(errmsg);
-  }
+
   
 
-  //    prompt("will write chan");
-    
-    // calls convert_inverse and copies data into buffer
-    sz = iio_channel_write(dac_ch0, dac_buf, mem, sizeof(mem));
-    // returned 256=DAC_N*2, makes sense
-    printf("wrote ch0 to dac_buf sz %zd\n", sz);
 
+
+  /*
+  prompt("done create dac buf now cancel");
+  iio_buffer_cancel(dac_buf);
+  prompt("will destroy");
+  iio_buffer_destroy(dac_buf);
+  prompt("will create again");
+  dac_buf_sz = sz*256;
+  dac_buf = iio_device_create_buffer(dac, dac_buf_sz, false);
+  if (!dac_buf) {
+    sprintf(errmsg, "cant create dac bufer  nsamp %d", dac_buf_sz);
+    err(errmsg);
+  }
+  prompt("done create dac ");  
+  */
+
+
+
+  if (mem_sz>0) {
+    // prompt("will write chan");
+
+    // oddly, this create buffer seems to cause the dac to output
+    // a GHz sin wave for about 450us.
+  
+    // prompt("will create dac buf");  
+    sz = iio_device_get_sample_size(dac);
+    // sample size is 2 * number of enabled channels.
+    printf("dac samp size %zd\n", sz);
+
+    dac_buf_sz = mem_sz / sz;
+    dac_buf = iio_device_create_buffer(dac, dac_buf_sz, false);
+    if (!dac_buf) {
+      sprintf(errmsg, "cant create dac bufer  nsamp %d", dac_buf_sz);
+      err(errmsg);
+    }
+    // printf("DBG: per-chan step %zd\n", iio_buffer_step(dac_buf));  
+
+    
+    void *p;
+    // calls convert_inverse and copies data into buffer
+    p = iio_buffer_start(dac_buf);
+    if (!p) err("no buffer yet");
+    memcpy(p, mem, mem_sz);
+    // sz = iio_channel_write(dac_ch0, dac_buf, mem, mem_sz);
+    // returned 256=DAC_N*2, makes sense
+    printf("filled dac_buf sz %zd\n", mem_sz);
+  }
 
   qregs_set_use_lfsr(use_lfsr);
-  qregs_set_lfsr_rst_st(0x733);
-  if (!use_lfsr) {
-    qregs_set_tx_mem_circ(1);
-  }
+
 
   qregs_set_tx_always(tx_always);
 
@@ -499,15 +630,22 @@ int main(int argc, char *argv[]) {
 
 
   
-    set_blocking_mode(dac_buf, true); // default is blocking.  
 
-#if (NEW)
+
     // sinusoide before willpush    
     //    prompt("will push");
-    tx_sz = iio_buffer_push(dac_buf);
-    printf("pushed %zd\n", tx_sz);  
-#endif
+    if (mem_sz) {
+      set_blocking_mode(dac_buf, true); // default is blocking.  
+      
+      tx_sz = iio_buffer_push(dac_buf);
+      printf("pushed %zd\n", tx_sz);
+    }
 
+
+
+    prompt("READY? ");
+
+    
    
     for (itr=0; !num_itr || (itr<num_itr); ++itr) {
 
@@ -527,25 +665,27 @@ int main(int argc, char *argv[]) {
 	
 	printf("a sync\n");
 	qregs_alice_sync_en(1);
-      }else {
-        qregs_search_en(search);      
+      } else {
+        qregs_search_en(search);
+#if OPT_QNICLL	
+	if (use_qnicll)
+	  C(qnicll_search(1));
+#endif
         qregs_txrx(1);
       }
+
 
       //      qregs_print_adc_status();
       //    prompt("will make adc buf");
 
       sz = iio_device_get_sample_size(adc);  // sz=4;
-      adc_buf_sz = sz * buf_len_samps;
-      adc_buf = iio_device_create_buffer(adc, buf_len_samps, false);
+      adc_buf_sz = sz * buf_len_asamps;
+      adc_buf = iio_device_create_buffer(adc, buf_len_asamps, false);
       if (!adc_buf)
         err("cant make adc buffer");
-      printf("made adc buf size %zd samps\n", (ssize_t)buf_len_samps);
+      printf("made adc buf size %zd asamps\n", (ssize_t)buf_len_asamps);
       // supposedly creating buffer commences DMA
 
-
-      //      qregs_print_adc_status();
-      //      prompt("made buf, next will refill buf");
 
 
       if (opt_corr) {
@@ -560,123 +700,143 @@ int main(int argc, char *argv[]) {
 	corr_init(st.hdr_len_bits, st.frame_pd_asamps);
       }
 
-    for(b_i=0; b_i<num_bufs; ++b_i) {
-      void *p;
-      sz = iio_buffer_refill(adc_buf);
+      for(b_i=0; b_i<num_bufs; ++b_i) {
+	void *p;
+	sz = iio_buffer_refill(adc_buf);
 
-      //      qregs_print_adc_status();
-      if (sz<0) {
-	sprintf(errmsg, "cant refill adc bufer %d", b_i);
-	err(errmsg);
+	//      qregs_print_adc_status();
+	if (sz<0) {
+	  sprintf(errmsg, "cant refill adc bufer %d", b_i);
+	  err(errmsg);
+	}
+	//      prompt("refilled buf");
+      
+	if (sz != adc_buf_sz)
+	  printf("tried to refill %d but got %d\n", adc_buf_sz, sz);
+	// pushes double the dac_buf size.
+	//qregs_print_adc_status();
+
+	// iio_buffer_start can return a non-zero ptr after a refill.
+	adc_buf_p = iio_buffer_start(adc_buf);
+	if (!adc_buf_p) err("iio_buffer_start returned 0");
+	p = iio_buffer_end(adc_buf);
+	// printf(" size %zd\n", p - adc_buf_p);
+      
+	if (opt_corr) {
+	  for(p_i=0; p_i<frames_per_buf; ++p_i) {
+	    //	  printf("p %d\n",p_i);
+	    p = adc_buf_p + sizeof(short int)*2*p_i*st.frame_pd_asamps;
+	    // printf("offset %zd\n",p - adc_buf_p);
+	    corr_accum(corr, adc_buf_p + sizeof(short int)*2*p_i*st.frame_pd_asamps);
+	  }
+	}
+
+
+	if (opt_save) {
+	  left_sz = sz;
+	  while(left_sz>0) {
+	    sz = write(fd, adc_buf_p, left_sz);
+	    if (sz<=0) err("write failed");
+	    if (sz == left_sz) break;
+	    printf("tried to write %zd but wrote %zd\n", left_sz, sz);
+	    left_sz -= sz;
+	    adc_buf_p = (void *)((char *)adc_buf_p + sz);
+	  }
+	  // printf("wrote %zd\n", sz);
+	  // dma req will go low.
+	}
+      
+
+      } // for b_i
+    
+      // qregs_print_adc_status();
+    
+    
+      if (search) {
+	// prompt("OK");
+	//      qregs_print_hdr_det_status();
+
+
+	//      prompt("OK");
+	//      qregs_print_hdr_det_status();
+	//
+	//      prompt("OK");
+	qregs_print_hdr_det_status();
+
+      
+	qregs_search_en(0);
       }
-      //      prompt("refilled buf");
-      
-      if (sz != adc_buf_sz)
-	printf("tried to refill %d but got %d\n", adc_buf_sz, sz);
-      // pushes double the dac_buf size.
-      //qregs_print_adc_status();
+      qregs_txrx(0);
 
-      // iio_buffer_start can return a non-zero ptr after a refill.
-      adc_buf_p = iio_buffer_start(adc_buf);
-      if (!adc_buf_p) err("iio_buffer_start returned 0");
-      p = iio_buffer_end(adc_buf);
-      // printf(" size %zd\n", p - adc_buf_p);
-      
+
+
+    
+    
       if (opt_corr) {
-	for(p_i=0; p_i<probe_per_buf; ++p_i) {
-	  //	  printf("p %d\n",p_i);
-	  p = adc_buf_p + sizeof(short int)*2*p_i*st.frame_pd_asamps;
-	  // printf("offset %zd\n",p - adc_buf_p);
-	  corr_accum(corr, adc_buf_p + sizeof(short int)*2*p_i*st.frame_pd_asamps);
-	}
+	corr_find_peaks(corr, frame_qty);
       }
-
-
-      if (opt_save) {
-	left_sz = sz;
-	while(left_sz>0) {
-	  sz = write(fd, adc_buf_p, left_sz);
-	  if (sz<=0) err("write failed");
-	  if (sz == left_sz) break;
-	  printf("tried to write %zd but wrote %zd\n", left_sz, sz);
-	  left_sz -= sz;
-	  adc_buf_p = (void *)((char *)adc_buf_p + sz);
-	}
-        // printf("wrote %zd\n", sz);
-        // dma req will go low.
-      }
-      
-
-    }
+      //    prompt("end loop prompt ");
+      // qregs_print_adc_status();
     
-    qregs_print_adc_status();
-    
-    if (search) {
-      // prompt("OK");
-  
-      qregs_print_hdr_det_status();
+      // printf("adc buf p x%x\n", adc_buf_p);
 
-
-      prompt("OK");
-      qregs_print_hdr_det_status();
-
-      prompt("OK");
-      qregs_print_hdr_det_status();
-
-      
-      qregs_search_en(0);
-    }
-    qregs_txrx(0);
-    
-    if (opt_corr) {
-      corr_find_peaks(corr, frame_qty);
-    }
-    //    prompt("end loop prompt ");
-    // qregs_print_adc_status();
-    
-    // printf("adc buf p x%x\n", adc_buf_p);
-
-    /*
-    // calls convert and copies data from buffer
-    sz = cap_len_samps*2;
-    sz_rx = iio_channel_read(adc_ch0, adc_buf, rx_mem_i, sz);
-    if (sz_rx != sz)
+      /*
+      // calls convert and copies data from buffer
+      sz = cap_len_samps*2;
+      sz_rx = iio_channel_read(adc_ch0, adc_buf, rx_mem_i, sz);
+      if (sz_rx != sz)
       printf("ERR: read %zd bytes from buf but expected %zd\n", sz_rx, sz);
 
-    sz_rx = iio_channel_read(adc_ch1, adc_buf, rx_mem_q, sz);
-    if (sz_rx != sz)
+      sz_rx = iio_channel_read(adc_ch1, adc_buf, rx_mem_q, sz);
+      if (sz_rx != sz)
       printf("ERR: read %zd bytes from buf but expected %zd\n", sz_rx, sz);
-    for(i=0; i<4; ++i) {
+      for(i=0; i<4; ++i) {
       printf("%d %d\n",  rx_mem_i[i], rx_mem_q[i]);
-    }
-    */
+      }
+      */
 
 
     
 
-    //    for(i=1; i<ADC_N; ++i)
-    //      rx_mem[i] = (int)sqrt((double)rx_mem_i[i]*rx_mem_i[i] + (double)rx_mem_q[i]*rx_mem_q[i]);
+      //    for(i=1; i<ADC_N; ++i)
+      //      rx_mem[i] = (int)sqrt((double)rx_mem_i[i]*rx_mem_i[i] + (double)rx_mem_q[i]*rx_mem_q[i]);
 
     
-    // display rx 
-    /*    for(i=1; i<ADC_N; ++i)
-      if (rx_mem[i]-rx_mem[i-1] > 100) break;
-    if (i>=ADC_N)
-      printf("WARN: no signal\n");
-    else
-      printf("signal at idx %d\n", i);
+      // display rx 
+      /*    for(i=1; i<ADC_N; ++i)
+	    if (rx_mem[i]-rx_mem[i-1] > 100) break;
+	    if (i>=ADC_N)
+	    printf("WARN: no signal\n");
+	    else
+	    printf("signal at idx %d\n", i);
     
-    y = rx_mem[i];
-    x = (double)i/1233333333*1e9;
-    */
+	    y = rx_mem[i];
+	    x = (double)i/1233333333*1e9;
+      */
 
 
-    iio_buffer_destroy(adc_buf);
-    usleep(dly_ms * 1000);
+      iio_buffer_destroy(adc_buf);
+      usleep(dly_ms * 1000);
    
     
-  }
-  
+    } // for itr
+
+
+    
+    //    printf("out of itr loop %d\n",  use_qnicll);
+    
+#if OPT_QNICLL
+    if (use_qnicll) {
+      if (!is_alice) {
+        printf("send search 0\n");
+	C(qnicll_search(0));
+      }
+          prompt("ok");
+      C(qnicll_done());
+      printf("called qnicll_done\n");
+            prompt("ok");
+    }
+#endif
 
 
   if (qregs_done()) err("qregs_done fail");
@@ -697,13 +857,17 @@ int main(int argc, char *argv[]) {
     hostname[31]=0;
     fp = fopen("out/r.txt","w");
     //  fprintf(fp,"sfp_attn_dB = %d;\n",   sfp_attn_dB);
-    fprintf(fp,"host = '%s';\n",       hostname);  
+    fprintf(fp,"host = '%s';\n",       hostname);
+    fprintf(fp,"tst_sync = %d;\n",     tst_sync);
     fprintf(fp,"asamp_Hz = %lg;\n",    st.asamp_Hz);
     fprintf(fp,"use_lfsr = %d;\n",     st.use_lfsr);
     fprintf(fp,"lfsr_rst_st = '%x';\n", st.lfsr_rst_st);
     fprintf(fp,"meas_noise = %d;\n",   meas_noise);
     fprintf(fp,"noise_dith = %d;\n",   noise_dith);
     fprintf(fp,"tx_always = %d;\n",    st.tx_always);
+    fprintf(fp,"tx_hdr_twopi = %d;\n", st.tx_hdr_twopi);
+    fprintf(fp,"tx_mem_circ = %d;\n",  st.tx_mem_circ);
+    fprintf(fp,"tx_same_cipher = %d;\n", st.tx_same_cipher);
     fprintf(fp,"is_alice = %d;\n",    is_alice);
     if (is_alice) 
       fprintf(fp,"rx_same_hdrs = 1;\n");
@@ -712,14 +876,17 @@ int main(int argc, char *argv[]) {
     fprintf(fp,"alice_syncing = %d;\n", st.alice_syncing);
     fprintf(fp,"search = %d;\n",       search);
     fprintf(fp,"osamp = %d;\n",        st.osamp);
-    fprintf(fp,"rand_body_en = %d;\n", st.rand_body_en);
+    fprintf(fp,"cipher_m = %d;\n",     st.cipher_m);
+    fprintf(fp,"cipher_en = %d;\n",     st.cipher_en);
+    fprintf(fp,"cipher_symlen_asamps = %d;\n", st.cipher_symlen_asamps);
     fprintf(fp,"tx_0 = %d;\n",  st.tx_0);
     fprintf(fp,"frame_qty = %d;\n",    st.frame_qty);
     fprintf(fp,"frame_pd_asamps = %d;\n", st.frame_pd_asamps);
 
+    fprintf(fp,"init_pwr_thresh = %d;\n", st.init_pwr_thresh);
     fprintf(fp,"hdr_pwr_thresh = %d;\n", st.hdr_pwr_thresh);
     fprintf(fp,"hdr_corr_thresh = %d;\n", st.hdr_corr_thresh);
-    fprintf(fp,"sync_dly = %d;\n", st.sync_dly);
+    fprintf(fp,"sync_dly_asamps = %d;\n", st.sync_dly_asamps);
   
     fprintf(fp,"hdr_len_bits = %d;\n", st.hdr_len_bits);
     fprintf(fp,"data_hdr = 'i_adc q_adc';\n");

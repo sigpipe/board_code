@@ -117,12 +117,19 @@ char *ini_err_msg(void) {
 	    (char *)(ini_la.vals->ptr), ini_la.val->line,
 	    ini_la.val->name, ini_la.r_req, ini_la.c_req);
     break;
+  case INI_ERR_FAIL:
+    break;
   default:
     ini_la.err_msg[0]=0;
   }
   return ini_la.err_msg;
 }
 
+static int ini_err(int err) {
+  ini_la.err = err;
+  //  strcpy(ini_la.err_msg, msg);
+  return err;
+}
 
 extern int dbg_lvl;
 
@@ -131,7 +138,7 @@ int ini_get(ini_val_t *vals, char *name, int itype, ini_val_t **var) {
 // inputs:
 //   name: name of variable
 //   itype: INI_ITYPE_* = requested type.  0= no particular type requested
-// returns: a ptr to an ini val
+// returns: a ptr to an ini val. or 0 if not found
 // sets: ini_la.err to 0 or INI_ERR_WRONGTYPE or INI_ERR_NOSUCHNAME;
   ini_val_t *v;
   *var = 0;
@@ -187,7 +194,7 @@ ini_val_t *ini_new_at_end(ini_val_t *vals, char *name) {
   return n;
 }
 
-void ini_free(ini_val_t *val) {
+static void ini_free_val(ini_val_t *val) {
   //  printf("   %s: ", ini_itype_to_str(val->itype));
   switch(val->itype) {
     case INI_ITYPE_NONE    :
@@ -218,7 +225,7 @@ void ini_free(ini_val_t *val) {
 }
 
 
-int ini_del_all(ini_val_t *vals) {
+int ini_free_all(ini_val_t *vals) {
   ini_val_t *v, *vn;
   if (vals->itype != INI_ITYPE_NONE)
     printf("BUG: bad ivars header itype\n");
@@ -227,17 +234,17 @@ int ini_del_all(ini_val_t *vals) {
   while(vn) {
     v=vn;
     vn=v->nxt;
-    ini_free(v);
+    ini_free_val(v);
     free(v);
   }
   return 0;
 }
 
-int ini_free_vals(ini_val_t *vals) {
+int ini_free(ini_val_t *vals) {
 // inputs:
 //   vals: ptr to entire thing
   // printf("\nDBG: free fname %s\n", (char *)(vals->ptr));
-  ini_del_all(vals);
+  ini_free_all(vals);
   free((char *)(vals->ptr)); // free the fname
   free(vals);
   return 0;
@@ -254,7 +261,7 @@ int ini_del(ini_val_t *vals, ini_val_t *var) {
   for(v=vals; v->nxt; v=v->nxt)
     if (v->nxt==var) {
       v->nxt=var->nxt;
-      ini_free(var);
+      ini_free_val(var);
       free(var);
       return 0;
     }
@@ -265,7 +272,7 @@ void ini_set_prep(ini_val_t *vals, char *name, int itype, ini_val_t **v_p) {
   int e;
   ini_val_t *v;
   e=ini_get(vals, name, itype, &v);
-  if (e==INI_ERR_WRONGTYPE) ini_free(v);
+  if (e==INI_ERR_WRONGTYPE) ini_free_val(v);
   else if (e==INI_ERR_NOSUCHNAME) {
     v=ini_new_at_end(vals, name);
   }
@@ -374,7 +381,7 @@ int ini_get_matrix(ini_val_t *vals, char *name, mx_t *m) {
 int ini_set_matrix(ini_val_t *vals, char *name, mx_t m) {
   ini_val_t *v;
   ini_set_prep(vals, name, INI_ITYPE_MATRIX, &v);
-  if (v->itype == INI_ITYPE_MATRIX) ini_free(v);
+  if (v->itype == INI_ITYPE_MATRIX) ini_free_val(v);
   v->ptr=(void*)m;
   v->itype=INI_ITYPE_MATRIX;
   return 0;
@@ -647,9 +654,10 @@ int ini_read(char *fname, ini_val_t **rvals) {
   *rvals = vals;
 
   fp = fopen(fname, "r");
-  if (!fp)
-    // printf("ERR: cant open %s\n", fname);
-    return INI_ERR_FAIL;
+  if (!fp) {
+    sprintf(ini_la.err_msg, "cant open %s", fname);
+    return ini_err(INI_ERR_FAIL);
+  }
 
 #if (DBG)
   printf("    reading %s\n", fname);

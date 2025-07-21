@@ -1,27 +1,45 @@
 
 
-QSRCS = qregd cmd parse qna_usb util qregs
+QSRCS = h qregd cmd parse util qregs ini mx qna rp
 QOBJS = $(QSRCS:%=obj/%.o)
 
-TSRCS = util qregs corr mx ini parse h_vhdl_extract
+TSRCS = h util corr qregs ini mx parse qna
 TOBJS = obj/tst.o $(TSRCS:%=obj/%.o)
 THDRS = $(TSRCS:%=src/%.h)
 
-USRCS = util qregs corr mx ini parse h_vhdl_extract cmd
+USRCS = h util corr mx ini parse h_vhdl_extract cmd qregs qna
 UOBJS = $(USRCS:%=obj/%.o)
 
-default: tst u
+VARSRCS = ini mx parse
+VAROBJS = $(VARSRCS:%=obj/%.o)
 
 
-qregd: obj/qregd.o $(QOBJS)
-	gcc obj/qregd.o $(QOBJS) -lm -liio  -o $@
+all: obj tst u qregd
 
-tst:  $(TOBJS)
-	gcc $(TOBJS) -lm -liio  -o $@ 
+
+#libvars.a: $(VAROBJS)
+#	ar r $@ $(VAROBJS)
+
+
+qregd: $(QOBJS)
+	gcc $(QOBJS) -lm -liio -pthread -o $@
+
+libqregs.a: obj/qregs.o
+	echo $(QOBJS)
+	ar r $@ obj/qregs.o
+
+obj/qregs.o: src/h_vhdl_extract.h
+
+obj/tst.o: src/tst.c ../qnicll/qnicll.h
+	gcc -D'OPT_QNICLL=1' -I../qnicll $< -c -o $@
+
+tst: $(TOBJS)
+	gcc $(TOBJS) -L../qnicll -lm -liio  -lqnicll -o $@ 
 
 # utilities
+obj/u.o: src/qregs.h
 u:  obj/u.o $(UOBJS)
-	gcc obj/u.o $(UOBJS) -lm -liio  -o $@ 
+	gcc obj/u.o $(UOBJS) -L. -lm -liio  -o $@ 
 
 
 $(TOBJS): $(THDRS)
@@ -30,7 +48,7 @@ obj/%.o: src/%.c
 	gcc $< -c -o $@
 
 clean:
-	rm -rf obj
+	rm -rf obj/*
 
 obj:
 	mkdir obj

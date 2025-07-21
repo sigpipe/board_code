@@ -1,13 +1,19 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 #include <math.h>
 #include <sys/mman.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <poll.h>
 #include "qregs.h"
+#include "qregs_ll.h"
+#include "qna.h"
+#include "util.h"
+#include "h.h"
 
 // constants for register fields (H_*) are defined in this file:
 #include "h_vhdl_extract.h"
@@ -26,14 +32,21 @@ int baseaddrs[]={BASEADDR_QREGS, BASEADDR_ADC};
 
 //#define AREG2_PROC_SEL         (0x00000003)
 
-#define AREG2_PS0_HDR_FOUND    (0x80000000)
-#define AREG2_PS0_FRAMER_GOING (0x40000000)
-#define AREG2_PS0_HDR_CYC      (0x03ffffff)
+#define AREG2_PS0_HDR_FOUND     (0x80000000)
+#define AREG2_PS0_FRAMER_GOING  (0x40000000)
+#define AREG2_PS0_MET_INIT      (0x20000000)
+#define AREG2_PS0_PWR_SEARCHING (0x10000000)
+#define AREG2_PS0_HDR_CYC       (0x03ffffff)
+
 #define AREG2_PS2_HDR_CYC_SUM  (0x0000ffff)
-#define AREG2_PS2_HDR_DET_CNT  (0x0000ffff)
 
+#define AREG2_PS3_HDR_DET_CNT  (0xffff0000)
+#define AREG2_PS3_HDR_PWR_CNT  (0x0000ffff)
 
+char *qregs_errs[] = {"", "fail", "timeout", "bug"};
 
+int  qregs_lasterr=0;
+char qregs_errmsg[QREGS_ERRMSG_LEN];
 
 qregs_st_t st={0};
 
@@ -46,12 +59,35 @@ double qregs_dur_samps2us(int s) {
   return (double)s / 1e-6 / st.asamp_Hz;
 }
 
-
-int qregs_err(char *s) {
-  printf("ERR: %s\n", s);
-  return 1;
+int qregs_err(int e, char *msg) {
+// desc: for generating errors
+// TODO: what if there's more than one line of errors?
+// I should really make some kind of stack
+  qregs_lasterr = e;
+  strncpy(qregs_errmsg, msg, QREGS_ERRMSG_LEN-1);
+  qregs_errmsg[QREGS_ERRMSG_LEN-1]=0;
+  //  printf("ERR: %s\n", s);
+  return e;
 }
 
+int qregs_err_fail(char *msg) {
+// desc: for generating errors
+  return qregs_err(QREGS_ERR_FAIL, msg);
+}
+int qregs_err_bug(char *msg) {
+// desc: for generating errors
+  // TODO: should this hang instead?
+  return qregs_err(QREGS_ERR_BUG, msg);
+}
+
+char *qregs_err2str(int e){
+  if ((e<0)||(e>QREGS_MAX_ERR)) e=0;
+  return qregs_errs[e];
+}
+
+void qregs_print_last_err(void) {
+  printf("ERR: %s: %s\n", qregs_err2str(qregs_lasterr), qregs_errmsg);
+}
 
 int msk2bpos(unsigned int msk) {
   int p=0;
@@ -72,8 +108,22 @@ int msk2maxval(unsigned int msk) {
 
 
 
+int clip_regval_u(int regconst, int v) {
+  // desc: limits a value to fit in an unsigned register field
+  // TODO: perhaps always do this automatically in h_w_fld,
+  // but then it should return the clipped value.
+  if (v<0) return 0;
+  if (v>H_2VMASK(regconst))
+    return H_2VMASK(regconst);
+  return v;
+}
+
+
+
+
+
 int qregs_regs[2][8];
-int qregs_ver;
+int qregs_fwver=0;
 
 /*
 unsigned qregs_reg_w(int map_i, int reg_i, unsigned int fldmsk, unsigned val) {
@@ -112,208 +162,645 @@ unsigned ext(int v, unsigned int fldmsk) {
 //unsigned qregs_reg_r_fld(int map_i, int reg_i, unsigned int fldmsk) {
 //  return ext(qregs_reg_r(map_i, reg_i), fldmsk);
 //}
-
-
-
-
-
-// these conform to the h_access_funcs prototypes:
-
-int qregs_r(int regconst) {
-// desc: reads an entire register, returns the value
-  int rv, rs = H_2SPACE(regconst);
-  int reg_i = H_2REG(regconst);  
-  rv = *(st.memmaps[rs] + reg_i);
-  qregs_regs[rs][reg_i] = rv;
-  return rv;
-}
-
-int qregs_r_fld(int regconst) {
-  int rv=qregs_r(regconst);
-  return H_EXT(regconst, rv);
-}
-
-void qregs_w(int regconst, int v){
-// desc: writes an entire register  
-  int rs = H_2SPACE(regconst);
-  int reg_i = H_2REG(regconst);
-  *(st.memmaps[rs] + reg_i) = v;
-  qregs_regs[rs][reg_i] = v;
-}
-
-void qregs_w_fld(int regconst, int v){
-// desc: writes an entire register using the cached register value,
-//       and filling in the specified field.
-//       Might or might not be more efficent than qregs_rmw_fld.
-  int rs = H_2SPACE(regconst);
-  int reg_i = H_2REG(regconst);
-  int rv = qregs_regs[rs][reg_i];
-  qregs_w(regconst, H_INS(regconst, rv, v));
-}
-
-void qregs_rmw_fld(int regconst, int v){
-// desc: read-modify-write, filling in the specified field  
-  int rs    = H_2SPACE(regconst);
-  int reg_i = H_2REG(regconst);
-  int rv = qregs_r(regconst);
-  qregs_w(regconst, H_INS(regconst, rv, v));
-}
-
-void qregs_pulse(int regconst) {
-  qregs_w_fld(regconst, 1);
-  usleep(10);  
-  qregs_w_fld(regconst, 0);
+void qregs_ser_flush(void) {
+  h_pulse_fld(H_DAC_SER_RST);  
 }
 
 
-//void qregs_clr_ctrs(void) {
-//  qregs_pulse(H_ADC_PCTL_PROC_CLR_CNTS);
-//}
+int qregs_block_until_tx_rdy(void) {
+  size_t sz;
+  uint32_t u32;
+  int i;
+  struct pollfd fds = {
+    .fd     = st.uio_fd,
+    .events = POLLIN};
+  // enable an interrut when tx fifo is empty
+  //  printf("DBG: tx block (timo_ms %d, POLLIN %d)\n", st.ser_state.timo_ms,POLLIN);
+  h_w_fld(H_DAC_CTL_SER_TX_IRQ_EN, 1);
+  i = poll(&fds, 1, st.ser_state.timo_ms); // block til mt
+  if (i>=1) {
+    // returns number of interrupts, which we don't care much about
+    sz = read(st.uio_fd, &u32, sizeof(u32));
+    if (sz != sizeof(u32))
+      return qregs_err_bug("read from uio did not return 4 bytes");
+  }
+  //  printf("DBG: tx unblock (i %d,  tx_mt %d tx_full %d)\n",i, h_r_fld(H_DAC_STATUS_SER_TX_MT), h_r_fld(H_DAC_SER_TX_FULL));
+  h_w_fld(H_DAC_CTL_SER_TX_IRQ_EN, 0);
+  u32=1;
+  write(st.uio_fd, &u32, sizeof(u32)); // re-enable irq
+  return 0;
+}
 
 
-void mprompt(char *prompt) {
-  char buf[256];
-  if (prompt && prompt[0])
-    printf("%s > ", prompt);
-  else
-    printf("hit enter > ");
-  scanf("%[^\n]", buf);
-  getchar();
+int qregs_ser_sel(int sel) {
+  int e;
+  if (sel!=st.ser_state.sel) {
+    sel = !!sel;
+    // kludgey... need to add HDL support for this.
+    e=qregs_block_until_tx_rdy();
+    if (e) return e;
+    while (1) {
+      if (h_r_fld(H_DAC_STATUS_SER_TX_MT)) break;
+      usleep(1000);
+    }
+    usleep(1000);
+    h_w_fld(H_DAC_PCTL_SER_SEL, sel);
+    st.ser_state.sel=sel;
+  }
+  return 0;
+}
+
+static char ser_rx(void) {
+  char c=0;
+  int v;
+  v = h_r(H_DAC_SER);
+  if (h_ext(H_DAC_SER_RX_VLD, v)) {
+    c=h_ext(H_DAC_SER_RX_DATA, v);
+    h_w(H_DAC_SER, h_ins(H_DAC_SER_RX_R, v, 1));
+    h_w(H_DAC_SER, h_ins(H_DAC_SER_RX_R, v, 0));
+  }
+  return c;
+}
+
+
+static void ser_tx(char c) {
+  int v;
+  v = h_r(H_DAC_SER);
+  if (h_ext(H_DAC_SER_TX_FULL, v)) return;
+  v = h_ins(H_DAC_SER_TX_DATA, v, c);
+  // printf("ser w x%02x\n", h_ins(H_DAC_SER_TX_W, v, 1));
+  h_w(H_DAC_SER, h_ins(H_DAC_SER_TX_W, v, 1));
+  h_w(H_DAC_SER, h_ins(H_DAC_SER_TX_W, v, 0));
+}
+
+int qregs_ser_tx(char c) {
+  // returns: 0=ok, non-zero=timeout
+  int v,i,e=1;
+  uint32_t u32;
+  ssize_t sz;
+  if (st.uio_fd<0)
+    return qregs_err_fail("qregs_ser_tx: uio not open");
+  if (!h_r_fld(H_DAC_SER_TX_FULL)) {
+    ser_tx(c);
+    return 0;
+  }
+  qregs_block_until_tx_rdy();
+  e = h_r_fld(H_DAC_SER_TX_FULL) ? QREGS_ERR_TIMO : 0;
+  if (!e) ser_tx(c);
+  return e;
+}
+
+int qregs_ser_tx_buf(char *c, int len) {
+  // returns: 0=ok, non-zero=timeout
+  int i,e=0;
+  for(i=0;!e&&(i<len);++i)
+    e=qregs_ser_tx(c[i]);
+  return e;
+}
+
+int qregs_ser_rx_buf_til_term(char *buf, int nchar, int *rxed) {
+// does not put 0 after recieved data  
+  char c;
+  int i,e=0;
+  qregs_ser_state_t *ss = &st.ser_state;
+  *rxed=0;
+  for(i=0; !e&&(i<nchar); ++i) {
+    e=qregs_ser_rx(&c);
+    if (e) return e;
+    buf[i]=c;
+    *rxed=i+1;
+    if (ss->term && (c==ss->term)) return 0;
+  }
+  return 0;
+}
+
+int qregs_ser_rx(char *c_p) {
+  char c;
+  ssize_t sz;
+  uint32_t u32;
+  int i,v,e;
+
+  if (st.uio_fd<0)
+    return qregs_err_fail("qregs_ser_rx: uio not open");
+
+
+  if (h_r_fld(H_DAC_SER_RX_VLD)) {
+    *c_p = ser_rx();
+    return 0;
+  }
+
+  struct pollfd fds = {
+    .fd = st.uio_fd,
+    .events = POLLIN};
+
+  h_w_fld(H_DAC_CTL_SER_RX_IRQ_EN, 1);
+
+  i = poll(&fds, 1, st.ser_state.timo_ms); // block til rx avail
+  // printf("poll ret %d pollin %d\n", i, POLLIN);
+  if (i>=1) {
+    sz = read(st.uio_fd, &u32, sizeof(u32));
+    if (sz != sizeof(u32))
+      return qregs_err_bug("read from uio did not return 4 bytes");
+  }
+  e = h_r_fld(H_DAC_SER_RX_VLD)?0:QREGS_ERR_TIMO;
+  if (!e)
+    *c_p = ser_rx();
+  h_w_fld(H_DAC_CTL_SER_RX_IRQ_EN, 0);
+  u32=1;
+  write(st.uio_fd, &u32, sizeof(u32)); // re-enable irq
+  return e;
+}
+
+void qregs_ser_set_timo_ms(int timo_ms) {
+  st.ser_state.timo_ms = timo_ms;
+}
+
+#define REF_FREQ_HZ (100.0e6)
+void qregs_ser_set_params(int *baud_Hz, int parity, int en_xonxoff) {
+  int d;
+  d = (REF_FREQ_HZ + *baud_Hz/2) / *baud_Hz;
+  if (d<1) d=1;
+  d = h_w_fld(H_DAC_SER_REFCLK_DIV_MIN1, d-1)+1;
+  *baud_Hz = REF_FREQ_HZ / d;
+  // printf("DBG: baud actually %d\n", *baud_Hz);
+  h_w_fld(H_DAC_SER_PARITY, parity);
+  h_w_fld(H_DAC_SER_XON_XOFF_EN, en_xonxoff);
+  // h_pulse_fld(H_DAC_SER_RST); // not needed but ok.
+  h_pulse_fld(H_DAC_SER_SET_PARAMS);
+}
+
+int qregs_ser_do_cmd(char *cmd, char *rsp, int rsp_len) {
+  int e, rxd;
+  char c, *p, *d;
+  e=qregs_ser_tx_buf(cmd, strlen(cmd));
+  if (e) {
+    printf("ERR: possible bug. ser tx timo\n");
+    return e;
+  }
+  
+  e=qregs_ser_rx_buf_til_term(rsp, rsp_len-1, &rxd);
+  rsp[rxd]=0;
+  
+  p = strstr(rsp, "\n");
+  if (p) {
+    ++p;
+    for(d=rsp;1;) {
+      c=*p++;
+      *d++=c;
+      if (!c) break;
+    }
+  }
+  return 0;
+}
+
+
+int qregs_findkey(char *buf, char *key, char *val, int val_size) {
+  char *p, *ep, *m, *buf_e;
+  size_t llen, klen, vlen;
+  buf_e = buf + strlen(buf);
+  *val = 0;
+  p = buf;  
+  while(p < buf_e) {
+    ep = strstr(p, "\n");
+    if (ep) llen = ep-p;
+    else    llen=strlen(p);
+    // printf("llen %d\n", llen);
+    m = strstr(p, key);
+    if (m && (m < p + llen)) {
+      // printf("found %s\n", m);
+      klen = strlen(key);
+      if (*(m+klen)==' ') ++m;
+      vlen = u_max(llen - (m-p) - klen, val_size-1);
+      strncpy(val, m + klen, vlen);
+      *(val+val_size)=0;
+      return 0;
+    }
+    p = p + llen+1;
+  }
+  char tmp[64];
+  sprintf(tmp, "missing keyword %s", key);
+  return qregs_err_fail(tmp);
+}
+
+
+int qregs_findkey_int(char *buf, char *key, int *val) {
+  char tmp[64];
+  int i, n, e;
+  e = qregs_findkey(buf, key, tmp, 64);
+  if (e) return e;
+  n=sscanf(tmp,"%d", &i);
+  if (n!=1) return qregs_err_fail("missing int");
+  *val=i;
+  return 0;
+}
+int qregs_findkey_dbl(char *buf, char *key, double *val) {
+  char tmp[64];
+  int i, n, e;
+  double d;
+  e = qregs_findkey(buf, key, tmp, 64);
+  if (e) return e;
+  n=sscanf(tmp, "%lf", &d);
+  // printf("dbl %g\n", d);
+  if (n!=1) return qregs_err_fail("missing double");
+  *val=d;
+  return 0;
+}
+
+
+#define IBUF_LEN (1024)
+static char ibuf[IBUF_LEN];
+int qregs_ser_qna_connect(char *irsp, int irsp_len) {
+  int e, rxed;
+  qregs_ser_state_t *ss = &st.ser_state;
+  qregs_ser_flush();
+  e=qregs_ser_tx('\r');
+  if (e) return e;
+  ss->timo_ms=200;
+  e = qregs_ser_rx_buf_til_term(ibuf, 1024, &rxed);
+  e = qregs_ser_tx_buf("i\r", 2);
+  ss->timo_ms=200;  
+  e = qregs_ser_rx_buf_til_term(ibuf, 1024, &rxed);
+  ibuf[rxed]=0;
+  u_print_all(ibuf);
+
+  if (qregs_findkey(ibuf, "QNA", irsp, IBUF_LEN))
+    return qregs_err_fail("did not iden QNA");
+  printf("got rsp QNA %s\n", irsp);
+  return 0;
+}
+
+
+
+
+
+
+
+#define REBAL_M_SCALE ((H_2VMASK(H_ADC_REBALM_M11)+1)/4)
+// (all matrix entries are the same size)
+static double mclip(double m) {
+  if (m >= 2.0) return  1.999;
+  if (m <=-2.0) return -1.999;
+  return m;
+}
+
+int qregs_set_laser_en(int en) {
+  return qna_set_laser_en(en);
+}
+
+int qregs_set_laser_pwr_dBm(double *dBm) {
+  return qna_set_laser_pwr_dBm(dBm);
+}
+
+int qregs_set_laser_wl_nm(double *wl_nm) {
+  return qna_set_laser_wl_nm(wl_nm);
+}
+int qregs_get_laser_status(qregs_laser_status_t *status) {
+  return qna_get_laser_status(status);
+}
+int qregs_get_laser_settings(qregs_laser_settings_t *set) {
+  return qna_get_laser_settings(set);
+}
+
+
+void qregs_set_iq_rebalance(qregs_rebalance_params_t *params) {
+  int i;
+  // printf("DBG: set iq rebal\n");
+  params->i_off = h_w_signed_fld(H_ADC_REBALO_I_OFFSET, params->i_off);
+  params->q_off = h_w_signed_fld(H_ADC_REBALO_Q_OFFSET, params->q_off);
+
+  i = mclip(params->m11) * REBAL_M_SCALE;
+  i = h_w_signed_fld(H_ADC_REBALM_M11, i);
+  params->m11 = (double)i/REBAL_M_SCALE;
+
+  i = mclip(params->m12) * REBAL_M_SCALE;
+  i = h_w_signed_fld(H_ADC_REBALM_M12, i);
+  params->m12 = (double)i/REBAL_M_SCALE;
+
+  i = mclip(params->m21) * REBAL_M_SCALE;
+  i = h_w_signed_fld(H_ADC_REBALM_M21, i);
+  params->m21 = (double)i/REBAL_M_SCALE;
+  
+  i = mclip(params->m22) * REBAL_M_SCALE;
+  i = h_w_signed_fld(H_ADC_REBALM_M22, i);
+  params->m22 = (double)i/REBAL_M_SCALE;
+  st.rebal = *params;
+}
+
+
+
+
+void qregs_get_settings(void) {
+  int i;
+  
+  st.use_lfsr      = h_r_fld(H_DAC_HDR_USE_LFSR);
+  st.lfsr_rst_st   = h_r_fld(H_DAC_HDR_LFSR_RST_ST);
+  st.tx_always     = h_r_fld(H_DAC_CTL_TX_ALWAYS);
+  st.tx_0          = h_r_fld(H_DAC_CTL_TX_0);
+  st.tx_mem_circ   = h_r_fld(H_DAC_CTL_MEMTX_CIRC);
+  st.tx_same_hdrs  = h_r_fld(H_DAC_HDR_SAME);
+  st.tx_hdr_twopi  = h_r_fld(H_DAC_HDR_TWOPI);
+  st.alice_syncing = h_r_fld(H_ADC_ACTL_ALICE_SYNCING);
+  st.osamp         = h_r_fld(H_DAC_CTL_OSAMP_MIN1) + 1;
+  st.cipher_en     = h_r_fld(H_DAC_CTL_CIPHER_EN);
+  
+  i = h_r_fld(H_ADC_FR1_FRAME_PD_MIN1);
+  st.frame_pd_asamps = (i+1)*4;
+
+  i = h_r_fld(H_ADC_FR2_HDR_LEN_MIN1_CYCS);
+  st.hdr_len_asamps = (i+1)*4;
+  st.hdr_len_bits = st.hdr_len_asamps/st.osamp;
+
+  i = h_r_fld(H_DAC_CTL_BODY_LEN_MIN1_CYCS);
+  st.body_len_asamps = (i+1)*4;
+
+
+  st.frame_qty = h_r_fld(H_DAC_FR2_FRAME_QTY_MIN1)+1;
+
+  st.init_pwr_thresh = h_r_fld(H_ADC_SYNC_INIT_THRESH_D16)*16;
+  st.hdr_pwr_thresh  = h_r_fld(H_ADC_HDR_PWR_THRESH);
+  st.hdr_corr_thresh = h_r_fld(H_ADC_HDR_THRESH);
+  st.sync_dly_asamps = h_r_fld(H_ADC_SYNC_DLY_CYCS)*4;
+
+  st.pm_dly_cycs = h_r_fld(H_DAC_FR2_PM_DLY_CYCS);
+
+
+  st.rebal.i_off = h_r_signed_fld(H_ADC_REBALO_I_OFFSET);
+  st.rebal.q_off = h_r_signed_fld(H_ADC_REBALO_Q_OFFSET);
+
+  i = h_r_signed_fld(H_ADC_REBALM_M11);
+  st.rebal.m11 = (double)i/REBAL_M_SCALE;
+  i = h_r_signed_fld(H_ADC_REBALM_M12);
+  st.rebal.m12 = (double)i/REBAL_M_SCALE;
+  i = h_r_signed_fld(H_ADC_REBALM_M21);
+  st.rebal.m21 = (double)i/REBAL_M_SCALE;
+  i = h_r_signed_fld(H_ADC_REBALM_M22);
+  st.rebal.m22 = (double)i/REBAL_M_SCALE;
+
+  
+  // printf("DBG:clkdiv %d\n", h_r_fld(H_DAC_SER_REFCLK_DIV_MIN1));
+  st.ser_state.sel     = h_r_fld(H_DAC_PCTL_SER_SEL);
+  st.ser_state.baud_Hz = REF_FREQ_HZ / (h_r_fld(H_DAC_SER_REFCLK_DIV_MIN1)+1);
+  st.ser_state.parity  = h_r_fld(H_DAC_SER_PARITY);
+  st.ser_state.xon_xoff_en = h_r_fld(H_DAC_SER_XON_XOFF_EN);
+  st.ser_state.timo_ms = 4000;
+  st.ser_state.term = '>';
+}
+
+void qregs_print_settings(void) {
+  printf("tx_always %d\n", st.tx_always);
+  printf("tx_mem_circ %d\n", st.tx_mem_circ);
+  printf("tx_0 %d\n", st.tx_0);
+  printf("tx_hdr_twopi %d\n", st.tx_hdr_twopi);
+  printf("use_lfsr %d\n", st.use_lfsr);
+  printf("frame_pd_asamps %d = %.3Lf us\n", st.frame_pd_asamps,
+	 qregs_dur_samps2us(st.frame_pd_asamps));
+  
+  printf("frame_qty %d\n", st.frame_qty);
+  printf("body_len_asamps %d\n", st.body_len_asamps);
+  printf("hdr_len_bits = %.3Lf ns\n", st.hdr_len_bits,
+	 qregs_dur_samps2us(st.hdr_len_bits*st.osamp)*1000);
+  printf("hdr det thresh : init %d  pwr %d corr %d\n",
+	 st.init_pwr_thresh, st.hdr_pwr_thresh, st.hdr_corr_thresh);
+
+
+  printf("ser : baud %d  parity %d  xonxoff %d\n",
+	 st.ser_state.baud_Hz, st.ser_state.parity, st.ser_state.xon_xoff_en);
+  printf("rebal : i_off %d q_off %d\n", st.rebal.i_off, st.rebal.q_off);
+  printf("        m  [ %.6f %.6f\n",   st.rebal.m11, st.rebal.m12);
+  printf("             %.6f %.6f];\n", st.rebal.m21, st.rebal.m22);
 }
 
 
 int qregs_init(void) {
-  int i, e, v;
+  int i, rs, e, v;
   int qregs_fd;
+
   int *p;
   //  printf("DBG: myiiio_init\n");
   qregs_fd = open("/dev/mem", O_RDWR | O_SYNC);
-  if (qregs_fd < 0) return qregs_err("cannot open /dev/mem");
+  if (qregs_fd < 0)
+    return qregs_err_fail("cannot open /dev/mem");
   for(i=0;i<BASEADDRS_NUM; ++i) {
     p = (int *)mmap(0, MMAP_REGSSIZE, PROT_READ | PROT_WRITE,
     			      MAP_SHARED, // | MAP_FIXED,
 			      qregs_fd, baseaddrs[i]);
     st.memmaps[i]=p;
     if (st.memmaps[i]==MAP_FAILED)
-      return qregs_err("mmap 2 failed");
+      return qregs_err_fail("mmap 2 failed");
   }
   e=close(qregs_fd); // we dont need to keep this open
 
+
+  st.uio_fd=open("/dev/uio4", O_RDWR);
+  if (st.uio_fd<0)
+    qregs_err_fail("cant open /dev/uio4");
+
+  
   //  qregs_reg_w(0, 3, REG3_WOVF_IGNORE, 1);
   //  qregs_clr_ctrs();
 
-  for(i=0;i<7;++i)
-    qregs_r(H_CONST(H_DAC, i, 0, 0));
 
-  for(i=0;i<8;++i)
-    qregs_r(H_CONST(H_ADC, i, 0, 0));
+  st.ver_info.tx_mem_addr_w = h_r_fld(H_DAC_STATUS_MEM_ADDR_W);
+  qregs_fwver = H_FWVER;
+  st.ver_info.quanet_dac_fwver = i = h_r_fld(H_DAC_STATUS_FWVER);
+  if (qregs_fwver != i)
+    printf("ERR: quanet_dac fwver not %d !\n", i, qregs_fwver);
+  st.ver_info.quanet_adc_fwver = i = h_r_fld(H_ADC_STAT_FWVER);
+  if (qregs_fwver != i)
+    printf("ERR: quanet_adc fwver %d not %d !\n", i, qregs_fwver);
+
+  // read all regs to initialize shadow copy
+  for(rs=0;rs<2;++rs)
+    for(i=0;i<=h_max_reg_offset[rs]; ++i)
+      h_r(H_CONST(rs, i, 0, 0));
+  
+  //  st.ser_state.baud_Hz = 115200;
+  st.ver_info.cipher_w = H_CIPHER_W;
+
+
+  
+  //  qregs_ser_set_params(&st.ser_state.baud_Hz, 0, 0);
+  
   
   //  for(i=0;i<6;++i)
   //    qregs_reg_r(1, i));
   //  printf("adc%d x%08x\n", 2, qregs_reg_r(1, 2));
 
 
-  qregs_ver = H_FWVER;
-  i = qregs_r_fld(H_DAC_STATUS_FWVER);
-  if (qregs_ver != i)
-    printf("ERR: quanet_dac fwver not %d\n", i, qregs_ver);
-  i = qregs_r_fld(H_ADC_STAT_FWVER);
-  if (qregs_ver != i)
-    printf("ERR: quanet_adc fwver %d not %d\n", i, qregs_ver);
-  
 
-
-
-  qregs_set_lfsr_rst_st(0x50f);
-  qregs_set_hdr_det_thresh(40, 256);
+  //  qregs_set_lfsr_rst_st(0x50f);
 
   
   // TODO: learn this in some smart way.
   st.asamp_Hz = 1.233333333e9;  
-  
-  if (e) return qregs_err("close failed");
+
+  //  iq_rebalance=1.0;
+  //  qregs_set_iq_rebalance(&iq_rebalance);
+
+  qregs_get_settings();
+  if (e) return qregs_err_fail("close failed");
   return 0;  
 }
 
-void qregs_calibrate_bpsk(int en) {
-  qregs_rmw_fld(H_DAC_CTL_BPSK_CALIBRATE, 1);
+
+
+//void qregs_calibrate_bpsk(int en) {
+//  qregs_rmw_fld(H_DAC_CTL_BPSK_CALIBRATE, 1);
+//}
+
+void qregs_set_hdr_im_dly_cycs(int hdr_im_dly_cycs) {
+  int i = h_rmw_fld(H_DAC_HDR_IM_DLY_CYCS, hdr_im_dly_cycs);
+  st.hdr_im_dly_cycs = i;
+}
+
+void qregs_set_pm_dly_cycs(int pm_dly_cycs) {
+  int i;
+  i= h_rmw_fld(H_DAC_FR2_PM_DLY_CYCS, pm_dly_cycs);
+  st.pm_dly_cycs = i;
 }
 
 void qregs_set_sync_dly_asamps(int sync_dly_asamps) {
 //   sync_dly_asamps: sync delay in units of 1.23GHz ADC samples.
 //                    may be positive or negative.  
-  int dly;
+  int dly, i;
   if (st.setflags&3 != 3)
     printf("WARN: call set_osamp and set_frame_pd before set_sync_dly\n");
-  if (qregs_ver<2) return;
+
   dly = (sync_dly_asamps + 10*st.frame_pd_asamps) % st.frame_pd_asamps;
+  i = dly/4;
+  i = h_w_fld(H_ADC_SYNC_DLY_CYCS, i);
+  dly=i*4;
   printf("dly %d\n", dly);
-  st.sync_dly = dly;
-  qregs_w_fld(H_ADC_SYNC_DLY, dly);// reg_w(1, 6, AREG6_SYNC_DLY, dly);
+  st.sync_dly_asamps = dly;
+}
+
+void qregs_dbg_set_init_pwr(int init_pwr) {
+  int i = init_pwr/16;
+  i = clip_regval_u(H_ADC_SYNC_INIT_THRESH_D16, i);
+  h_w_fld(H_ADC_SYNC_INIT_THRESH_D16, i);
+  st.init_pwr_thresh = i*16;
 }
 
 void qregs_set_hdr_det_thresh(int hdr_pwr, int hdr_corr) {
-  if (qregs_ver<2) return;
+  int i;
 
-#define MAX_PWR_THRESH H_2VMASK(H_ADC_HDR_PWR_THRESH)
-  hdr_pwr = MIN(hdr_pwr, MAX_PWR_THRESH);
-  qregs_w_fld(H_ADC_HDR_PWR_THRESH, hdr_pwr);
+  hdr_pwr = h_w_fld(H_ADC_HDR_PWR_THRESH, hdr_pwr);
   st.hdr_pwr_thresh = hdr_pwr;
-  
-#define MAX_CORR_THRESH   H_2VMASK(H_ADC_HDR_THRESH)
-  hdr_corr = MIN(hdr_corr, MAX_CORR_THRESH);
-  qregs_w_fld(H_ADC_HDR_THRESH, hdr_corr);
+
+  hdr_corr = h_w_fld(H_ADC_HDR_THRESH, hdr_corr);
   st.hdr_corr_thresh = hdr_corr;
 }
 
 void qregs_set_lfsr_rst_st(int lfsr_rst_st) {
-  qregs_w_fld(H_ADC_ACTL_LFSR_RST_ST, lfsr_rst_st);
-  qregs_w_fld(H_DAC_HDR_LFSR_RST_ST,  lfsr_rst_st);
+  lfsr_rst_st = h_w_fld(H_ADC_ACTL_LFSR_RST_ST, lfsr_rst_st);
+  h_w_fld(H_DAC_HDR_LFSR_RST_ST,  lfsr_rst_st);
   st.lfsr_rst_st = lfsr_rst_st;
 }
 
 void qregs_set_use_lfsr(int use_lfsr) {
   int i = !!use_lfsr;
-  qregs_w_fld(H_DAC_CTL_USE_LFSR, i);
+  h_rmw_fld(H_DAC_HDR_USE_LFSR, i);
   st.use_lfsr = i;
 }
 
-void qregs_set_rand_body_en(int en) {
-  int i = !!en;
-  qregs_w_fld(H_DAC_CTL_RAND_BODY, i);
-  st.rand_body_en = i;
+void qregs_set_cipher_en(int en, int symlen_asamps, int m) {
+  int i;
+  int l2m = round(log2(m));
+  i = h_w_fld(H_DAC_CIPHER_SYMLEN_MIN1_ASAMPS, symlen_asamps-1);
+  st.cipher_symlen_asamps = i+1;
+  l2m = h_w_fld(H_DAC_CIPHER_M_LOG2, l2m);
+  st.cipher_m = 1<<l2m;
+  i=!!en;
+  h_w_fld(H_DAC_CTL_CIPHER_EN, i);
+  st.cipher_en = i;
 }
 
 
 void qregs_set_tx_0(int tx_0) {
   int i = !!tx_0;
-  qregs_w_fld(H_DAC_CTL_TX_0, i);
+  h_w_fld(H_DAC_CTL_TX_0, i);
   st.tx_0 = i;  
 }
 
 void qregs_set_tx_always(int en) {
   int i = !!en;
-  qregs_w_fld(H_DAC_CTL_TX_ALWAYS, i);  
+  h_w_fld(H_DAC_CTL_TX_ALWAYS, i);  
   st.tx_always = i;
 }
 
-
 void qregs_set_tx_mem_circ(int en) {
   int i = !!en;
-  qregs_w_fld(H_DAC_CTL_MEMTX_CIRC, i);
+  h_w_fld(H_DAC_CTL_MEMTX_CIRC, i);
   st.tx_mem_circ = i;
 }
 
 void qregs_set_tx_same_hdrs(int same) {
   int i = !!same;
-  qregs_w_fld(H_DAC_CTL_SAME_HDRS, i);
+  h_rmw_fld(H_DAC_HDR_SAME, i);
   st.tx_same_hdrs = i;
 }
 
+void qregs_set_tx_same_cipher(int same) {
+  int i = !!same;
+  h_rmw_fld(H_DAC_CIPHER_SAME, i);
+  st.tx_same_cipher = i;
+}
+
+void qregs_set_tx_hdr_twopi(int en) {
+  int i = !!en;
+  h_rmw_fld(H_DAC_HDR_TWOPI, i);
+  st.tx_hdr_twopi = i;
+}
+
+
+
+
+
+//--void qregs_set_save_after_pwr(int en) {
+//  int i = !!en;
+//  h_w_fld(H_ADC_ACTL_SAVE_AFTER_PWR, i);
+//}
+
+void qregs_set_alice_txing(int en) {
+  h_w_fld(H_DAC_CTL_ALICE_TXING, en);
+}
+
+void qregs_set_qsdc_data_cfg(qregs_qsdc_data_cfg_t *data_cfg) {
+  int i,j;
+  qregs_qsdc_data_cfg_t *c = &st.qsdc_data_cfg;
+  i = !!data_cfg->is_qpsk;
+  i = h_w_fld(H_DAC_CTL_BODY_IS_QPSK, i);
+  c->is_qpsk = i;
+
+  i = data_cfg->pos_asamps/4-1;
+  i = h_w_fld(H_DAC_QSDC_POS_MIN1_CYCS, i);
+  c->pos_asamps = (i+1)*4;
+
+  j = st.frame_pd_asamps - c->pos_asamps; // what fits
+  i = MIN(data_cfg->body_len_asamps, j);
+  if (!i) i=j;
+  i=(i/4)-1;
+  i = h_w_fld(H_DAC_QSDC_BODY_CYCS_MIN1, i-1);
+  c->body_len_asamps = (i+1)*4;
+
+
+  if (data_cfg->symbol_len_asamps > 3)
+    data_cfg->symbol_len_asamps &= ~0x3; 
+  i = data_cfg->symbol_len_asamps-1;
+  i = h_w_fld(H_DAC_QSDC_SYM_ASAMPS_MIN1, i);
+  c->symbol_len_asamps = i+1;
+  
+  *data_cfg = *c;
+}
+
+
 void qregs_set_alice_syncing(int en) {
   int i = !!en;
-  qregs_w_fld(H_DAC_CTL_ALICE_SYNCING, i);
-  qregs_w_fld(H_ADC_ACTL_ALICE_SYNCING, i);
+  h_w_fld(H_ADC_ACTL_SAVE_AFTER_INIT, 0);
+  h_w_fld(H_ADC_ACTL_SAVE_AFTER_PWR, i);
+  h_w_fld(H_ADC_DBG_HOLD, 0);
+  h_w_fld(H_DAC_CTL_ALICE_SYNCING, i);
+  h_w_fld(H_ADC_ACTL_ALICE_SYNCING, i);
   st.alice_syncing = i;
 }
 
@@ -321,35 +808,29 @@ void qregs_set_alice_syncing(int en) {
 void qregs_set_frame_qty(int qty) {
   int i;
   i = qty-1;
-#define MAX_FRAME_QTY_MIN1 H_2VMASK(H_DAC_FR2_FRAME_QTY_MIN1)
-  i = MIN(i, MAX_FRAME_QTY_MIN1);
-  qregs_w_fld(H_DAC_FR2_FRAME_QTY_MIN1, i);
-  qregs_w_fld(H_ADC_FR2_FRAME_QTY_MIN1, i);
+  i = h_w_fld(H_DAC_FR2_FRAME_QTY_MIN1, i);
+  h_w_fld(H_ADC_FR2_FRAME_QTY_MIN1, i);
   st.frame_qty = (i+1);
 }
 
 void qregs_set_hdr_len_bits(int hdr_len_bits) {
   int i;
-  // call aftter setting frame pd and osamp
+  // call after setting frame pd and osamp
   // reg field is in number of cycles at 308.3MHz.
   if (st.setflags&3 != 3)
     printf("WARN: call set_osamp and set_frame_pd before set_hdr_len\n");
 
   i = hdr_len_bits * st.osamp / 4 - 1;
 
-#define MAX_HDR_LEN_MIN1 H_2VMASK(H_ADC_FR2_HDR_LEN_MIN1)
-  i = MIN(i, MAX_HDR_LEN_MIN1); 
-  qregs_w_fld(H_ADC_FR2_HDR_LEN_MIN1, i);
-  qregs_w_fld(H_DAC_CTL_HDR_LEN_MIN1, i);
+  i = h_w_fld(H_ADC_FR2_HDR_LEN_MIN1_CYCS, i);
+  h_w_fld(H_DAC_HDR_LEN_MIN1_CYCS, i);
   
   st.hdr_len_asamps = (i+1)*4;
   st.hdr_len_bits = st.hdr_len_asamps/st.osamp;
 
 
   i = (st.frame_pd_asamps - st.hdr_len_asamps)/4-1;
-#define MAX_BODY_LEN_MIN1 H_2VMASK(H_DAC_CTL_BODY_LEN_MIN1)
-  i = MIN(i, MAX_BODY_LEN_MIN1);
-  qregs_w_fld(H_DAC_CTL_BODY_LEN_MIN1, i);
+  i = h_w_fld(H_DAC_CTL_BODY_LEN_MIN1_CYCS, i);
   st.body_len_asamps = (i+1)*4;
 }
 
@@ -358,60 +839,109 @@ void qregs_set_frame_pd_asamps(int frame_pd_asamps) {
   int i;
   if (st.setflags&1 != 1)
     printf("BUG: call set_osamp before set_frame_pd_asamps\n");
-#define MAX_FRAME_PD_CYCS H_2VMASK(H_ADC_FR1_FRAME_PD_MIN1)
-  i = MIN((frame_pd_asamps/4-1), MAX_FRAME_PD_CYCS);
+
   // actually write num cycs-1 (at fsamp/4=308MHz)
-  qregs_w_fld(H_ADC_FR1_FRAME_PD_MIN1, i);
-  qregs_w_fld(H_DAC_FR1_FRAME_PD_MIN1, i);
+  i = frame_pd_asamps/4-1;
+  i = h_w_fld(H_ADC_FR1_FRAME_PD_MIN1, i);
+  h_w_fld(H_DAC_FR1_FRAME_PD_MIN1, i);
   st.frame_pd_asamps = (i+1)*4;
   st.setflags |= 2;
 }
 
+void qregs_get_avgpwr(int *avg, int *mx, int *cnt) {
+  // cnt: pwr event count
+  int v;
+  h_w_fld(H_ADC_CSTAT_PROC_SEL, 5);
+  v = h_r_fld(H_ADC_CSTAT_PROC_DOUT);
+  *avg = (v>>16)&0xffff;
+  *mx  = v&0xffff;
+
+  h_w_fld(H_ADC_CSTAT_PROC_SEL, 2);
+  v = h_r_fld(H_ADC_CSTAT_PROC_DOUT);
+  *cnt = (v>>16)&0xffff;
+  
+  h_pulse_fld(H_ADC_PCTL_PROC_CLR_CNTS);  
+}
+
+
 void qregs_print_hdr_det_status(void) {
-  int v, qty;
+  int v, r0, qty, hdr_rel_sum;
   short int s;
+
+
   
-  qregs_w_fld(H_ADC_CSTAT_PROC_SEL, 0);
-  v=qregs_r_fld(H_ADC_CSTAT_PROC_DOUT);
+  //  printf("\nSETTINGS\n");
+  //  printf("  async %d=%d\n", qregs_r_fld(H_DAC_CTL_ALICE_SYNCING),
+  //	 qregs_r_fld(H_ADC_ACTL_ALICE_SYNCING));
+  //  printf("  save_after_pwr %d\n", qregs_r_fld(H_ADC_ACTL_SAVE_AFTER_PWR));
+
+
+  qregs_print_adc_status();
+  
+  h_w_fld(H_ADC_CSTAT_PROC_SEL, 0);
+  r0=h_r_fld(H_ADC_CSTAT_PROC_DOUT);
   printf("\nHDR DET STATUS\n");
-  printf("       hdr_found %d\n", ext(v, AREG2_PS0_HDR_FOUND));
-  printf("    framer_going %d\n", ext(v, AREG2_PS0_FRAMER_GOING));
-  printf("         hdr_cyc %d\n", ext(v, AREG2_PS0_HDR_CYC));
+  printf("            reg0 x%x\n", r0);
+  printf("        met_init %d\n", ext(r0, AREG2_PS0_MET_INIT));
+  // This is momentary and unlikely to be caught:
+  //  printf("   pwr_searching %d\n", ext(r0, AREG2_PS0_PWR_SEARCHING));
+  printf("    framer_going %d\n", ext(r0, AREG2_PS0_FRAMER_GOING));
 
-  qregs_w_fld(H_ADC_CSTAT_PROC_SEL, 5);
-  v = qregs_r_fld(H_ADC_CSTAT_PROC_DOUT);  
-  printf("     pwr_avg     %d\n", (v>>16)&0xffff);
-  printf("     pwr_avg_max %d\n", v&0xffff);
 
-  
-  qregs_w_fld(H_ADC_CSTAT_PROC_SEL, 4);
-  v = qregs_r_fld(H_ADC_CSTAT_PROC_DOUT);  
-  printf("     hdr_pwr_cnt %d\n", v);
+  h_w_fld(H_ADC_CSTAT_PROC_SEL, 4);
+  v = h_r_fld(H_ADC_CSTAT_PROC_DOUT);  
+  //  printf("         rst_cnt %d\n", (v>>16)&0xffff);
+  printf("      search_cnt %d\n", v&0xffff);
 
   
-  qregs_w_fld(H_ADC_CSTAT_PROC_SEL, 3);
-  v = qregs_r_fld(H_ADC_CSTAT_PROC_DOUT);
-  qty  = ext(v, AREG2_PS2_HDR_DET_CNT);
-  printf("     hdr_det_cnt %d\n", qty);
+  h_w_fld(H_ADC_CSTAT_PROC_SEL, 5);
+  v = h_r_fld(H_ADC_CSTAT_PROC_DOUT);
+  printf("  PWR:          pwr_avg %d\n", (v>>16)&0xffff);
+  printf("            pwr_avg_max %d\n", v&0xffff);
 
-  qregs_w_fld(H_ADC_CSTAT_PROC_SEL, 1);
-  v = qregs_r_fld(H_ADC_CSTAT_PROC_DOUT);  
-  printf("         hdr_mag %d\n", v);
+  h_w_fld(H_ADC_CSTAT_PROC_SEL, 2);  
+  v = h_r_fld(H_ADC_CSTAT_PROC_DOUT);
+  printf("    pwr_event_per_100us %d\n", (v>>16)&0xfff);
+  hdr_rel_sum = v&0xffff;
+
+  
+  h_w_fld(H_ADC_CSTAT_PROC_SEL, 3);
+  v = h_r_fld(H_ADC_CSTAT_PROC_DOUT);
+  printf("            hdr_pwr_cnt %d   (thresh was %d)\n", ext(v, AREG2_PS3_HDR_PWR_CNT),  st.hdr_pwr_thresh);
+
+
+
+  printf("  HDR:     found %d\n", ext(r0, AREG2_PS0_HDR_FOUND));
+  printf("          at cyc %d\n", ext(r0, AREG2_PS0_HDR_CYC));
+  
+  qty  = ext(v, AREG2_PS3_HDR_DET_CNT);
+  printf("     hdr_det_cnt %d        (thresh was %d)\n", qty, st.hdr_corr_thresh);
+
+
+  h_w_fld(H_ADC_CSTAT_PROC_SEL, 1);
+  v = h_r_fld(H_ADC_CSTAT_PROC_DOUT);
+  printf("         corr mag: best %d  detected %d\n",
+	 (v>>16)&0xffff, v&0xffff);
+  
+  
 
   if (qty) {
-    qregs_w_fld(H_ADC_CSTAT_PROC_SEL, 2);  
-    v = qregs_r_fld(H_ADC_CSTAT_PROC_DOUT);  
-    s = ext(v, AREG2_PS2_HDR_CYC_SUM);
-    // printf("     hdr_cyc_sum %d\n", (int)s);
-    printf("     hdr_cyc_avg %d\n", (int)s/qty);
+
+    printf("     hdr_rel_sum %d\n", hdr_rel_sum);
+    printf("     hdr_cyc_avg %d\n", (int)hdr_rel_sum/qty);
+
+    
+    h_w_fld(H_ADC_CSTAT_PROC_SEL, 6);
+    v = h_r_fld(H_ADC_CSTAT_PROC_DOUT);  
+    printf("     hdr_phase:  Q %d  I %d\n", (v>>16)&0xffff,  v&0xffff);
   }
 
-  qregs_w_fld(H_ADC_CSTAT_PROC_SEL, 6);
-  v = qregs_r_fld(H_ADC_CSTAT_PROC_DOUT);  
-  printf("     hdr_phase:  Q %d  I %d\n", (v>>16)&0xffff,  v&0xffff);
+ 
+//  printf("dac_rst %d\n", qregs_r_fld(H_DAC_STATUS_DAC_RST_AXI));
+//  printf("dac_tx_in_cnt %d\n", qregs_r_fld(H_DAC_STATUS_DAC_TX_IN_CNT));
+//  qregs_pulse(H_DAC_PCTL_CLR_CNTS);
 
-  
-  qregs_pulse(H_ADC_PCTL_PROC_CLR_CNTS);
+  h_pulse_fld(H_ADC_PCTL_PROC_CLR_CNTS);
   
 }
 
@@ -432,19 +962,24 @@ void qregs_print_adc_status(void) {
   */
   
 
-  printf("  gth_stat x%08x\n", qregs_r_fld(H_DAC_STATUS_GTH_STATUS));
+  printf("  gth_stat x%08x\n", h_r_fld(H_DAC_STATUS_GTH_STATUS));
 
-  v = qregs_r(H_ADC_STAT);
+  v = h_r(H_ADC_STAT);
   printf("adc stat x%08x\n", v);
 
-  printf("   dmareq %d   \n",
+  printf("         dmareq %d\n",
 	 H_EXT(H_ADC_STAT_DMA_XFER_REQ_RC, v));
 
   printf("     dmareq_cnt %d\n", H_EXT(H_ADC_STAT_XFER_REQ_CNT, v));
   printf("    save_go_cnt %d\n", H_EXT(H_ADC_STAT_SAVE_GO_CNT, v));
+  printf("    adc_rst_cnt %d\n", H_EXT(H_ADC_STAT_ADC_RST_CNT, v));
   printf(" dma_wready_cnt %d\n", H_EXT(H_ADC_STAT_DMA_WREADY_CNT, v));
+  printf("           txrx %d\n", h_r_fld(H_ADC_ACTL_TXRX_EN));
+  printf("      tx_always %d\n", h_r_fld(H_DAC_CTL_TX_ALWAYS));
 
-  qregs_pulse(H_ADC_PCTL_CLR_CTRS);
+  
+  h_pulse_fld(H_ADC_PCTL_CLR_CTRS);
+  
   /*
   qregs_reg_w(1, 0, REG0_RD_MAX, 1);
   while(!qregs_reg_r_fld(1, 1, REG1_RD_MAX_OK));
@@ -486,16 +1021,16 @@ void qregs_get_adc_samp(short int *s_p) {
 
 void qregs_set_meas_noise(int en) {
   int i = !!en;
-  qregs_w_fld(H_ADC_ACTL_MEAS_NOISE, i);
+  h_w_fld(H_ADC_ACTL_MEAS_NOISE, i);
   st.meas_noise_en = en;
 }
 
 void qregs_set_osamp(int osamp) {
   // osamp: vversampling rate in units of samples. 1,2 or 4
   if ((osamp!=1)&&(osamp!=2)) osamp=4;
-  if (qregs_ver >= 2) {
-    qregs_w_fld(H_DAC_CTL_OSAMP_MIN1,  osamp-1);
-    qregs_w_fld(H_ADC_ACTL_OSAMP_MIN1, osamp-1);
+  if (qregs_fwver >= 2) {
+    h_w_fld(H_DAC_CTL_OSAMP_MIN1,  osamp-1);
+    h_w_fld(H_ADC_ACTL_OSAMP_MIN1, osamp-1);
   }
   st.osamp = osamp;
   st.setflags |= 1;
@@ -507,30 +1042,41 @@ void qregs_set_im_hdr_dac(int hdr_dac) {
   // in: hdr_dac - value in dac units
   int i;
   i = MIN(0x7fff, hdr_dac);
-  qregs_w_fld(H_DAC_IM_HDR, (unsigned)i&0xffff);  
+  h_w_fld(H_DAC_IM_HDR, (unsigned)i&0xffff);  
   // set body level to preserve 0 Volts mean
   i = - i * st.hdr_len_asamps / st.body_len_asamps;
   //  printf("DBG: body lvl %d\n", i);
-  qregs_w_fld(H_DAC_IM_BODY, (unsigned)i&0xffff);
+  h_w_fld(H_DAC_IM_BODY, (unsigned)i&0xffff);
 }
 
 void qregs_rst_sfp_gth(void) {
 // resets the GTH that is the reference for the SFP.
 // When Corundum is integrated, this will go away.
-  qregs_pulse(H_DAC_PCTL_GTH_RST);
+  h_pulse_fld(H_DAC_PCTL_GTH_RST);
 }
 
 
 void qregs_search_en(int en) {
   int i = !!en;
-  qregs_w_fld(H_ADC_ACTL_SEARCH, i);
+  h_w_fld(H_ADC_ACTL_SEARCH, i);
+}
+
+void qregs_set_memtx_to_pm(int en) {
+  int i = !!en;
+  h_w_fld(H_DAC_CTL_MEMTX_TO_PM, i);
 }
 
 void qregs_alice_sync_en(int en) {
-  int v = qregs_r(H_ADC_ACTL);
-  v = H_INS(H_ADC_ACTL_SEARCH, v, en);
-  v = H_INS(H_ADC_ACTL_TXRX_EN, v, en);
-  qregs_w(H_ADC_ACTL, v);
+  int v = h_r(H_ADC_ACTL);
+  v = h_ins(H_ADC_ACTL_SEARCH,  v, en);
+  v = h_ins(H_ADC_ACTL_TXRX_EN, v, en);
+  h_w(H_ADC_ACTL, v);
+}
+
+void qregs_hdr_preemph_en(int en) {
+  en = !!en;
+  h_rmw_fld(H_DAC_HDR_IM_PREEMPH, !!en);
+  st.hdr_preemph_en = en;
 }
 
 void qregs_txrx(int en) {
@@ -538,13 +1084,13 @@ void qregs_txrx(int en) {
   //       while txrx is high.
   int v=!!en;
 
-  qregs_w_fld(H_ADC_ACTL_TXRX_EN, v);
+  h_w_fld(H_ADC_ACTL_TXRX_EN, v);
   
 }
 
 void qregs_dbg_new_go(int en) {
   printf("WARN: new_go deprecated\n");
-  //  if (qregs_ver[1] >= 1)
+
   //  qregs_reg_w(1, 0, AREG0_NEW_GO_EN, en);
   //  printf("qregs dbg new go %d\n", en);
 }
@@ -555,7 +1101,11 @@ int qregs_done() {
   for(i=0;i<BASEADDRS_NUM; ++i)
     if (st.memmaps[i]) {
       e = munmap(st.memmaps[i], MMAP_REGSSIZE);
-      if (e) return qregs_err("mem unmap failed");
+      if (e) return qregs_err_fail("mem unmap failed");
     }
+
+  if (st.uio_fd>=0)
+    close(st.uio_fd);
+  
   return 0;
 }
