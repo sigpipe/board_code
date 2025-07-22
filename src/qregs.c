@@ -499,7 +499,7 @@ void qregs_get_settings(void) {
   st.tx_mem_circ   = h_r_fld(H_DAC_CTL_MEMTX_CIRC);
   st.tx_same_hdrs  = h_r_fld(H_DAC_HDR_SAME);
   st.tx_hdr_twopi  = h_r_fld(H_DAC_HDR_TWOPI);
-  st.alice_syncing = h_r_fld(H_ADC_ACTL_ALICE_SYNCING);
+  st.alice_syncing = h_r_fld(H_DAC_CTL_ALICE_SYNCING);
   st.osamp         = h_r_fld(H_DAC_CTL_OSAMP_MIN1) + 1;
   st.cipher_en     = h_r_fld(H_DAC_CTL_CIPHER_EN);
   
@@ -519,7 +519,7 @@ void qregs_get_settings(void) {
   st.init_pwr_thresh = h_r_fld(H_ADC_SYNC_INIT_THRESH_D16)*16;
   st.hdr_pwr_thresh  = h_r_fld(H_ADC_HDR_PWR_THRESH);
   st.hdr_corr_thresh = h_r_fld(H_ADC_HDR_THRESH);
-  st.sync_dly_asamps = h_r_fld(H_ADC_SYNC_DLY_CYCS)*4;
+  st.sync_dly_asamps = (h_r_fld(H_DAC_ALICE_FRAME_DLY_CYCS_MIN1)+1)*4;
 
   st.pm_dly_cycs = h_r_fld(H_DAC_FR2_PM_DLY_CYCS);
 
@@ -552,12 +552,12 @@ void qregs_print_settings(void) {
   printf("tx_0 %d\n", st.tx_0);
   printf("tx_hdr_twopi %d\n", st.tx_hdr_twopi);
   printf("use_lfsr %d\n", st.use_lfsr);
-  printf("frame_pd_asamps %d = %.3Lf us\n", st.frame_pd_asamps,
+  printf("frame_pd_asamps %d = %.3f us\n", st.frame_pd_asamps,
 	 qregs_dur_samps2us(st.frame_pd_asamps));
   
   printf("frame_qty %d\n", st.frame_qty);
   printf("body_len_asamps %d\n", st.body_len_asamps);
-  printf("hdr_len_bits = %.3Lf ns\n", st.hdr_len_bits,
+  printf("hdr_len_bits %d = %.3f ns\n", st.hdr_len_bits,
 	 qregs_dur_samps2us(st.hdr_len_bits*st.osamp)*1000);
   printf("hdr det thresh : init %d  pwr %d corr %d\n",
 	 st.init_pwr_thresh, st.hdr_pwr_thresh, st.hdr_corr_thresh);
@@ -604,7 +604,7 @@ int qregs_init(void) {
   qregs_fwver = H_FWVER;
   st.ver_info.quanet_dac_fwver = i = h_r_fld(H_DAC_STATUS_FWVER);
   if (qregs_fwver != i)
-    printf("ERR: quanet_dac fwver not %d !\n", i, qregs_fwver);
+    printf("ERR: quanet_dac fwver %d not %d !\n", i, qregs_fwver);
   st.ver_info.quanet_adc_fwver = i = h_r_fld(H_ADC_STAT_FWVER);
   if (qregs_fwver != i)
     printf("ERR: quanet_adc fwver %d not %d !\n", i, qregs_fwver);
@@ -668,7 +668,7 @@ void qregs_set_sync_dly_asamps(int sync_dly_asamps) {
 
   dly = (sync_dly_asamps + 10*st.frame_pd_asamps) % st.frame_pd_asamps;
   i = dly/4;
-  i = h_w_fld(H_ADC_SYNC_DLY_CYCS, i);
+  i = h_w_fld(H_DAC_ALICE_FRAME_DLY_CYCS_MIN1, i);
   dly=i*4;
   printf("dly %d\n", dly);
   st.sync_dly_asamps = dly;
@@ -769,7 +769,7 @@ void qregs_set_qsdc_data_cfg(qregs_qsdc_data_cfg_t *data_cfg) {
   int i,j;
   qregs_qsdc_data_cfg_t *c = &st.qsdc_data_cfg;
   i = !!data_cfg->is_qpsk;
-  i = h_w_fld(H_DAC_CTL_BODY_IS_QPSK, i);
+  i = h_w_fld(H_DAC_CTL_QSDC_DATA_IS_QPSK, i);
   c->is_qpsk = i;
 
   i = data_cfg->pos_asamps/4-1;
@@ -780,7 +780,7 @@ void qregs_set_qsdc_data_cfg(qregs_qsdc_data_cfg_t *data_cfg) {
   i = MIN(data_cfg->body_len_asamps, j);
   if (!i) i=j;
   i=(i/4)-1;
-  i = h_w_fld(H_DAC_QSDC_BODY_CYCS_MIN1, i-1);
+  i = h_w_fld(H_DAC_QSDC_DATA_CYCS_MIN1, i-1);
   c->body_len_asamps = (i+1)*4;
 
 
@@ -800,7 +800,7 @@ void qregs_set_alice_syncing(int en) {
   h_w_fld(H_ADC_ACTL_SAVE_AFTER_PWR, i);
   h_w_fld(H_ADC_DBG_HOLD, 0);
   h_w_fld(H_DAC_CTL_ALICE_SYNCING, i);
-  h_w_fld(H_ADC_ACTL_ALICE_SYNCING, i);
+  //  h_w_fld(H_ADC_ACTL_ALICE_SYNCING, i);
   st.alice_syncing = i;
 }
 

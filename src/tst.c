@@ -134,7 +134,7 @@ double ask_num(char *prompt, char *var_name, double dflt) {
   n=scanf("%[^\n]", buf);
   getchar();
   if (n==1)
-    n=sscanf(buf, "%Lf", &v);
+    n=sscanf(buf, "%lf", &v);
   if (n!=1) v=dflt;
   if (var_name)
     ini_set_double(tvars, var_name, v);
@@ -319,7 +319,7 @@ int main(int argc, char *argv[]) {
   // printf("adc samp freq %lg Hz\n", st.asamp_Hz);
   i = ((int)(i/64))*64;
   qregs_set_frame_pd_asamps(i);
-  printf("frame_pd_asamps %d = %.2Lf us\n", st.frame_pd_asamps,
+  printf("frame_pd_asamps %d = %.2f us\n", st.frame_pd_asamps,
 	 qregs_dur_samps2us(st.frame_pd_asamps));
 
   //  if (qregs_done()) err("qregs_done fail");  
@@ -331,7 +331,7 @@ int main(int argc, char *argv[]) {
   i=32;  
   i = ask_nnum("hdr_len_bits", i);
   qregs_set_hdr_len_bits(i);
-  printf("hdr_len_bits %d = %.2Lf ns\n", st.hdr_len_bits,
+  printf("hdr_len_bits %d = %.2f ns\n", st.hdr_len_bits,
 	 qregs_dur_samps2us(st.hdr_len_bits*st.osamp)*1000);
   printf("body_len_samps %d\n", st.body_len_asamps);
 
@@ -605,7 +605,7 @@ int main(int argc, char *argv[]) {
     dac_buf_sz = mem_sz / sz;
     dac_buf = iio_device_create_buffer(dac, dac_buf_sz, false);
     if (!dac_buf) {
-      sprintf(errmsg, "cant create dac bufer  nsamp %d", dac_buf_sz);
+      sprintf(errmsg, "cant create dac bufer  nsamp %zu", dac_buf_sz);
       err(errmsg);
     }
     // printf("DBG: per-chan step %zd\n", iio_buffer_step(dac_buf));  

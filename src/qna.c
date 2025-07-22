@@ -55,7 +55,7 @@ int qna_do_cmd_get_num(double *d) {
   int e;
   e = qna_do_cmd();
   if (e) return QREGS_ERR_TIMO;
-  e = sscanf(qna_rsp,"%g", d);
+  e = sscanf(qna_rsp,"%lg", d);
   return (e!=1);
 }
 
