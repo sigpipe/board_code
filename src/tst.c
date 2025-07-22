@@ -33,7 +33,7 @@ void crash(int e, char *str) {
 #define C(CALL)     {int e = CALL; if (e) crash(e, "");}
 #endif
 
-char errmsg[256];
+char errmsg[512];
 void err(char *str) {
   printf("ERR: %s\n", str);
   printf("     errno %d\n", errno);
@@ -297,6 +297,12 @@ int main(int argc, char *argv[]) {
     qregs_set_tx_same_hdrs(0);
   }
 
+  // For bob, this sets tx part to use an independent free-running sync
+  // For alice, this uses the syncronizer
+  // TODO: combine concept with set_sync_ref.
+  qregs_halfduplex_is_bob(!is_alice);
+  qregs_set_sync_ref('p');
+  
 
   hdr_preemph_en = 0;  
   if (!is_alice) {
@@ -500,7 +506,7 @@ int main(int argc, char *argv[]) {
   if (hdr_preemph_en) {
     int fd = open(hdr_preemph_fname,O_RDWR);
     if (fd<0) {
-      sprintf(errmsg, "cant open preemph file %s", hdr_preemph_fname);
+      snprintf(errmsg, 512, "cant open preemph file %s", hdr_preemph_fname);
       err(errmsg);
     }
     mem_sz = read(fd, mem, DAC_N);
@@ -649,7 +655,7 @@ int main(int argc, char *argv[]) {
    
     for (itr=0; !num_itr || (itr<num_itr); ++itr) {
 
-      printf("itr %d: time %d (s)\n", itr, time(0)-t0_s);
+      printf("itr %d: time %ld (s)\n", itr, time(0)-t0_s);
 
       if (num_itr)
         *(times_s + itr) = (int)time(0);
@@ -712,7 +718,7 @@ int main(int argc, char *argv[]) {
 	//      prompt("refilled buf");
       
 	if (sz != adc_buf_sz)
-	  printf("tried to refill %d but got %d\n", adc_buf_sz, sz);
+	  printf("tried to refill %ld but got %ld\n", adc_buf_sz, sz);
 	// pushes double the dac_buf size.
 	//qregs_print_adc_status();
 

@@ -40,7 +40,7 @@ extern int dbg_lvl;
 static void wf_printf(FILE *h, char *str) {
   //  int i;
   //  if (h)
-  fprintf(h, str);
+  fprintf(h, "%s", str);
   //    if (!WriteFile(h, str, strlen(str), &i, 0))
   //      printf("ERR: cant write to file %d\n", (int)h);
 }

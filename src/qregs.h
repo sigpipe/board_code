@@ -123,6 +123,8 @@ typedef struct qregs_struct {
   int hdr_im_dly_cycs;
   int hdr_preemph_en;
   int pm_dly_cycs;
+
+  char sync_ref; // r=rxclk, p=power, or h=headers
   int sync_dly_asamps; // header sync to DAC ouput delay
   
   int frame_qty;
@@ -133,8 +135,9 @@ typedef struct qregs_struct {
   int *memmaps[2];
   int *m2;
 
-
   double iq_rebalance;
+
+  char tx_go_condition; // 'p'=power,'h'=header','r'=ready,'i'=immediate
 
   lcl_iio_t lcl_iio;
   int setflags;
@@ -211,7 +214,7 @@ void qregs_set_tx_mem_circ(int en);
 void qregs_set_tx_same_hdrs(int same);
 void qregs_set_tx_same_cipher(int same);
 void qregs_set_alice_syncing(int en);
-
+void qregs_halfduplex_is_bob(int en);
 
 
 void qregs_set_qsdc_data_cfg(qregs_qsdc_data_cfg_t *data_cfg);
@@ -245,6 +248,11 @@ void qregs_print_hdr_det_status(void);
 void qregs_search_en(int en);
 // en: 1=starts a search for hdr
 
+int qregs_set_sync_ref(char s);
+// s: 'r'=sync using SFP rxclk
+//    'p'=sync using optical power-above-thresh events
+//    'h'=sync to arrival of headers
+
 void qregs_alice_sync_en(int en);
 
 void qregs_get_settings(void);
@@ -253,6 +261,16 @@ void qregs_print_settings(void);
 void qregs_txrx(int en);
 
 
+int qregs_set_tx_go_condition(char cond);
+// cond:
+  //    'h'=start after a header is received (corr above thresh)   
+  //    'p'=start after a rise in optical power (pwr above thresh)   
+  //    'r'=start after DMA rx buffer is available
+  //    'i'=start immediately (when code issues txrx en)
+
+
+
+  
 // void qregs_get_adc_samp(short int *s_p);
 void qregs_get_avgpwr(int *avg, int *mx, int *cnt);
 

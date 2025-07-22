@@ -167,6 +167,8 @@ void qregs_ser_flush(void) {
 }
 
 
+
+
 int qregs_block_until_tx_rdy(void) {
   size_t sz;
   uint32_t u32;
@@ -378,7 +380,7 @@ int qregs_findkey(char *buf, char *key, char *val, int val_size) {
     p = p + llen+1;
   }
   char tmp[64];
-  sprintf(tmp, "missing keyword %s", key);
+  snprintf(tmp, 64, "missing keyword %s", key);
   return qregs_err_fail(tmp);
 }
 
@@ -430,8 +432,37 @@ int qregs_ser_qna_connect(char *irsp, int irsp_len) {
 }
 
 
+int qregs_set_tx_go_condition(char r) {
+  // r: 'h'=start after a header is received (corr above thresh)   
+  //    'p'=start after a rise in optical power (pwr above thresh)   
+  //    'r'=start after DMA rx buffer is available
+  //    'i'=start immediately (when code issues txrx en)
+  int i;
+  switch(r) {
+    case 'i': i=H_TXGOREASON_ALWAYS; break; 
+    case 'h': i=H_TXGOREASON_RXHDR ; break;
+    case 'r': i=H_TXGOREASON_RXRDY ; break;
+    default: r='p'; i=H_TXGOREASON_RXPWR ; break;
+  }
+  st.tx_go_condition = r;
+  h_w_fld(H_ADC_CTL2_COMMENCE_REASON, i);
+}
 
-
+int qregs_set_sync_ref(char s) {
+  // s: 'r'=sync using SFP rxclk
+  //    'p'=sync using optical power-above-thresh events
+  //    'h'=sync to arrival of headers
+  int i;
+  switch(s) {
+    case 'r': i=H_SYNC_REF_RXCLK; break; 
+    case 'p': i=H_SYNC_REF_PWR;   break;
+    case 'h': i=H_SYNC_REF_CORR; break;
+    return qregs_err_fail("bad value");
+  }
+  h_w_fld(H_ADC_HDR_SYNC_REF_SEL, i);
+  st.sync_ref = s;
+  return 0;
+}
 
 
 
@@ -523,6 +554,25 @@ void qregs_get_settings(void) {
 
   st.pm_dly_cycs = h_r_fld(H_DAC_FR2_PM_DLY_CYCS);
 
+  char c;
+
+  i=h_r_fld(H_ADC_HDR_SYNC_REF_SEL);
+  switch(i) {
+    case H_SYNC_REF_RXCLK: c='r'; break;
+    case H_SYNC_REF_PWR: c='p'; break;
+    case H_SYNC_REF_CORR: c='h'; break;
+    default: c='?'; break;
+  }
+  
+  i=h_r_fld(H_ADC_CTL2_COMMENCE_REASON);
+  switch(i) {
+    case H_TXGOREASON_ALWAYS: c='i'; break;
+    case H_TXGOREASON_RXHDR:  c='h'; break;
+    case H_TXGOREASON_RXRDY:  c='r'; break;
+    case H_TXGOREASON_RXPWR:  c='p'; break;
+  }
+  st.tx_go_condition = c;
+    
 
   st.rebal.i_off = h_r_signed_fld(H_ADC_REBALO_I_OFFSET);
   st.rebal.q_off = h_r_signed_fld(H_ADC_REBALO_Q_OFFSET);
@@ -547,6 +597,7 @@ void qregs_get_settings(void) {
 }
 
 void qregs_print_settings(void) {
+  printf("tx_go_condition %c\n",st.tx_go_condition);
   printf("tx_always %d\n", st.tx_always);
   printf("tx_mem_circ %d\n", st.tx_mem_circ);
   printf("tx_0 %d\n", st.tx_0);
@@ -561,6 +612,7 @@ void qregs_print_settings(void) {
 	 qregs_dur_samps2us(st.hdr_len_bits*st.osamp)*1000);
   printf("hdr det thresh : init %d  pwr %d corr %d\n",
 	 st.init_pwr_thresh, st.hdr_pwr_thresh, st.hdr_corr_thresh);
+  printf("sync_ref %c\n", st.sync_ref);
 
 
   printf("ser : baud %d  parity %d  xonxoff %d\n",
@@ -753,8 +805,9 @@ void qregs_set_tx_hdr_twopi(int en) {
 }
 
 
-
-
+void qregs_halfduplex_is_bob(int en) {
+  h_w_fld(H_DAC_CTL_IS_BOB, !!en);
+}
 
 //--void qregs_set_save_after_pwr(int en) {
 //  int i = !!en;
