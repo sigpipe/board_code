@@ -33,6 +33,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include "qregs.h"
+#include "qregs_ll.h"
 #include "cmd.h"
 #include "parse.h"
 

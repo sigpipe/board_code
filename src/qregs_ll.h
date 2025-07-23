@@ -30,10 +30,14 @@ void qregs_ser_set_params(int *baud_Hz, int parity, int en_xonxoff);
 int  qregs_ser_tx(char c);    // ret 0=success, 1=timo.
 int  qregs_ser_rx(char *c_p); // ret 0=success, 1=timo
 void qregs_ser_set_timo_ms(int timo_ms);
-int  qregs_ser_do_cmd(char *cmd, char *rsp, int rsp_len);
+int  qregs_ser_do_cmd(char *cmd, char *rsp, int rsp_len, int skip_echo);
 void qregs_ser_set_params(int *baud_Hz, int parity, int en_xonxoff);
 int  qregs_ser_qna_connect(char *irsp, int irsp_len);
 
 extern qregs_st_t st;
+
+
+void qregs_dbg_get_info(int *info);
+void qregs_dbg_print_tx_status(void);
 
 #endif

@@ -1,3 +1,5 @@
+sync_ref = 'p';
+tx_go_condition = 'r';
 ser_baud_Hz = 115200;
 ser_parity = 2;
 ser_xon_xoff_en = 1;

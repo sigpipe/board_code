@@ -8,4 +8,12 @@ typedef struct rp_st {
 } rp_st_t;
 extern rp_st_t rp_st;
 
+
+typedef struct rp_status_st {
+  double ext_rat_dB;
+  double body_rat_dB;
+} rp_status_t;
+
+int rp_get_status(rp_status_t *stat);
+
 #endif

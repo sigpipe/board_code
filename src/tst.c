@@ -9,6 +9,7 @@
 #include <errno.h>
 #include <iio.h>
 #include "qregs.h"
+#include "qregs_ll.h"
 #include <math.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -17,6 +18,8 @@
 #include "corr.h"
 #include <time.h>
 #include "ini.h"
+#include "h_vhdl_extract.h"
+#include "h.h"
 
 #if OPT_QNICLL
 #include <qnicll.h>
@@ -193,7 +196,7 @@ int main(int argc, char *argv[]) {
   ssize_t mem_sz;
   //  short int rx_mem_i[ADC_N], rx_mem_q[ADC_N]; 
   //  short int corr[ADC_N];
-
+  int alice_txing=0;
 
   int num_bufs, p_i;
   double d, *corr;
@@ -260,7 +263,7 @@ int main(int argc, char *argv[]) {
     
     tx_0=0;
     noise_dith=0;
-    // tx_0 = ask_yn("tx_0", "tx_0", 0);
+    tx_0 = ask_yn("tx_0", "tx_0", 0);
     tx_always = ask_yn("tx_always", "tx_always", 0);
   }
 
@@ -301,9 +304,12 @@ int main(int argc, char *argv[]) {
   // For alice, this uses the syncronizer
   // TODO: combine concept with set_sync_ref.
   qregs_halfduplex_is_bob(!is_alice);
-  qregs_set_sync_ref('p');
+  qregs_set_sync_ref('p'); // ignored if bob
   
 
+  qregs_set_tx_go_condition('r'); // r=tx when rxbuf rdy
+
+      
   hdr_preemph_en = 0;  
   if (!is_alice) {
     hdr_preemph_en = ask_yn("use IM preemphasis","hdr_preemph_en",1);
@@ -312,44 +318,81 @@ int main(int argc, char *argv[]) {
 	     ask_str("preemph_file", "preemph.bin","src/hdr.bin"));
   }
   qregs_hdr_preemph_en(hdr_preemph_en);
-  
-  d = ask_num("osamp (1,2,4)", "osamp", 4);
-  qregs_set_osamp(d);
-  // printf("osamps %d\n", st.osamp);
 
   
-  //  d = 2;
-  d=1;
-  d = ask_num("frame_pd (us)", "frame_pd_us", d);
-  i = qregs_dur_us2samps(d);
-  // printf("adc samp freq %lg Hz\n", st.asamp_Hz);
-  i = ((int)(i/64))*64;
-  qregs_set_frame_pd_asamps(i);
-  printf("frame_pd_asamps %d = %.2f us\n", st.frame_pd_asamps,
-	 qregs_dur_samps2us(st.frame_pd_asamps));
-
-  //  if (qregs_done()) err("qregs_done fail");  
-  //  return 0;
+  if (!ask_yn("same protocol","same_protocol",1)) {
 
   
-  //  qregs_set_sync_dly_asamps(-346);
+    d = ask_num("osamp (1,2,4)", "osamp", 4);
+    qregs_set_osamp(d);
+    // printf("osamps %d\n", st.osamp);
 
-  i=32;  
-  i = ask_nnum("hdr_len_bits", i);
-  qregs_set_hdr_len_bits(i);
-  printf("hdr_len_bits %d = %.2f ns\n", st.hdr_len_bits,
-	 qregs_dur_samps2us(st.hdr_len_bits*st.osamp)*1000);
-  printf("body_len_samps %d\n", st.body_len_asamps);
+  
+    //  d = 2;
+    d=1;
+    d = ask_num("frame_pd (us)", "frame_pd_us", d);
+    i = qregs_dur_us2samps(d);
+    // printf("adc samp freq %lg Hz\n", st.asamp_Hz);
+    i = ((int)(i/64))*64;
+    qregs_set_frame_pd_asamps(i);
+    printf("frame_pd_asamps %d = %.2f us\n", st.frame_pd_asamps,
+	   qregs_dur_samps2us(st.frame_pd_asamps));
+
+    //  if (qregs_done()) err("qregs_done fail");  
+    //  return 0;
+
+  
+    //  qregs_set_sync_dly_asamps(-346);
+
+    i=32;  
+    i = ask_nnum("hdr_len_bits", i);
+    qregs_set_hdr_len_bits(i);
+    printf("hdr_len_bits %d = %.2f ns\n", st.hdr_len_bits,
+	   qregs_dur_samps2us(st.hdr_len_bits*st.osamp)*1000);
+    printf("body_len_samps %d\n", st.body_len_asamps);
 
 
-  i = ask_yn("cipher_en", "cipher_en", 0);
-  j = ask_num("cipher_m (for m-psk)", "cipher_m", 2);
-  qregs_set_cipher_en(i, st.osamp, j);
-  if (st.osamp!=st.cipher_symlen_asamps)
-    printf("  actually symlen = %d\n", st.cipher_symlen_asamps);
-  if (j!=st.cipher_m)
-    printf("  actually m = %d\n", st.cipher_m);
+    i = ask_yn("cipher_en", "cipher_en", 0);
+    j = ask_num("cipher_m (for m-psk)", "cipher_m", 2);
+    qregs_set_cipher_en(i, st.osamp, j);
+    if (st.osamp!=st.cipher_symlen_asamps)
+      printf("  actually symlen = %d\n", st.cipher_symlen_asamps);
+    if (j!=st.cipher_m)
+      printf("  actually m = %d\n", st.cipher_m);
 
+   if (is_alice && alice_txing) {
+      double gap_ns;
+      qregs_qsdc_data_cfg_t data_cfg;
+      data_cfg.is_qpsk      = ask_nnum("body_is_qpsk", 0);
+
+      data_cfg.symbol_len_asamps = ask_num("data symbol len (asamps)",
+                                           "symbol_len_asamps", 8);
+
+      gap_ns = ask_num("gap after header (ns)", "post_hdr_gap_ns", 100);
+      i= round(gap_ns * 1e-9 * st.asamp_Hz / st.osamp) * st.osamp;
+      i = ((int)i/4)*4;
+      printf("rounded to %d asamps = %.1f ns\n", i, i/st.asamp_Hz*1.0e9);
+      data_cfg.pos_asamps   = st.hdr_len_asamps + i;
+
+      gap_ns = ask_num("gap at end (ns)", "post_body_gap_ns", 100);
+      i= round(gap_ns * 1e-9 * st.asamp_Hz / st.osamp) * st.osamp;
+      i = ((int)i/4)*4;
+      i = (st.frame_pd_asamps - i - data_cfg.pos_asamps);
+      data_cfg.data_len_asamps = i;
+      printf("data len %d asamps = %.1f ns\n", i, i/st.asamp_Hz*1.0e9);
+
+      qregs_set_qsdc_data_cfg(&data_cfg);
+    }
+
+
+  }else {
+    printf("osamps %d\n", st.osamp);
+    printf("frame_pd_asamps %d = %.2Lf us\n", st.frame_pd_asamps,
+         qregs_dur_samps2us(st.frame_pd_asamps));
+    printf("hdr_len_bits %d = %.2Lf ns\n", st.hdr_len_bits,
+         qregs_dur_samps2us(st.hdr_len_bits*st.osamp)*1000);
+    printf("body_len_samps %d\n", st.body_len_asamps);
+  }
 
   search = ask_yn("search for hdr", "search", 1);
   if (search) {
@@ -503,7 +546,7 @@ int main(int argc, char *argv[]) {
 
 
   mem_sz = 0;
-  if (hdr_preemph_en) {
+  if (!is_alice && hdr_preemph_en) {
     int fd = open(hdr_preemph_fname,O_RDWR);
     if (fd<0) {
       snprintf(errmsg, 512, "cant open preemph file %s", hdr_preemph_fname);
@@ -517,7 +560,7 @@ int main(int argc, char *argv[]) {
 
   }else {
   
-    #define DMX (1<<14)
+
     if (!use_lfsr) {
       int ch;
       ch = ask_num("pattern (1=hdr, 2=ramp)", "pattern", 2);
@@ -546,6 +589,7 @@ int main(int argc, char *argv[]) {
       }
       mem_sz = DAC_N;
     }
+    
   }
 
   // basically there is no conversion
@@ -634,26 +678,26 @@ int main(int argc, char *argv[]) {
 
     
 
-
-  
-
-
-    // sinusoide before willpush    
-    //    prompt("will push");
-    if (mem_sz) {
-      set_blocking_mode(dac_buf, true); // default is blocking.  
+  // sinusoid before willpush    
+  //    prompt("will push");
+  if (mem_sz) {
+    set_blocking_mode(dac_buf, true); // default is blocking.  
       
-      tx_sz = iio_buffer_push(dac_buf);
-      printf("pushed %zd\n", tx_sz);
-    }
+    tx_sz = iio_buffer_push(dac_buf);
+    printf("pushed %zd bytes\n", tx_sz);
+      
+    h_w_fld(H_DAC_DMA_MEM_RADDR_LIM_MIN1, mem_sz/8-2);
+    qregs_dbg_get_info(&i);
+    printf("DBG: set raddr lim %zd bytes (dbg %d)\n", mem_sz/8-2, i);
+  }
 
 
 
-    prompt("READY? ");
+  prompt("READY? ");
 
     
    
-    for (itr=0; !num_itr || (itr<num_itr); ++itr) {
+  for (itr=0; !num_itr || (itr<num_itr); ++itr) {
 
       printf("itr %d: time %ld (s)\n", itr, time(0)-t0_s);
 

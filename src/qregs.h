@@ -44,7 +44,7 @@ typedef struct qsdc_data_cfg_st {
   int is_qpsk;           // data modulation. 0=bpsk, 1=qpsk
   int pos_asamps;        // start of Alice's data relative to start of frame
   int symbol_len_asamps; // could be 1000's.  May span multiple frames.
-  int body_len_asamps;   // portion of each frame that carries Alice's data.
+  int data_len_asamps;   // portion of each frame that carries Alice's data.
 } qregs_qsdc_data_cfg_t;
 
 
@@ -102,6 +102,8 @@ typedef struct qregs_struct {
   int cipher_m;  // cipher modulation m-psk. 2=bpsk,4=qpsk,etc.
   int cipher_symlen_asamps;  // cipher symbol length in asamps
   int cipher_w;  // HDL detail
+
+
   int tx_always;
   int tx_mem_circ;
   int tx_same_hdrs; // used with use_lfsr.  All hdrs will be same.
@@ -137,6 +139,7 @@ typedef struct qregs_struct {
 
   double iq_rebalance;
 
+  int is_bob;
   char tx_go_condition; // 'p'=power,'h'=header','r'=ready,'i'=immediate
 
   lcl_iio_t lcl_iio;
@@ -295,6 +298,15 @@ typedef struct qregs_laser_settings_st {
 } qregs_laser_settings_t;
 int qregs_get_laser_settings(qregs_laser_settings_t *set);
 
+
+
+typedef struct qregs_frame_pwrs_st {
+  double ext_rat_dB;
+  double body_rat_dB;
+} qregs_frame_pwrs_t;
+int qregs_measure_frame_pwrs(qregs_frame_pwrs_t *pwr);
+
+void qregs_dbg_print_regs(void);
 
 // calibration functions
 

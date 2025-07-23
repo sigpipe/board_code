@@ -34,7 +34,7 @@ int qna_do_cmd(void) {
     printf("QNA tx:");
     u_print_all(qna_cmd);
   }
-  e=qregs_ser_do_cmd(qna_cmd, qna_rsp, CMD_LEN);
+  e=qregs_ser_do_cmd(qna_cmd, qna_rsp, CMD_LEN, 1);
   if (qna_dbg) {
     printf("QNA rx:");
     u_print_all(qna_rsp);

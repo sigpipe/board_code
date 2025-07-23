@@ -23,12 +23,16 @@
 #include "ini.h"
 #include "h_vhdl_extract.h"
 #include "qna.h"
-
+#include "i2c.h"
+#include "h.h"
 
 char errmsg[256];
 void err(char *str) {
   printf("ERR: %s\n", str);
-  printf("     errno %d\n", errno);
+  if (errno) {
+    printf("  errno %d\n", errno);
+    perror("");
+  }
   exit(1);
 }
 
@@ -62,6 +66,15 @@ int cmd_set(int arg) {
 }
 
 int cmd_pwr(int arg) {
+  int e;
+  qregs_frame_pwrs_t pwrs;
+  e= qregs_measure_frame_pwrs(&pwrs);
+  if (e) {printf("err: no rsp from RP?\n");  return CMD_ERR_FAIL;}
+  printf("  hdr/body  %.1f dB\n", pwrs.ext_rat_dB);
+  printf("  body/mean %.1f dB\n", pwrs.body_rat_dB);
+  return 0;
+}
+int cmd_dbg_pwr(int arg) {
   int pwr_avg, pwr_max, pwr_cnt;
   printf("pwr_avg pwr_max pwr_cnt\n");
   while(1) {
@@ -92,7 +105,13 @@ int cmd_always(int arg) {
   if (parse_int(&en))
     return CMD_ERR_NO_INT;
   qregs_set_tx_always(en);
+
+  //  printf("WARN:  // Should not have to set go cond.\n");
+  //  qregs_set_tx_go_condition('i');
+  //  qregs_txrx(1);
   printf("%d\n", st.tx_always);
+  //  qregs_get_settings();
+  //  qregs_print_settings();
   return 0;
 }
 
@@ -104,6 +123,15 @@ int cmd_twopi(int arg) {
   printf("%d\n", st.tx_hdr_twopi);
   return 0;
 }
+
+int cmd_ver(int arg) {
+  int en;
+  printf("version %d\n", st.ver_info.quanet_dac_fwver);
+  printf("txfifo addr_w %d\n", st.ver_info.tx_mem_addr_w);
+  printf("       size %d bytes\n", (1<<st.ver_info.tx_mem_addr_w)*2);
+  return 0;
+}
+
 
 int cmd_circ(int arg) {
   int en;
@@ -186,6 +214,20 @@ int cmd_tx(int arg) {
   cmd_rx(0);
 }
 
+int cmd_rp(int arg) {
+  char c;
+  parse_char();
+  qregs_ser_flush();
+  qregs_ser_sel(QREGS_SER_RP);
+  while((c=parse_char()))
+    if (qregs_ser_tx(c))
+      printf("ERR: tx would block\n");
+  if (qregs_ser_tx('\n'))
+    printf("ERR: tx would block\n");
+  printf("now rx:\n");
+  cmd_rx(0);
+}
+
 
 
 
@@ -239,14 +281,30 @@ int cmd_init(int arg) {
   e = ini_get_int(ivars,"pm_delay_cycs", &i);
   if (!e) qregs_set_pm_dly_cycs(i);
 
+  e = ini_get_string(ivars,"sync_ref", &str_p);
+  if (!e) {
+    printf("DBG: set sync ref %s\n", str_p); 
+    e=qregs_set_sync_ref(str_p[0]);
+    if (e) err("cant set sync ref");
+  }
+  
+  /*   not an init thing
+  e = ini_get_string(ivars,"tx_go_condition", &str_p);
+  if (!e) {
+    printf("DBG: set sync ref %s\n", str_p); 
+    e=qregs_set_tx_go_conditionf(str_p[0]);
+    if (e) err("cant set tx go condition");
+  }
+  */
+  
   // describe how Alice inserts data
   qregs_qsdc_data_cfg_t data_cfg;
   e = ini_get_int(ivars,"qsdc_data_symbol_len_asamps", &data_cfg.symbol_len_asamps);
   if (!e) {
     e = ini_get_int(ivars,"qsdc_data_is_qpsk", &data_cfg.is_qpsk);
     if (e) data_cfg.is_qpsk=0;
-    e = ini_get_int(ivars,"qsdc_data_body_len_asamps", &data_cfg.body_len_asamps);
-    if (e) data_cfg.body_len_asamps=0;
+    e = ini_get_int(ivars,"qsdc_data_body_len_asamps", &data_cfg.data_len_asamps);
+    if (e) data_cfg.data_len_asamps=0;
     e = ini_get_int(ivars,"qsdc_data_pos_asamps", &data_cfg.pos_asamps);
     if (e) data_cfg.pos_asamps=st.hdr_len_asamps;
     qregs_set_qsdc_data_cfg(&data_cfg);
@@ -262,6 +320,20 @@ void chan_en(struct iio_channel *ch) {
   iio_channel_enable(ch);
   if (!iio_channel_is_enabled(ch))
     err("chan not enabled");
+}
+
+int cmd_regs(int arg) {
+  qregs_dbg_print_regs();
+  return 0;
+}
+
+int cmd_dbg_info(int arg) {
+  int i;
+  h_w(H_ADC_DBG, 0xffffffff);  // does not work
+  h_w(H_ADC_CIPHER, 0xffffffff);  // works
+  h_w(H_ADC_CTL2, 0xffffffff); // DOES NOT work
+  h_w_signed_fld(H_ADC_REBALO_I_OFFSET, 3); // works
+  cmd_regs(0);
 }
 
 
@@ -303,7 +375,7 @@ int cmd_pm_sin(int arg) {
   }
   */
   
-  npds=1;
+  npds=4;
   
   n = (int)round(pd_ns*npds*1.0e-9*st.asamp_Hz/4)*4;
   n = i_max(4, n);
@@ -351,12 +423,32 @@ int cmd_pm_sin(int arg) {
 
   tx_sz = iio_buffer_push(dac_buf);
   printf("pushed %zd bytes\n", tx_sz);
-  qregs_set_use_lfsr(0);
+  i=mem_sz/8-2;
+  h_w_fld(H_DAC_DMA_MEM_RADDR_LIM_MIN1, i);
+  // This problem solved
+  //  printf("set raddr lim %d = x%x\n", i, i);
+  //  qregs_dbg_get_info(&i);
+  //  printf("DBG: waddr lim %d = x%08x\n", i, i);
+  
+  //  qregs_halfduplex_is_bob(0);
+
+  // Should not have to set go cond.
+  //  qregs_set_tx_go_condition('i');
+  
+  
+  prompt("");
+
+  //  qregs_dbg_print_tx_status(); // well behaved
+
+  
+  //  qregs_set_use_lfsr(0);
   qregs_set_alice_txing(0);
+  h_w_fld(H_DAC_CTL_ALICE_SYNCING, 0); // for now halts IM hdr
   qregs_set_tx_mem_circ(1);
   qregs_set_memtx_to_pm(1);
-  qregs_hdr_preemph_en(1);
-  qregs_set_tx_always(1);
+  qregs_hdr_preemph_en(0);
+  qregs_set_tx_always(0);
+  qregs_txrx(0);
 
   prompt("");
   //  iio_context_destroy(ctx);    
@@ -413,6 +505,18 @@ int cmd_laser_stat(int arg) {
   return 0;
 }
 
+int cmd_sfp_init(int arg) {
+  int e;
+  e = i2c_program("src/si5328_302MHz_to_57.8MHz.txt");
+  return e;
+}
+int cmd_sfp_status(int arg) {
+  int e, lol;
+  e=i2c_get_si5328_lol(&lol);
+  printf("si5328_lol x%x\n", lol);
+  return 0;
+}
+
 int cmd_laser_set(int arg) {
   int e;
   qregs_laser_settings_t s;
@@ -435,6 +539,16 @@ int cmd_laser_wl(int arg) {
   return 0;
 }
 
+cmd_info_t dbg_cmds_info[]={
+  {"pwr",  cmd_dbg_pwr,  0, 0},  
+  {"info", cmd_dbg_info,  0, 0},  
+  {0}};
+
+
+cmd_info_t sfp_cmds_info[]={
+  {"init",   cmd_sfp_init,   0, 0},  
+  {"status", cmd_sfp_status,   0, 0},  
+  {0}};
 
 
 cmd_info_t laser_cmds_info[]={
@@ -450,13 +564,17 @@ cmd_info_t cmds_info[]={
   {"always",  cmd_always,   0, 0},
   {"circ",    cmd_circ,   0, 0},
   {"ciph",    cmd_ciph,   0,      0},
+  {"dbg",     cmd_subcmd, (int)dbg_cmds_info, 0, 0},
   {"laser",   cmd_subcmd, (int)laser_cmds_info, 0, 0},
   {"help",    help,       0, 0},
   {"pm_dly",  cmd_pm_dly, 0, 0}, 
   {"pm_sin",  cmd_pm_sin, 0, 0}, 
   {"init",    cmd_init,   0, 0}, 
+  {"sfp",     cmd_subcmd, (int)sfp_cmds_info, 0, 0}, 
   {"tx",      cmd_tx,     0, 0},
   {"rx",      cmd_rx,   0, 0},
+  {"regs",    cmd_regs,   0, 0},
+  {"rp",      cmd_rp,   0, 0},
   {"pwr",     cmd_pwr,   0, 0},
   {"sweep",   cmd_sweep, 0, 0},
   {"rst",     cmd_rst,   0, 0},
@@ -464,6 +582,7 @@ cmd_info_t cmds_info[]={
   {"stat",    cmd_stat,   0, 0},
   {"thresh",  cmd_thresh,   0, 0}, 
   {"twopi",   cmd_twopi,   0, 0}, 
+  {"ver",     cmd_ver,   0, 0}, 
   {0}};
 
 

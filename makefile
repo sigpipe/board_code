@@ -3,11 +3,11 @@
 QSRCS = h qregd cmd parse util qregs ini mx qna rp
 QOBJS = $(QSRCS:%=obj/%.o)
 
-TSRCS = h util corr qregs ini mx parse qna
+TSRCS = h util corr qregs ini mx parse qna rp
 TOBJS = obj/tst.o $(TSRCS:%=obj/%.o)
 THDRS = $(TSRCS:%=src/%.h)
 
-USRCS = h util corr mx ini parse h_vhdl_extract cmd qregs qna
+USRCS = h util corr mx ini parse h_vhdl_extract cmd qregs qna rp i2c
 UOBJS = $(USRCS:%=obj/%.o)
 
 VARSRCS = ini mx parse
