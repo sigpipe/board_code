@@ -570,6 +570,10 @@ int cmd_sync_ref(int arg) {
   return e;
 }
 
+int cmd_qsdc_cfg(int arg) {
+  
+}
+
 int cmd_dbg_search(int arg) {
   printf("dbg search for hdr\n");
   qregs_print_adc_status();
@@ -608,6 +612,10 @@ cmd_info_t dbg_cmds_info[]={
   {"search", cmd_dbg_search, 0, 0}, 
   {"info",   cmd_dbg_info,  0, 0},  
   {"regs",   cmd_dbg_regs, 0, 0},  {0},
+  {0}};
+
+cmd_info_t qsdc_cmds_info[]={
+  {"cfg",    cmd_qsdc_cfg,  0, 0}, 
   {0}};
 
 
@@ -651,6 +659,7 @@ cmd_info_t cmds_info[]={
 
   {"rp",      cmd_rp,   0, 0},
   {"pwr",     cmd_pwr,   0, 0},
+  {"qsdc",    cmd_subcmd, (int)qsdc_cmds_info, 0, 0},
   {"sweep",   cmd_sweep, 0, 0},
   {"sync",    cmd_subcmd, (int)sync_cmds_info, 0, 0},
   {"rst",     cmd_rst,   0, 0},
