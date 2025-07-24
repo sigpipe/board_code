@@ -708,6 +708,11 @@ int main(int argc, char *argv[]) {
 	     ask_str("data_file", "data_file","src/data.bin"));
       mem_sz=read_file_into_buf(data_fname, mem, sizeof(mem));
     }
+    int data_len_asamps = (int)mem_sz * 8 / (st.qsdc_data_cfg.is_qpsk?2:1) *
+      st.qsdc_data_cfg.symbol_len_asamps;
+    printf("data len %d asamps\n", data_len_asamps);
+    int data_len_frames = (int)ceil((double)data_len_asamps / st.qsdc_data_cfg.data_len_asamps);
+    printf("   =  %d frames\n", data_len_frames);
   }
 
   if (mem_sz>0) {
