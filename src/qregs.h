@@ -117,7 +117,7 @@ typedef struct qregs_struct {
   int osamp; // oversampling rate in units of asamps. currently 1 2 or 4
   int hdr_len_bits; // hdr = probe = pilot
   int hdr_len_asamps;
-  int body_len_asamps; // frame = hdr + body
+  int body_len_asamps; // frame = hdr + body.  FOR BOB.
 
   int init_pwr_thresh; // for dbg
   int hdr_pwr_thresh; // used for hdr detection
@@ -137,7 +137,6 @@ typedef struct qregs_struct {
   int *memmaps[2];
   int *m2;
 
-  double iq_rebalance;
 
   int is_bob;
   char tx_go_condition; // 'p'=power,'h'=header','r'=ready,'i'=immediate
@@ -166,7 +165,7 @@ int  qregs_done();
 
 void qregs_set_meas_noise(int en);
 
-void qregs_rst_sfp_gth(void);
+
 
 
 void qregs_set_lfsr_rst_st(int lfsr_rst_st);
@@ -247,6 +246,11 @@ void qregs_get_iq_pwr(int *avg, int *max);
 void qregs_print_adc_status(void); // for dbg
 void qregs_print_hdr_det_status(void);
 
+// This SFP stuff will be different when Corundum is in place
+void qregs_sfp_gth_rst(void);
+void qregs_sfp_gth_status(void); // for dbg
+
+
 
 void qregs_search_en(int en);
 // en: 1=starts a search for hdr
@@ -260,6 +264,7 @@ void qregs_alice_sync_en(int en);
 
 void qregs_get_settings(void);
 void qregs_print_settings(void);
+void qregs_print_sync_status(void);
 
 void qregs_txrx(int en);
 

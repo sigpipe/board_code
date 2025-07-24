@@ -108,11 +108,10 @@ int msk2maxval(unsigned int msk) {
 
 
 
-
+// THIS is always done this automatically in h_w_fld,
+// there is no need for this fn.
 int clip_regval_u(int regconst, int v) {
   // desc: limits a value to fit in an unsigned register field
-  // TODO: perhaps always do this automatically in h_w_fld,
-  // but then it should return the clipped value.
   if (v<0) return 0;
   if (v>H_2VMASK(regconst))
     return H_2VMASK(regconst);
@@ -157,17 +156,9 @@ unsigned ext(int v, unsigned int fldmsk) {
   return v & fldmsk;
 }
 
-
-
-
-//unsigned qregs_reg_r_fld(int map_i, int reg_i, unsigned int fldmsk) {
-//  return ext(qregs_reg_r(map_i, reg_i), fldmsk);
-//}
 void qregs_ser_flush(void) {
   h_pulse_fld(H_DAC_SER_RST);  
 }
-
-
 
 
 int qregs_block_until_tx_rdy(void) {
@@ -548,7 +539,8 @@ void qregs_get_version(qregs_version_info_t *ver) {
     printf("ERR: quanet_adc fwver %d not %d !\n", i, qregs_fwver);
 
   ver->tx_mem_addr_w = h_r_fld(H_DAC_STATUS_MEM_ADDR_W);
-  
+  ver->cipher_w = H_CIPHER_W;
+  st.ver_info = *ver;
 }
 
 void qregs_get_settings(void) {
@@ -577,7 +569,6 @@ void qregs_get_settings(void) {
 
   i = h_r_fld(H_DAC_CTL_BODY_LEN_MIN1_CYCS);
   st.body_len_asamps = (i+1)*4;
-
 
   st.frame_qty = h_r_fld(H_DAC_FR2_FRAME_QTY_MIN1)+1;
 
@@ -697,19 +688,7 @@ int qregs_init(void) {
     qregs_err_fail("cant open /dev/uio4");
 
   
-  //  qregs_reg_w(0, 3, REG3_WOVF_IGNORE, 1);
-  //  qregs_clr_ctrs();
-
-
   qregs_get_version(&st.ver_info);
-  
-  //  st.ver_info.tx_mem_addr_w = h_r_fld(H_DAC_STATUS_MEM_ADDR_W);
-  //  st.ver_info.quanet_dac_fwver = i = h_r_fld(H_DAC_STATUS_FWVER);
-  //  if (qregs_fwver != i)
-  //    printf("ERR: quanet_dac fwver %d not %d !\n", i, qregs_fwver);
-  //  st.ver_info.quanet_adc_fwver = i = h_r_fld(H_ADC_STAT_FWVER);
-  //  if (qregs_fwver != i)
-  //    printf("ERR: quanet_adc fwver %d not %d !\n", i, qregs_fwver);
 
   
   // read all regs to initialize shadow copy
@@ -717,22 +696,9 @@ int qregs_init(void) {
     for(i=0;i<=h_max_reg_offset[rs]; ++i)
       h_r(H_CONST(rs, i, 0, 0));
   
-  //  st.ser_state.baud_Hz = 115200;
+
   st.ver_info.cipher_w = H_CIPHER_W;
-
-
-  
-  //  qregs_ser_set_params(&st.ser_state.baud_Hz, 0, 0);
-  
-  
-  //  for(i=0;i<6;++i)
-  //    qregs_reg_r(1, i));
-  //  printf("adc%d x%08x\n", 2, qregs_reg_r(1, 2));
-
-
-
-  //  qregs_set_lfsr_rst_st(0x50f);
-
+ 
   
   // TODO: learn this in some smart way.
   st.asamp_Hz = 1.233333333e9;  
@@ -773,7 +739,7 @@ void qregs_set_sync_dly_asamps(int sync_dly_asamps) {
   i = dly/4;
   i = h_w_fld(H_DAC_ALICE_FRAME_DLY_CYCS_MIN1, i);
   dly=i*4;
-  printf("dly %d\n", dly);
+  printf("DBG: alice frame dly %d\n", dly);
   st.sync_dly_asamps = dly;
 }
 
@@ -893,6 +859,12 @@ void qregs_set_qsdc_data_cfg(qregs_qsdc_data_cfg_t *data_cfg) {
   i = h_w_fld(H_DAC_QSDC_DATA_CYCS_MIN1, i);
   i = h_w_fld(H_ADC_CTL2_DATA_LEN_MIN1_CYCS, i);
   c->data_len_asamps = (i+1)*4;
+  printf("DBG: data len per frame actually %d asamps\n", c->data_len_asamps);
+
+  i = h_r_fld(H_DAC_QSDC_DATA_CYCS_MIN1);
+  printf("DBG: data len per frame actually %d cycs\n", i+1);
+  i = h_r_fld(H_ADC_CTL2_DATA_LEN_MIN1_CYCS);
+  printf("DBG: adc data len per frame actually %d cycs\n", i+1);
 
 
   if (data_cfg->symbol_len_asamps > 3)
@@ -900,6 +872,7 @@ void qregs_set_qsdc_data_cfg(qregs_qsdc_data_cfg_t *data_cfg) {
   i = data_cfg->symbol_len_asamps-1;
   i = h_w_fld(H_DAC_QSDC_SYM_ASAMPS_MIN1, i);
   c->symbol_len_asamps = i+1;
+  printf("DBG: symbol len actually %d asamps\n", c->symbol_len_asamps);
   
   *data_cfg = *c;
 }
@@ -911,7 +884,6 @@ void qregs_set_alice_syncing(int en) {
   h_w_fld(H_ADC_ACTL_SAVE_AFTER_PWR, i);
   h_w_fld(H_ADC_DBG_HOLD, 0);
   h_w_fld(H_DAC_CTL_ALICE_SYNCING, i);
-  //  h_w_fld(H_ADC_ACTL_ALICE_SYNCING, i);
   st.alice_syncing = i;
 }
 
@@ -966,7 +938,8 @@ void qregs_get_avgpwr(int *avg, int *mx, int *cnt) {
   v = h_r_fld(H_ADC_CSTAT_PROC_DOUT);
   *avg = (v>>16)&0xffff;
   *mx  = v&0xffff;
-
+  
+  // pwr events per 100us
   h_w_fld(H_ADC_CSTAT_PROC_SEL, 2);
   v = h_r_fld(H_ADC_CSTAT_PROC_DOUT);
   *cnt = (v>>16)&0xffff;
@@ -974,11 +947,25 @@ void qregs_get_avgpwr(int *avg, int *mx, int *cnt) {
   h_pulse_fld(H_ADC_PCTL_PROC_CLR_CNTS);  
 }
 
+void qregs_print_sync_status(void) {
+  int sum, qty, ovf;
+  printf("  SYNCRONIZER    (reference %c)\n", st.sync_ref);
+  sum=h_r_fld(H_ADC_SYNC_O_ERRSUM);
+  qty=h_r_fld(H_ADC_SYNC_O_QTY);
+  ovf=h_r_fld(H_ADC_SYNC_O_ERRSUM_OVF);
+  if (ovf)
+    printf("    mean_ref_err OVERFLOWED\n");
+  else if (qty)
+    printf("    mean_ref_err %.1f asamps\n", (double)sum/qty);
+  else
+    printf("    reference absent\n");
+  printf("    locked %d\n", h_r_fld(H_ADC_STAT_SYNC_LOCK));
+  printf("\n");
+}
 
 void qregs_print_hdr_det_status(void) {
-  int v, r0, qty, hdr_rel_sum;
+  int v, r0, qty, hdr_rel_sum, sum, ovf;
   short int s;
-
 
   
   //  printf("\nSETTINGS\n");
@@ -992,7 +979,7 @@ void qregs_print_hdr_det_status(void) {
   h_w_fld(H_ADC_CSTAT_PROC_SEL, 0);
   r0=h_r_fld(H_ADC_CSTAT_PROC_DOUT);
   printf("\nHDR DET STATUS\n");
-  printf("            reg0 x%x\n", r0);
+  // printf("            reg0 x%x\n", r0);
   printf("        met_init %d\n", ext(r0, AREG2_PS0_MET_INIT));
   // This is momentary and unlikely to be caught:
   //  printf("   pwr_searching %d\n", ext(r0, AREG2_PS0_PWR_SEARCHING));
@@ -1037,14 +1024,17 @@ void qregs_print_hdr_det_status(void) {
   
 
   if (qty) {
-
+    int c,s;
     printf("     hdr_rel_sum %d\n", hdr_rel_sum);
     printf("     hdr_cyc_avg %d\n", (int)hdr_rel_sum/qty);
 
     
-    h_w_fld(H_ADC_CSTAT_PROC_SEL, 6);
-    v = h_r_fld(H_ADC_CSTAT_PROC_DOUT);  
-    printf("     hdr_phase:  Q %d  I %d\n", (v>>16)&0xffff,  v&0xffff);
+    qregs_w_fld(H_ADC_CSTAT_PROC_SEL, 6);
+    v = qregs_r_fld(H_ADC_CSTAT_PROC_DOUT);
+    c = (short int)(v&0xffff);
+    s=  (short int)((v>>16)&0xffff); 
+    printf("     hdr_phase:  I %d  Q %d   deg %d \n", c, s,
+	   (int)round(atan2(s,c)*180/M_PI));
   }
 
  
@@ -1058,10 +1048,18 @@ void qregs_print_hdr_det_status(void) {
 
 void qregs_dbg_print_tx_status(void) {
   printf("\ndbg_print_tx_status\n");
-  printf("    dma_last_cnt %d\n", h_r_fld(H_DAC_DBG_DMA_LAST_CNT));
-  printf("   dma_lastv_cnt %d\n", h_r_fld(H_DAC_DBG_DMA_LASTVLD_CNT));
-  printf("       tx_in_cnt %d\n", h_r_fld(H_DAC_STATUS_DAC_TX_IN_CNT));
+  //  printf("    dma_last_cnt %d\n", h_r_fld(H_DAC_DBG_DMA_LAST_CNT));
+  //  printf("   dma_lastv_cnt %d\n", h_r_fld(H_DAC_DBG_DMA_LASTVLD_CNT));
+  printf("      frame_sync_out %d\n", h_r_fld(H_DAC_STATUS_FRAME_SYNC_IN_CNT));
   h_pulse_fld(H_DAC_PCTL_CLR_CNTS);
+}
+void qregs_sfp_gth_rst(void) {
+  h_pulse_fld(H_DAC_PCTL_GTH_RST);
+}
+void qregs_sfp_gth_status(void) {
+  int i=h_r_fld(H_DAC_STATUS_GTH_STATUS);
+  printf("  SFP GTH: tx_rst_done %d  rx_rst_done %d  qplllock %d\n",
+	 (i&1),(i>>1)&1,(1>>2)&1);
 }
 
 void qregs_print_adc_status(void) {
@@ -1081,20 +1079,19 @@ void qregs_print_adc_status(void) {
   */
   
 
-  printf("  gth_stat x%08x\n", h_r_fld(H_DAC_STATUS_GTH_STATUS));
-
   v = h_r(H_ADC_STAT);
   printf("adc stat x%08x\n", v);
 
-  printf("         dmareq %d\n",
-	 H_EXT(H_ADC_STAT_DMA_XFER_REQ_RC, v));
-
-  printf("     dmareq_cnt %d\n", H_EXT(H_ADC_STAT_XFER_REQ_CNT, v));
+  //  printf("         dmareq %d\n",
+  //	 H_EXT(H_ADC_STAT_DMA_XFER_REQ_RC, v));
+  //
+  //  printf("     dmareq_cnt %d\n", H_EXT(H_ADC_STAT_XFER_REQ_CNT, v));
   printf("    save_go_cnt %d\n", H_EXT(H_ADC_STAT_SAVE_GO_CNT, v));
   printf("    adc_rst_cnt %d\n", H_EXT(H_ADC_STAT_ADC_RST_CNT, v));
   printf(" dma_wready_cnt %d\n", H_EXT(H_ADC_STAT_DMA_WREADY_CNT, v));
   printf("           txrx %d\n", h_r_fld(H_ADC_ACTL_TXRX_EN));
   printf("      tx_always %d\n", h_r_fld(H_DAC_CTL_TX_ALWAYS));
+ printf("    alice_txing %d\n", h_r_fld(H_DAC_CTL_ALICE_TXING));
 
 
   h_pulse_fld(H_ADC_PCTL_CLR_CTRS);
@@ -1168,11 +1165,6 @@ void qregs_set_im_hdr_dac(int hdr_dac) {
   h_w_fld(H_DAC_IM_BODY, (unsigned)i&0xffff);
 }
 
-void qregs_rst_sfp_gth(void) {
-// resets the GTH that is the reference for the SFP.
-// When Corundum is integrated, this will go away.
-  h_pulse_fld(H_DAC_PCTL_GTH_RST);
-}
 
 
 void qregs_search_en(int en) {

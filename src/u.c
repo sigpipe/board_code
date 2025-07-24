@@ -25,6 +25,18 @@
 #include "qna.h"
 #include "i2c.h"
 #include "h.h"
+#include "util.h"
+
+
+#include "qregc.h"
+
+// qregc level code calls this
+static int remote_err_handler(char *str, int err) {
+  printf("REMOTE ERR: %s\n", str);
+  //  printf("BUG: st.errmsg_ll %s\n", st.errmsg_ll);
+  return err;
+}
+
 
 char errmsg[256];
 void err(char *str) {
@@ -36,19 +48,6 @@ void err(char *str) {
   exit(1);
 }
 
-void prompt(char *prompt) {
-  char buf[256];
-  if (prompt && prompt[0])
-    printf("%s > ", prompt);
-  else
-    printf("hit enter > ");
-  scanf("%[^\n]", buf);
-  getchar();
-}
-int i_max(int a, int b) {
-  return (a>b)?a:b;
-}
-  
 /*
 int cmd_cal(int arg) {
   int en;
@@ -86,11 +85,14 @@ int cmd_dbg_pwr(int arg) {
 }
 
 int cmd_sweep(int arg) {
-  int th, th_sav;
+  int th, th_sav, mx=256, step=10;
   int pwr_avg, pwr_max, pwr_cnt;
   th_sav = st.hdr_pwr_thresh;
   printf("pwr_th pwr_cnt\n");
-  for(th=0;th<256; th+=10) {
+  parse_int(&mx);
+  parse_int(&step);
+  
+  for(th=0;th<mx; th+=step) {
     qregs_set_hdr_det_thresh(th, st.hdr_corr_thresh);
     usleep(210);
     qregs_get_avgpwr(&pwr_avg, &pwr_max, &pwr_cnt);    
@@ -105,13 +107,7 @@ int cmd_always(int arg) {
   if (parse_int(&en))
     return CMD_ERR_NO_INT;
   qregs_set_tx_always(en);
-
-  //  printf("WARN:  // Should not have to set go cond.\n");
-  //  qregs_set_tx_go_condition('i');
-  //  qregs_txrx(1);
   printf("%d\n", st.tx_always);
-  //  qregs_get_settings();
-  //  qregs_print_settings();
   return 0;
 }
 
@@ -155,16 +151,17 @@ int cmd_ciph(int arg) {
 
 int cmd_rst(int arg) {
   qregs_set_tx_always(0);
+  qregs_search_en(0);
   qregs_set_tx_mem_circ(0);
   qregs_set_memtx_to_pm(0);
-  qregs_search_en(0);
+  h_w_fld(H_DAC_CTL_ALICE_SYNCING, 0);
   printf("rst\n");
   return 0;
 }
 
 int cmd_stat(int arg) {
-  //  qregs_print_adc_status();
-  printf("status\n");
+  printf("\nstatus\n");
+    //  qregs_print_adc_status();
   //  printf("  search %d\n", qregs_r_fld(H_ADC_ACTL_SEARCH));
   //  printf("  calbpsk %d\n", qregs_r_fld(H_DAC_CTL_BPSK_CALIBRATE));
   //  printf("\n");
@@ -264,9 +261,9 @@ int cmd_init(int arg) {
   e = ini_get_int(ivars, "ser_xon_xoff_en", &i);
   if (!e) st.ser_state.xon_xoff_en = i;
   qregs_ser_set_params(&st.ser_state.baud_Hz,
-		       st.ser_state.parity ,
-		       st.ser_state.xon_xoff_en);
-  
+                       st.ser_state.parity ,
+                       st.ser_state.xon_xoff_en);
+
   e = ini_get_int(ivars,"lfsr_rst_st", &i);
   // printf("e %d i %d x%x\n", e, i, i);
   if (!e) qregs_set_lfsr_rst_st(i);
@@ -322,18 +319,21 @@ void chan_en(struct iio_channel *ch) {
     err("chan not enabled");
 }
 
-int cmd_regs(int arg) {
+int cmd_dbg_regs(int arg) {
   qregs_dbg_print_regs();
   return 0;
 }
 
 int cmd_dbg_info(int arg) {
   int i;
-  h_w(H_ADC_DBG, 0xffffffff);  // does not work
-  h_w(H_ADC_CIPHER, 0xffffffff);  // works
-  h_w(H_ADC_CTL2, 0xffffffff); // DOES NOT work
-  h_w_signed_fld(H_ADC_REBALO_I_OFFSET, 3); // works
-  cmd_regs(0);
+  printf("set txgocond\n");
+  qregs_set_tx_go_condition('i'); // r=tx when rxbuf rdy
+  
+  h_w_fld(H_ADC_DBG_HOLD, 1);
+  h_w(H_ADC_DBG, 0xffffffff);
+  printf("wrote reg 1 but read %d\n", h_r_fld(H_ADC_DBG_HOLD));
+  printf("reg %d is x%08x\n", H_2REG(H_ADC_DBG), h_r_fld(H_ADC_DBG));
+  return 0;
 }
 
 
@@ -378,7 +378,7 @@ int cmd_pm_sin(int arg) {
   npds=4;
   
   n = (int)round(pd_ns*npds*1.0e-9*st.asamp_Hz/4)*4;
-  n = i_max(4, n);
+  n = u_max(4, n);
   printf("  %d pds is %d asamps = %.2f ns\n", npds, n, n/st.asamp_Hz*1e9);
   printf("  one pd is actualy %.2f ns = %.2f MHz\n", n/st.asamp_Hz*1e9/npds,
 	  st.asamp_Hz*npds/1e6/n);
@@ -435,22 +435,21 @@ int cmd_pm_sin(int arg) {
   // Should not have to set go cond.
   //  qregs_set_tx_go_condition('i');
   
-  
-  prompt("");
+  u_pause("");
 
   //  qregs_dbg_print_tx_status(); // well behaved
 
   
   //  qregs_set_use_lfsr(0);
   qregs_set_alice_txing(0);
-  h_w_fld(H_DAC_CTL_ALICE_SYNCING, 0); // for now halts IM hdr
+  // h_w_fld(H_DAC_CTL_ALICE_SYNCING, 0); // for now halts IM hdr
   qregs_set_tx_mem_circ(1);
   qregs_set_memtx_to_pm(1);
   qregs_hdr_preemph_en(0);
   qregs_set_tx_always(0);
   qregs_txrx(0);
 
-  prompt("");
+  u_pause("");
   //  iio_context_destroy(ctx);    
 
   return 0;  
@@ -465,6 +464,16 @@ int cmd_pm_dly(int arg) {
   return 0;
 }
 
+int cmd_r(int arg) {
+  int en;
+  printf("remote tx always");
+  if (parse_int(&en)) return CMD_ERR_NO_INT;  
+  qregc_connect("10.0.0.5", &remote_err_handler);
+  qregc_set_tx_always(&en);
+  qregc_disconnect();
+  printf("%d\n", en);
+  return 0;
+}
 
 cmd_info_t cmds_info[];
 
@@ -504,7 +513,10 @@ int cmd_laser_stat(int arg) {
   printf("  init_err %d\n", s.init_err);
   return 0;
 }
-
+int cmd_sfp_rst(int arg) {
+  qregs_sfp_gth_rst();
+  printf("1\n");
+}
 int cmd_sfp_init(int arg) {
   int e;
   e = i2c_program("src/si5328_302MHz_to_57.8MHz.txt");
@@ -512,9 +524,34 @@ int cmd_sfp_init(int arg) {
 }
 int cmd_sfp_status(int arg) {
   int e, lol;
+  qregs_sfp_gth_status();
   e=i2c_get_si5328_lol(&lol);
   printf("si5328_lol x%x\n", lol);
   return 0;
+}
+
+int cmd_sync_stat(int arg) {
+  qregs_print_sync_status();
+  return 0;
+}
+
+int cmd_sync_ref(int arg) {
+  int e;
+  char c=parse_nonspace();
+  e= qregs_set_sync_ref(c);
+  if (e) qregs_print_last_err();
+  return e;
+}
+
+int cmd_dbg_search(int arg) {
+  printf("dbg search for hdr\n");
+  qregs_print_adc_status();
+  printf("\n");
+  qregs_search_en(1);
+  while(1) {
+    qregs_print_hdr_det_status();
+    usleep(1000*1000);
+  }
 }
 
 int cmd_laser_set(int arg) {
@@ -540,29 +577,38 @@ int cmd_laser_wl(int arg) {
 }
 
 cmd_info_t dbg_cmds_info[]={
-  {"pwr",  cmd_dbg_pwr,  0, 0},  
+  {"pwr",  cmd_dbg_pwr,  0, 0}, 
+  {"search", cmd_dbg_search, 0, 0}, 
   {"info", cmd_dbg_info,  0, 0},  
+  {"regs",   cmd_dbg_regs, 0, 0},  {0}};
   {0}};
 
 
+
 cmd_info_t sfp_cmds_info[]={
-  {"init",   cmd_sfp_init,   0, 0},  
-  {"status", cmd_sfp_status,   0, 0},  
+  {"init",   cmd_sfp_init,   0, "init & rst si5328 pll"},  
+  {"rst",    cmd_sfp_rst,    0, "reset GTH"},  
+  {"status", cmd_sfp_status, 0, "view status"},
   {0}};
 
 
 cmd_info_t laser_cmds_info[]={
-  {"en",   cmd_laser_en,   0, 0},  
-  {"pwr",  cmd_laser_pwr,  0, 0},  
-  {"set",  cmd_laser_set,  0, 0},  
-  {"stat", cmd_laser_stat, 0, 0},  
-  {"wl",   cmd_laser_wl,   0, 0},  
+  {"en",   cmd_laser_en,   0, "enable LO laser", "0|1"},  
+  {"pwr",  cmd_laser_pwr,  0, "set laser pwr", "dBm"},  
+  {"set",  cmd_laser_set,  0, "view settings", 0},  
+  {"stat", cmd_laser_stat, 0, "view status", 0},  
+  {"wl",   cmd_laser_wl,   0, "set wavelength", "nm"},  
   {0}};  
   
+cmd_info_t sync_cmds_info[]={
+  {"ref",  cmd_sync_ref,   0, "select sync reference", "i|h|r|p"},
+  {"stat", cmd_sync_stat,  0, "view sync status", 0},
+  {0}};  
+
 cmd_info_t cmds_info[]={
   //  {"calbpsk", cmd_cal,       0, 0},
-  {"always",  cmd_always,   0, 0},
-  {"circ",    cmd_circ,   0, 0},
+  {"always",  cmd_always,   0, "0|1"},
+  {"circ",    cmd_circ,   0,   "0|1"},
   {"ciph",    cmd_ciph,   0,      0},
   {"dbg",     cmd_subcmd, (int)dbg_cmds_info, 0, 0},
   {"laser",   cmd_subcmd, (int)laser_cmds_info, 0, 0},
@@ -577,7 +623,9 @@ cmd_info_t cmds_info[]={
   {"rp",      cmd_rp,   0, 0},
   {"pwr",     cmd_pwr,   0, 0},
   {"sweep",   cmd_sweep, 0, 0},
+  {"sync",    cmd_subcmd, (int)sync_cmds_info, 0, 0},
   {"rst",     cmd_rst,   0, 0},
+  {"r",       cmd_r,     0, 0},
   {"set",     cmd_set,  0, 0},
   {"stat",    cmd_stat,   0, 0},
   {"thresh",  cmd_thresh,   0, 0}, 

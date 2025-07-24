@@ -1,7 +1,7 @@
 // h_vhdl_extract.h
 // hardware access constants
 // This file was automatically generated
-// by Register Extractor (ver 4.14) on Wed Jul 23 17:56:57 2025
+// by Register Extractor (ver 4.14) on Thu Jul 24 11:57:20 2025
 // compile version Mon Jun 16 10:25:20 2025
 // current dir:  C:\reilly\proj\quanet\quanet_hdl\projects\daq3\zcu106
 // DO NOT MODIFY THIS FILE!
@@ -18,7 +18,7 @@
 // version constants
 #define H_VHDL_EXTRACT_VER (4)
 #define H_VHDL_EXTRACT_SUBVER (14)
-#define H_VHDL_EXTRACT_DATE "Wed Jul 23 17:56:57 2025"
+#define H_VHDL_EXTRACT_DATE "Thu Jul 24 11:57:20 2025"
 #define H_VHDL_EXTRACT_DIR "C:\reilly\proj\quanet\quanet_hdl\projects\daq3\zcu106"
 
 
@@ -108,6 +108,7 @@
 #define H_DAC_CTL_IS_BOB                  0x00002033  /* 0x00080000   w */
 #define H_DAC_CTL_QSDC_DATA_IS_QPSK       0x00002034  /* 0x00100000   w -- 0=bpsk, 1=qpsk */
 #define H_DAC_CTL_ALICE_TXING             0x00002035  /* 0x00200000   w -- set for qsdc */
+#define H_DAC_CTL_SIMPLE_IM_HDR_EN        0x00002036  /* 0x00400000   w -- use vals from IM register */
 #define H_DAC_CTL_TX_DBITS                0x00002037  /* 0x00800000   w -- alice transmits data */
 #define H_DAC_CTL_ALICE_SYNCING           0x00002039  /* 0x02000000   w -- means i am alice, doing sync */
 #define H_DAC_CTL_MEMTX_CIRC              0x0000203a  /* 0x04000000   w -- circular xmit from mem */
@@ -117,12 +118,12 @@
 #define H_DAC_CTL_CIPHER_EN               0x0000203e  /* 0x40000000   w -- bob sets to scramble frame bodies */
 #define H_DAC_CTL_TX_UNSYNC               0x0000203f  /* 0x80000000   w -- probaly will go away */
                                        // r 0xffffffff
-                                       // w 0xfebbffff
+                                       // w 0xfefbffff
 
 #define H_DAC_STATUS                      0x00003000  /* 3 */
 #define H_DAC_STATUS_GTH_STATUS           0x00003080  /* 0x0000000f  r  */
 #define H_DAC_STATUS_FWVER                0x00003084  /* 0x000000f0  r  */
-#define H_DAC_STATUS_DAC_TX_IN_CNT        0x000030c8  /* 0x00003f00  r  */
+#define H_DAC_STATUS_FRAME_SYNC_IN_CNT    0x000030c8  /* 0x00003f00  r  */
 #define H_DAC_STATUS_DAC_RST_AXI          0x0000302e  /* 0x00004000  r  */
 #define H_DAC_STATUS_MEM_ADDR_W           0x000030cf  /* 0x001f8000  r  */
 #define H_DAC_STATUS_SER_TX_MT            0x00003036  /* 0x00400000  r  */
@@ -191,14 +192,13 @@
 #define H_DAC_DBG_SER_SAW_XOFF_TIMO       0x0000a029  /* 0x00000200  r  */
 #define H_DAC_DBG_SER_TX_OVF              0x0000a02a  /* 0x00000400  r  */
 #define H_DAC_DBG_SER_RX_OVF              0x0000a02b  /* 0x00000800  r  */
-#define H_DAC_DBG_DMA_LAST_CNT            0x0000a06c  /* 0x00007000  r  */
-#define H_DAC_DBG_DMA_LASTVLD_CNT         0x0000a06f  /* 0x00038000  r  */
-#define H_DAC_DBG_TX_FORCE                0x0000a036  /* 0x00400000  rw */
-#define H_DAC_DBG_SER_CLR_CTRS            0x0000a037  /* 0x00800000  rw */
-#define H_DAC_DBG_SER_CTR_SEL             0x0000a058  /* 0x03000000  rw */
+#define H_DAC_DBG_FRAME_GO_CNT            0x0000a112  /* 0x03fc0000  r  */
+#define H_DAC_DBG_TX_FORCE                0x0000a03a  /* 0x04000000  rw */
+#define H_DAC_DBG_SER_CLR_CTRS            0x0000a03b  /* 0x08000000  rw */
+#define H_DAC_DBG_SER_CTR_SEL             0x0000a05c  /* 0x30000000  rw */
 #define H_DAC_DBG_SER_CLR_ERRS            0x0000a03e  /* 0x40000000  rw */
-                                       // r 0xfff3ff80
-                                       // w 0xfff00000
+                                       // r 0xfffc0f80
+                                       // w 0xfc000000
 
 #define H_DAC_CIPHER                      0x0000b000  /* 11 */
 #define H_DAC_CIPHER_REG_W                0x0000b400  /* 0xffffffff  r  */
@@ -236,8 +236,9 @@
 #define H_ADC_ACTL_SAVE_AFTER_INIT      0x1000002b  /* 0x00000800   w */
 #define H_ADC_ACTL_LFSR_RST_ST          0x1000016c  /* 0x007ff000   w */
 #define H_ADC_ACTL_PHASE_EST_EN         0x10000037  /* 0x00800000   w */
+#define H_ADC_ACTL_RESYNC               0x10000038  /* 0x01000000   w -- new 7/23 */
                                        // r 0xffffffff
-                                       // w 0x00fff9fe
+                                       // w 0x01fff9fe
 
 #define H_ADC_STAT                      0x10001000  /* 1 */
 #define H_ADC_STAT_DMA_XFER_REQ_RC      0x10001020  /* 0x00000001  r  -- for dbg */
@@ -246,11 +247,10 @@
 #define H_ADC_STAT_SAVE_GO_CNT          0x10001088  /* 0x00000f00  r  */
 #define H_ADC_STAT_XFER_REQ_CNT         0x1000108c  /* 0x0000f000  r  */
 #define H_ADC_STAT_ADC_RST_CNT          0x10001090  /* 0x000f0000  r  */
-#define H_ADC_STAT_DAC_TX_CNT           0x10001094  /* 0x00f00000  r  */
 #define H_ADC_STAT_FWVER                0x10001098  /* 0x0f000000  r  */
 #define H_ADC_STAT_SYNC_LOCK            0x1000103c  /* 0x10000000  r  */
 #define H_ADC_STAT_SAW_SYNC_OOL         0x1000103d  /* 0x20000000  r  */
-                                       // r 0x3ffffff3
+                                       // r 0x3f0ffff3
                                        // w 0x00000000
 
 #define H_ADC_CSTAT                     0x10002000  /* 2 */
@@ -282,7 +282,10 @@
                                        // w 0x03ffffff
 
 #define H_ADC_SYNC                      0x10006000  /* 6 */
-#define H_ADC_SYNC_AREG_W               0x10006400  /* 0xffffffff  r  */
+#define H_ADC_SYNC_O_ERRSUM             0x10006200  /* 0x0000ffff  r  */
+#define H_ADC_SYNC_O_ERRSUM_OVF         0x10006030  /* 0x00010000  r  */
+#define H_ADC_SYNC_O_QTY                0x100060b1  /* 0x003e0000  r  */
+#define H_ADC_SYNC_AREG_W               0x10006156  /* 0xffc00000  r  */
 #define H_ADC_SYNC_INIT_THRESH_D16      0x10006118  /* 0xff000000   w */
                                        // r 0xffffffff
                                        // w 0xff000000

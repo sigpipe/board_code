@@ -38,27 +38,28 @@ int cmd_help(cmd_info_t *ci_p) {
   for(i=0; ci_p[i].fn; ++i);
   name=ci_p[i].name;
   for(i=0; ci_p[i].fn; ++i) {
-    //    CMD_DESC(  if (ci_p[i].desc != CMD_ALIAS) {)
+    if (ci_p[i].desc != CMD_ALIAS) {
       printf("  ");
       if (name) {
 	printf(name);
-	//	j=strlen(name);
+	j=strlen(name);
 	printf(" ");
-      } // else j=0;
+      } else j=0;
       printf(ci_p[i].name);
-      //      j+=1+strlen(ci_p[i].name);
+      j+=1+strlen(ci_p[i].name);
       if (ci_p[i].usage) {
 	if (ci_p[i].arg==CMD_PERDET) {
 	  printf(" {detid}"); j+=8;
 	}
 	printf(" ");
 	printf(ci_p[i].usage);
-	//	j+=1+strlen(ci_p[i].usage);
+	j+=1+strlen(ci_p[i].usage);
       }
-      //      for(; j<DESCCOL; ++j)
-      //	xil_printf(" ");
-      //      if (ci_p[i].desc)
-      //	xil_printf(ci_p[i].desc);
+      if (ci_p[i].desc) {
+        for(; j<DESCCOL; ++j)
+	  printf(" ");
+	printf(ci_p[i].desc);
+      }
       printf("\n");
 
       if ((i%20)==19) {
@@ -66,7 +67,7 @@ int cmd_help(cmd_info_t *ci_p) {
         inbyte();
 	printf("\r\x1b[K\x00"); //  cr, vt100_erase_to_eol
       }
-      //    }
+    }
   }
   return 0;
 }
@@ -76,7 +77,7 @@ int cmd_do_token(char *token, cmd_info_t *ci_p) {
   int i, j=0, l, cnt;
   if(!token[0]) return CMD_ERR_SYNTAX;
   l = strlen(token); cnt=0;
-  if ((l==1)&&(token[0]=='?'))
+  if ((l==1)&&(token[0]=='h'))
     return cmd_help(ci_p);
   for(i=0; ci_p[i].fn; ++i) {
     if (!strncmp(ci_p[i].name, token, l)) {

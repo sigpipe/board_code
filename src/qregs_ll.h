@@ -36,7 +36,7 @@ int  qregs_ser_qna_connect(char *irsp, int irsp_len);
 
 extern qregs_st_t st;
 
-
+void qregs_dbg_print_regs(void);
 void qregs_dbg_get_info(int *info);
 void qregs_dbg_print_tx_status(void);
 
