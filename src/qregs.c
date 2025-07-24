@@ -466,6 +466,9 @@ int qregs_set_sync_ref(char s) {
   return 0;
 }
 
+void qregs_sync_resync(void) {
+  h_pulse_fld(H_ADC_ACTL_RESYNC);
+}
 
 
 #define REBAL_M_SCALE ((H_2VMASK(H_ADC_REBALM_M11)+1)/4)
@@ -641,8 +644,10 @@ void qregs_print_settings(void) {
   printf("tx_mem_circ %d\n", st.tx_mem_circ);
   printf("tx_mem_to_pm %d\n", h_r_fld(H_DAC_CTL_MEMTX_TO_PM));
   printf("tx_0 %d\n", st.tx_0);
+  printf("tx_same_hdrs %d\n", st.tx_same_hdrs);
   printf("tx_hdr_twopi %d\n", st.tx_hdr_twopi);
   printf("txrx %d\n", h_r_fld(H_ADC_ACTL_TXRX_EN));
+  printf("search %d\n", h_r_fld(H_ADC_ACTL_SEARCH));
   printf("alice_syncing %d\n", st.alice_syncing);
   printf("alice_txing %d\n", h_r_fld(H_DAC_CTL_ALICE_TXING));
   printf("halfduplex_is_bob %d\n", st.is_bob);
@@ -973,6 +978,7 @@ void qregs_print_hdr_det_status(void) {
   short int s;
 
   
+  qregs_dbg_print_tx_status();
   //  printf("\nSETTINGS\n");
   //  printf("  async %d=%d\n", qregs_r_fld(H_DAC_CTL_ALICE_SYNCING),
   //	 qregs_r_fld(H_ADC_ACTL_ALICE_SYNCING));
@@ -980,6 +986,7 @@ void qregs_print_hdr_det_status(void) {
 
 
   qregs_print_adc_status();
+
   
   h_w_fld(H_ADC_CSTAT_PROC_SEL, 0);
   r0=h_r_fld(H_ADC_CSTAT_PROC_DOUT);
@@ -1053,7 +1060,7 @@ void qregs_print_hdr_det_status(void) {
 
 void qregs_dbg_print_tx_status(void) {
   printf("\ndbg_print_tx_status\n");
-  //  printf("    dma_last_cnt %d\n", h_r_fld(H_DAC_DBG_DMA_LAST_CNT));
+  printf("    frame_go_cnt %d\n", h_r_fld(H_DAC_DBG_FRAME_GO_CNT));
   //  printf("   dma_lastv_cnt %d\n", h_r_fld(H_DAC_DBG_DMA_LASTVLD_CNT));
   printf("      frame_sync_out %d\n", h_r_fld(H_DAC_STATUS_FRAME_SYNC_IN_CNT));
   h_pulse_fld(H_DAC_PCTL_CLR_CNTS);
@@ -1085,7 +1092,7 @@ void qregs_print_adc_status(void) {
   
 
   v = h_r(H_ADC_STAT);
-  printf("adc stat x%08x\n", v);
+  // printf("adc stat x%08x\n", v);
 
   //  printf("         dmareq %d\n",
   //	 H_EXT(H_ADC_STAT_DMA_XFER_REQ_RC, v));

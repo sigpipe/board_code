@@ -182,7 +182,9 @@ void qregs_hdr_preemph_en(int en);
 
 void qregs_set_sync_dly_asamps(int sync_dly_asamps);
 //   sync_dly_asamps: sync delay in units of 1.23GHz ADC samples.
-//                    may be positive or negative.  
+//                    may be positive or negative.
+void qregs_sync_resync(void);
+
 
 void qregs_set_iq_rebalance(qregs_rebalance_params_t *params);
 //   NOTE: params are changed to what can actually be implemented

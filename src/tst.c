@@ -164,6 +164,59 @@ double ask_nnum(char *var_name, double dflt) {
 }
 
 
+
+// THIS IS NEVER CALLED
+ssize_t pattern_into_buf(void *buf, ssize_t buf_sz) {
+  ssize_t mem_sz;
+  short int *mem = (short int *)buf;
+  int ch, i,j,n;
+  ch = ask_num("pattern (1=hdr, 2=ramp)", "pattern", 2);
+  if (ch==2) {
+    printf("pattern: RAMP\n");
+    for(i=0; i<DAC_N; ++i) {
+      //	mem[i] = (int)((2.0*sq((double)i/DAC_N)-1.0) * (1<<13));
+      mem[i] = i*(1<<14)/DAC_N - (1<<13);
+      printf(" %d", mem[i]);
+    }
+    printf("\n");
+  }else {
+    /*
+    j=0;
+    printf("pattern: ");
+    for(i=0; i<PAT_LEN; ++i) {
+      n=(pat[i]*2-1) * (32768/2);
+      if (i<8)
+	printf(" %d", n);
+      for(k=0;k<SYMLEN;++k)
+	mem[j++] = n;
+    }
+    printf("...\n");
+    printf("  %d DAC samps\n", j);
+    if (j!=DAC_N) printf("ERR: expected %d\n", DAC_N);
+    */
+  }
+  mem_sz = DAC_N;
+  return mem_sz;
+}
+
+
+
+ssize_t read_file_into_buf(char *fname, void *buf, ssize_t buf_sz) {
+  int fd = open(fname,O_RDWR);
+  ssize_t rd_sz;
+  if (fd<0) {
+    snprintf(errmsg, 512, "cant open file %s", fname);
+    err(errmsg);
+    return 0;
+  }
+  rd_sz = read(fd, buf, DAC_N);
+  printf("read %zd bytes from %s\n", rd_sz, fname);
+  //for(i=0;i<16;++i)
+  //  printf("%04x %d\n", mem[i], mem[i]);
+  // printf("\n");
+  return rd_sz;
+}
+
 void prompt(char *prompt) {
   char buf[256];
   if (prompt && prompt[0])
@@ -352,8 +405,9 @@ int main(int argc, char *argv[]) {
   // For alice, this uses the syncronizer
   // TODO: combine concept with set_sync_ref.
   qregs_halfduplex_is_bob(!is_alice);
-  qregs_set_sync_ref('r'); // BUG WORKAROUND
+
   qregs_set_sync_ref('p'); // ignored if bob
+  qregs_sync_resync();
 
   qregs_set_tx_go_condition(is_alice?'p':'r'); // r=tx when rxbuf rdy
 
@@ -596,49 +650,9 @@ int main(int argc, char *argv[]) {
 
   mem_sz=0;
   if (!is_alice && hdr_preemph_en) {
-    int fd = open(hdr_preemph_fname,O_RDWR);
-    if (fd<0) {
-      snprintf(errmsg, 512, "cant open preemph file %s", hdr_preemph_fname);
-      err(errmsg);
-    }
-    mem_sz = read(fd, mem, DAC_N);
-    printf("read %zd bytes from %s\n", mem_sz, hdr_preemph_fname);
-    //for(i=0;i<16;++i)
-    //  printf("%04x %d\n", mem[i], mem[i]);
-    // printf("\n");
-
+    mem_sz=read_file_into_buf(hdr_preemph_fname, mem, sizeof(mem));
   }else {
-  
-
-    if (!use_lfsr) {
-      int ch;
-      ch = ask_num("pattern (1=hdr, 2=ramp)", "pattern", 2);
-
-      if (ch==2) {
-	printf("pattern: RAMP\n");
-	for(i=0; i<DAC_N; ++i) {
-	  //	mem[i] = (int)((2.0*sq((double)i/DAC_N)-1.0) * (1<<13));
-	  mem[i] = i*(1<<14)/DAC_N - (1<<13);
-	  printf(" %d", mem[i]);
-	}
-	printf("\n");
-      }else {
-	j=0;
-	printf("pattern: ");
-	for(i=0; i<PAT_LEN; ++i) {
-	  n=(pat[i]*2-1) * (32768/2);
-	  if (i<8)
-	    printf(" %d", n);
-	  for(k=0;k<SYMLEN;++k)
-	    mem[j++] = n;
-	}
-	printf("...\n");
-	printf("  %d DAC samps\n", j);
-	if (j!=DAC_N) printf("ERR: expected %d\n", DAC_N);
-      }
-      mem_sz = DAC_N;
-    }
-    
+    // mem_sz=pattern_into_buf(hdr_preemph_fname, mem, sizeof(mem));
   }
 
   // basically there is no conversion
@@ -845,7 +859,8 @@ int main(int argc, char *argv[]) {
     
       // qregs_print_adc_status();
     
-    
+      qregs_print_sync_status();
+      
       if (search) {
 	// prompt("OK");
 	//      qregs_print_hdr_det_status();
