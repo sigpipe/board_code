@@ -520,6 +520,8 @@ int main(int argc, char *argv[]) {
   
 
   int dly_ms=100;
+
+
   
   if (opt_periter) {
     // user explicitly ctls details of nested loops
@@ -531,13 +533,21 @@ int main(int argc, char *argv[]) {
       printf("test will take %d s\n", num_itr*dly_ms/1000);
     }
     frame_qty_req = ask_num("frames per itr", "frames_per_itr", 10);
+
+    if (!is_alice && alice_syncing)
+      frame_qty = frame_qty_req*2;
+    else
+      frame_qty = frame_qty_req+1;
+
     
-    num_bufs = ceil((double)(frame_qty_req+1) / max_frames_per_buf);
+    num_bufs = ceil((double)(frame_qty) / max_frames_per_buf);
     printf("  so num_bufs %d\n", num_bufs);
-    frames_per_buf = ceil((double)(frame_qty_req+1) / num_bufs);
+    frames_per_buf = ceil((double)(frame_qty) / num_bufs);
     frame_qty = num_bufs * frames_per_buf;
+
+
     if (frame_qty != frame_qty_req)
-      printf(" ACTUALLY saving %d frames per itr\n", frame_qty);
+      printf(" actually SAVING %d frames per itr\n", frame_qty);
     buf_len_asamps = frames_per_buf * st.frame_pd_asamps;
     //    if (tst_sync)
     //      buf_len_asamps *= 2;
@@ -565,7 +575,8 @@ int main(int argc, char *argv[]) {
     frames_per_buf = (int)(ceil((double)frame_qty / num_bufs));
     frame_qty = frames_per_buf * num_bufs;
     printf(" hdr qty per itr %d\n", frame_qty);
-
+    frame_qty_req = frame_qty;
+    
     if (num_itr>1) {
       dly_ms = 0;
       dly_ms = ask_num("delay per itr (ms)", "dly_ms", dly_ms);
@@ -585,11 +596,11 @@ int main(int argc, char *argv[]) {
 
   }
    
+
   qregs_set_frame_qty(frame_qty_req);
   if (st.frame_qty !=frame_qty_req) {
-    printf("ERR: frame qty actually %d\n", st.frame_qty);
+    printf("ERR: actually frame qty %d not %d\n", st.frame_qty, frame_qty_req);
   }
-
 
   
   //  size of sz is 4!!
