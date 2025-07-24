@@ -652,7 +652,7 @@ int cmd_qna(int arg) {
   p = parse_get_ptr();
   
   // e = qna_usb_do_cmd(p, qnarsp, 1024);
-  e = qregs_ser_do_cmd(p, qnarsp, 1024);
+  e = qregs_ser_do_cmd(p, qnarsp, 1024,1);
   
   // printf("DBG: e %d  qrsp %s\n", e, qnarsp);
   if (e) return e;

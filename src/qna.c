@@ -144,7 +144,7 @@ int qna_set_laser_en(int en) {
 
 int qna_set_laser_pwr_dBm(double *dBm) {
   int e, i;
-  qna_set_timo_ms(10000);
+  qna_set_timo_ms(30000);
   sprintf(qna_cmd, "cfg it pwr %d\r", (int)round(*dBm*100));
   e = qna_do_cmd_get_int(&i);
   if (e) return e;
