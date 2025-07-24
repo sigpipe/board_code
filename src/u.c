@@ -531,11 +531,16 @@ int cmd_sfp_rst(int arg) {
   qregs_sfp_gth_rst();
   printf("1\n");
 }
+
 int cmd_sfp_init(int arg) {
   int e;
-  e = i2c_program("src/si5328_302MHz_to_57.8MHz.txt");
+  char fname[256];
+  strcpy(fname, "src/si5328_302MHz_to_61.667MHz.txt");
+  e = i2c_program(fname);
+  printf("wrote %s\n", fname);
   return e;
 }
+
 int cmd_sfp_status(int arg) {
   int e, lol;
   qregs_sfp_gth_status();
