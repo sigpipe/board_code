@@ -3,12 +3,14 @@
 *~
 \#*
 *.bak
+*.a
 qregd
 tst
 build
 out
 q
 u
+ivars.txt
 tvars.txt
 
 

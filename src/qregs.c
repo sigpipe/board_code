@@ -52,11 +52,11 @@ char qregs_errmsg[QREGS_ERRMSG_LEN];
 qregs_st_t st={0};
 
 int qregs_dur_us2samps(double us) {
-  // here "samp" means 1.333GHz sample.  not an IQ "sample".  
+  // here "samp" means 1.233GHz sample.  not an IQ "sample".  
   return (int)(floor(round(us*1e-6 * st.asamp_Hz)));
 }
 double qregs_dur_samps2us(int s) {
-  // here "samp" means 1.333GHz sample.  not an IQ "sample".  
+  // here "samp" means 1.233GHz sample.  not an IQ "sample".  
   return (double)s / 1e-6 / st.asamp_Hz;
 }
 
