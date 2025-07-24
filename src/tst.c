@@ -363,12 +363,12 @@ int main(int argc, char *argv[]) {
     qregs_set_tx_same_hdrs(1);
     is_alice = ask_yn("is_alice", "is_alice", 1);
     qregs_alice_sync_en(0); // maybe not needed
-    alice_syncing = ask_yn("alice_syncing", "alice_syncing", 1);
+    alice_syncing = ask_yn("is alice syncing", "alice_syncing", 1);
     qregs_set_alice_syncing(alice_syncing);
     
+    alice_txing = ask_yn("is alice txing", "alice_txing", 1);
+
     if (is_alice) {
-      alice_txing = ask_yn("alice_txing", "alice_txing", 1);
-      
 #if QNICLL_LINKED
       use_qnicll=ask_yn("use qnicll", "use_qnicll",0);
       if (use_qnicll) {
@@ -393,7 +393,7 @@ int main(int argc, char *argv[]) {
       
     }else { // not alice
       qregs_set_alice_syncing(0);
-      qregs_set_tx_same_hdrs(0);
+      qregs_set_tx_same_hdrs(alice_txing || alice_syncing);
     }
 
   }else {
@@ -748,7 +748,7 @@ int main(int argc, char *argv[]) {
   }
 
   // this must be done after pushing the dma data, because it primes qsdc.
-  qregs_set_alice_txing(alice_txing);
+  qregs_set_alice_txing(is_alice && alice_txing);
 
   prompt("READY? ");
 
