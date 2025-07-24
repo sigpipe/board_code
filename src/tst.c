@@ -1025,7 +1025,13 @@ int main(int argc, char *argv[]) {
     fprintf(fp,"hdr_pwr_thresh = %d;\n", st.hdr_pwr_thresh);
     fprintf(fp,"hdr_corr_thresh = %d;\n", st.hdr_corr_thresh);
     fprintf(fp,"sync_dly_asamps = %d;\n", st.sync_dly_asamps);
-  
+
+    fprintf(fp,"qsdc_data_is_qpsk = %d;\n", st.qsdc_data_cfg.is_qpsk);
+    fprintf(fp,"qsdc_data_pos_asamps = %d;\n", st.qsdc_data_cfg.pos_asamps);
+    fprintf(fp,"qsdc_data_len_asamps = %d;\n", st.qsdc_data_cfg.data_len_asamps);
+    fprintf(fp,"qsdc_symbol_len_asamps = %d;\n", st.qsdc_data_cfg.symbol_len_asamps);
+
+    
     fprintf(fp,"hdr_len_bits = %d;\n", st.hdr_len_bits);
     fprintf(fp,"data_hdr = 'i_adc q_adc';\n");
     fprintf(fp,"data_len_samps = %d;\n", cap_len_samps);
