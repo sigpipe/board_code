@@ -318,6 +318,7 @@ int main(int argc, char *argv[]) {
   int use_lfsr=1;
   int  hdr_preemph_en=0;
   char hdr_preemph_fname[256];
+  char data_fname[256];
   int tx_always=0;
   int tx_0=0;  
   int tot_frame_qty, frame_qty=25, frame_qty_req=25, max_frames_per_buf, frames_per_buf;
@@ -459,10 +460,12 @@ int main(int argc, char *argv[]) {
     if (j!=st.cipher_m)
       printf("  actually m = %d\n", st.cipher_m);
 
+   // TODO: move this frame size stuff into a common init file
+   //       read by u.c.  add an interactive cfg thing to u.c
    if (is_alice && alice_txing) {
       double gap_ns;
       qregs_qsdc_data_cfg_t data_cfg;
-      data_cfg.is_qpsk      = ask_nnum("body_is_qpsk", 0);
+      data_cfg.is_qpsk      = ask_yn("is the data qpsk","body_is_qpsk", 0);
 
       data_cfg.symbol_len_asamps = ask_num("data symbol len (asamps)",
                                            "symbol_len_asamps", 8);
@@ -694,11 +697,17 @@ int main(int argc, char *argv[]) {
 
 
   if (!mem_sz && is_alice && alice_txing) {
-    printf("writing x0a55... to mem\n");
-    mem_sz = DAC_N/2;
-    // size of channel is DAC_N*2*2 bytes
-    for (i=0; i<mem_sz/2; ++i)
-      mem[i]=0x0a55;
+    if (0)  {
+      printf("writing x0a55... to mem\n");
+      mem_sz = (int)((DAC_N/2)/32*32);
+      // size of channel is DAC_N*2*2 bytes
+      for (i=0; i<mem_sz/2; ++i)
+	mem[i]=0xaa55;
+    }else {
+      strcpy(data_fname,
+	     ask_str("data_file", "data_file","src/data.bin"));
+      mem_sz=read_file_into_buf(data_fname, mem, sizeof(mem));
+    }
   }
 
   if (mem_sz>0) {
@@ -745,6 +754,8 @@ int main(int argc, char *argv[]) {
     h_w_fld(H_DAC_DMA_MEM_RADDR_LIM_MIN1, mem_sz/8-2);
     qregs_dbg_get_info(&i);
     printf("DBG: set raddr lim %zd bytes (dbg %d)\n", mem_sz/8-2, i);
+
+    
   }
 
   // this must be done after pushing the dma data, because it primes qsdc.

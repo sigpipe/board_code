@@ -550,8 +550,16 @@ int cmd_sfp_status(int arg) {
 }
 
 int cmd_sync_stat(int arg) {
+  printf("sync dly %d asamps\n", st.sync_dly_asamps);
   qregs_print_sync_status();
   return 0;
+}
+
+int cmd_sync_dly(int arg) {
+  int dly;
+  if (parse_int(&dly)) return CMD_ERR_NO_INT;
+  qregs_set_sync_dly_asamps(dly);
+  printf("%d\n", st.sync_dly_asamps);
 }
 
 int cmd_sync_ref(int arg) {
@@ -623,6 +631,7 @@ cmd_info_t laser_cmds_info[]={
 cmd_info_t sync_cmds_info[]={
   {"ref",  cmd_sync_ref,   0, "select sync reference", "i|h|r|p"},
   {"stat", cmd_sync_stat,  0, "view sync status", 0},
+  {"dly",  cmd_sync_dly,   0, "set sync dly", 0},
   {0}};  
 
 cmd_info_t cmds_info[]={
