@@ -18,22 +18,30 @@
 #include "corr.h"
 #include <time.h>
 #include "ini.h"
+#include "util.h"
 #include "h_vhdl_extract.h"
 #include "h.h"
 
-#if OPT_QNICLL
+#define QNICLL_LINKED (0)
+#define QREGC_LINKED (0)
+
+#if QNICLL_LINKED
 #include <qnicll.h>
-int use_qnicll=1;
-void crash(int e, char *str) {
+  int use_qnicll=0;
+  void crash(int e, char *str) {
 // desc: crashes wih informative messages
-  printf("ERR: %d\n", e);
-  printf("     %s\n", qnicll_error_desc());
-  if (errno)
-    printf("     errno %d = %s\n", errno, strerror(errno));
-  exit(1);
-}
-// check and crash if error
-#define C(CALL)     {int e = CALL; if (e) crash(e, "");}
+    printf("ERR: %d\n", e);
+    printf("     %s\n", qnicll_error_desc());
+    if (errno)
+      printf("     errno %d = %s\n", errno, strerror(errno));  
+    exit(1);
+  }
+
+#endif
+
+#if QREGC_LINKED
+#include "qregc.h"
+int use_qregc=0;
 #endif
 
 char errmsg[512];
@@ -48,6 +56,13 @@ void err(char *str) {
 int dbg_lvl=0;
 
 #define NEW (1)
+
+
+
+// check and crash if error
+#define C(CALL)     {int e = CALL; if (e) crash(e, "");}
+
+
 
 void chan_en(struct iio_channel *ch) {
   iio_channel_enable(ch);
@@ -170,6 +185,16 @@ double sq(double a) {
   return a*a;
 }
 
+
+// qregc level code calls this
+static int remote_err_handler(char *str, int err) {
+  printf("REMOTE ERR: %s\n", str);
+  //  printf("BUG: st.errmsg_ll %s\n", st.errmsg_ll);
+  return err;
+}
+
+
+
 int main(int argc, char *argv[]) {
   int num_dev, i, j, k, n, e, itr, sfp_attn_dB, search;
   char name[32], attr[32], c;
@@ -184,7 +209,7 @@ int main(int argc, char *argv[]) {
   struct iio_device *dac, *adc;
   struct iio_channel *dac_ch0, *dac_ch1, *adc_ch0, *adc_ch1;
   struct iio_buffer *dac_buf, *adc_buf;
-  ssize_t adc_buf_sz, dac_buf_sz, left_sz;
+  ssize_t adc_buf_sz, dac_buf_sz, left_sz, mem_sz;
   void * adc_buf_p;
   FILE *fp;
   int fd;
@@ -193,7 +218,6 @@ int main(int argc, char *argv[]) {
   // cat iio:device3/scan_elements/out_voltage0_type contains
   // le:s15/16>>0 so I think it's short int.  By default 1233333333 Hz
   short int mem[DAC_N];
-  ssize_t mem_sz;
   //  short int rx_mem_i[ADC_N], rx_mem_q[ADC_N]; 
   //  short int corr[ADC_N];
   int alice_txing=0;
@@ -219,7 +243,7 @@ int main(int argc, char *argv[]) {
   
   
   
-  int meas_noise, noise_dith;
+  int meas_noise=0, noise_dith;
   e =  ini_read("tvars.txt", &tvars);
   if (e)
     printf("ini err %d\n",e);
@@ -236,7 +260,7 @@ int main(int argc, char *argv[]) {
 
 
   int tst_sync=1;
-  int is_alice;
+  int is_alice=0, alice_syncing=0;
 
   int use_lfsr=1;
   int  hdr_preemph_en=0;
@@ -248,8 +272,8 @@ int main(int argc, char *argv[]) {
   int num_itr, b_i;
   int *times_s, t0_s;
 
-  
-  meas_noise = ask_yn("meas_noise", "meas_noise", 0);
+
+  //  meas_noise = ask_yn("meas_noise", "meas_noise", 0);
   if (meas_noise) {
     use_lfsr=1;
     tx_0=1;
@@ -259,11 +283,11 @@ int main(int argc, char *argv[]) {
   }else {
     use_lfsr=1;
     //    use_lfsr = (int)ask_num("use_lfsr", 1);
-    qregs_set_lfsr_rst_st(0x50f);
+    // qregs_set_lfsr_rst_st(0x50f);
     
     tx_0=0;
     noise_dith=0;
-    tx_0 = ask_yn("tx_0", "tx_0", 0);
+    //  tx_0 = (int)ask_num("tx_0", 0);
     tx_always = ask_yn("tx_always", "tx_always", 0);
   }
 
@@ -273,17 +297,26 @@ int main(int argc, char *argv[]) {
 
 
 
-  //  qregs_set_tx_always(0); // set for real further down.
+  qregs_set_tx_always(0); // set for real further down.
+  qregs_search_en(0); // recover from prior crash if we need to.
+  qregs_txrx(0);  
   qregs_set_cipher_en(0, st.osamp, 2);
   qregs_set_tx_0(tx_0);
+  qregs_set_alice_txing(0);
+  qregs_get_avgpwr(&i,&j,&k); // just to clr ADC dbg ctrs
 
 
   if (tst_sync) {
     qregs_set_tx_same_hdrs(1);
     is_alice = ask_yn("is_alice", "is_alice", 1);
-    qregs_set_alice_syncing(is_alice);
-#if OPT_QNICLL
-    if (!is_alice) {
+    qregs_alice_sync_en(0); // maybe not needed
+    alice_syncing = ask_yn("alice_syncing", "alice_syncing", 1);
+    qregs_set_alice_syncing(alice_syncing);
+    
+    if (is_alice) {
+      alice_txing = ask_yn("alice_txing", "alice_txing", 1);
+      
+#if QNICLL_LINKED
       use_qnicll=ask_yn("use qnicll", "use_qnicll",0);
       if (use_qnicll) {
 	char *h = ask_str("remote host", "remote_host", "");
@@ -293,8 +326,23 @@ int main(int argc, char *argv[]) {
 	C(qnicll_init(&libiio_init));
 	C(qnicll_set_mode(QNICLL_MODE_QSDC));
       }
+#endif
+
+
+#if QREGC_LINKED
+      use_qregc=ask_yn("use qregc","use_qregc",0);
+      if (use_qregc) {
+	qregc_connect("10.0.0.5", &remote_err_handler);
+	qregc_iioopen();
+      }
+#endif
+
+      
+    }else { // not alice
+      qregs_set_alice_syncing(0);
+      qregs_set_tx_same_hdrs(0);
     }
-#endif    
+
   }else {
     qregs_set_alice_syncing(0);
     qregs_set_tx_same_hdrs(0);
@@ -304,10 +352,10 @@ int main(int argc, char *argv[]) {
   // For alice, this uses the syncronizer
   // TODO: combine concept with set_sync_ref.
   qregs_halfduplex_is_bob(!is_alice);
+  qregs_set_sync_ref('r'); // BUG WORKAROUND
   qregs_set_sync_ref('p'); // ignored if bob
-  
 
-  qregs_set_tx_go_condition('r'); // r=tx when rxbuf rdy
+  qregs_set_tx_go_condition(is_alice?'p':'r'); // r=tx when rxbuf rdy
 
       
   hdr_preemph_en = 0;  
@@ -320,17 +368,14 @@ int main(int argc, char *argv[]) {
   qregs_hdr_preemph_en(hdr_preemph_en);
 
   
-  if (!ask_yn("same protocol","same_protocol",1)) {
-
+  if (!ask_yn("same protocol", "same_protocol", 1)) {
   
     d = ask_num("osamp (1,2,4)", "osamp", 4);
     qregs_set_osamp(d);
     // printf("osamps %d\n", st.osamp);
 
-  
-    //  d = 2;
-    d=1;
-    d = ask_num("frame_pd (us)", "frame_pd_us", d);
+
+    d = ask_num("frame_pd (us)", "frame_pd_us", 1);
     i = qregs_dur_us2samps(d);
     // printf("adc samp freq %lg Hz\n", st.asamp_Hz);
     i = ((int)(i/64))*64;
@@ -349,7 +394,7 @@ int main(int argc, char *argv[]) {
     qregs_set_hdr_len_bits(i);
     printf("hdr_len_bits %d = %.2f ns\n", st.hdr_len_bits,
 	   qregs_dur_samps2us(st.hdr_len_bits*st.osamp)*1000);
-    printf("body_len_samps %d\n", st.body_len_asamps);
+    printf("body_len_asamps %d\n", st.body_len_asamps);
 
 
     i = ask_yn("cipher_en", "cipher_en", 0);
@@ -399,9 +444,13 @@ int main(int argc, char *argv[]) {
     i = ask_nnum("init_pwr_thresh", 100);
     qregs_dbg_set_init_pwr(i);
     j = ask_nnum("hdr_pwr_thresh", 100);
-    k = ask_nnum("hdr_det_thresh", 40);
+    k = ask_nnum("hdr_corr_thresh", 40);
     qregs_set_hdr_det_thresh(j, k);
-    qregs_set_sync_dly_asamps(-1020);
+    
+    // sync dly set in ini file or u cmd.
+    //    qregs_set_sync_dly_asamps(-443-350);
+    ///qregs_set_sync_dly_asamps(0);
+    // printf("init_pwr_thresh %d\n", st.init_pwr_thresh);
   }
   
   
@@ -484,7 +533,7 @@ int main(int argc, char *argv[]) {
    
   qregs_set_frame_qty(frame_qty_req);
   if (st.frame_qty !=frame_qty_req) {
-    printf("ERR: hdr qty actually %d\n", st.frame_qty);
+    printf("ERR: frame qty actually %d\n", st.frame_qty);
   }
 
 
@@ -502,7 +551,8 @@ int main(int argc, char *argv[]) {
   ctx = iio_create_local_context();
   if (!ctx)
     err("cannot get context");
-
+  e=iio_context_set_timeout(ctx, 3000); // in ms
+  if (e) err("cant set timo");
 
   dac = iio_context_find_device(ctx, "axi-ad9152-hpc");
   if (!dac)
@@ -544,8 +594,7 @@ int main(int argc, char *argv[]) {
 
   memset(mem, 0, sizeof(mem));
 
-
-  mem_sz = 0;
+  mem_sz=0;
   if (!is_alice && hdr_preemph_en) {
     int fd = open(hdr_preemph_fname,O_RDWR);
     if (fd<0) {
@@ -619,39 +668,21 @@ int main(int argc, char *argv[]) {
   }
 
 
-
-  
-
-
-
-  /*
-  prompt("done create dac buf now cancel");
-  iio_buffer_cancel(dac_buf);
-  prompt("will destroy");
-  iio_buffer_destroy(dac_buf);
-  prompt("will create again");
-  dac_buf_sz = sz*256;
-  dac_buf = iio_device_create_buffer(dac, dac_buf_sz, false);
-  if (!dac_buf) {
-    sprintf(errmsg, "cant create dac bufer  nsamp %d", dac_buf_sz);
-    err(errmsg);
+  if (!mem_sz && is_alice && alice_txing) {
+    printf("writing x0a55... to mem\n");
+    mem_sz = DAC_N/2;
+    // size of channel is DAC_N*2*2 bytes
+    for (i=0; i<mem_sz/2; ++i)
+      mem[i]=0x0a55;
   }
-  prompt("done create dac ");  
-  */
-
-
 
   if (mem_sz>0) {
-    // prompt("will write chan");
-
     // oddly, this create buffer seems to cause the dac to output
     // a GHz sin wave for about 450us.
   
     // prompt("will create dac buf");  
     sz = iio_device_get_sample_size(dac);
-    // sample size is 2 * number of enabled channels.
-    printf("dac samp size %zd\n", sz);
-
+    // libiio sample size is 2 * number of enabled channels.
     dac_buf_sz = mem_sz / sz;
     dac_buf = iio_device_create_buffer(dac, dac_buf_sz, false);
     if (!dac_buf) {
@@ -691,7 +722,8 @@ int main(int argc, char *argv[]) {
     printf("DBG: set raddr lim %zd bytes (dbg %d)\n", mem_sz/8-2, i);
   }
 
-
+  // this must be done after pushing the dma data, because it primes qsdc.
+  qregs_set_alice_txing(alice_txing);
 
   prompt("READY? ");
 
@@ -715,12 +747,12 @@ int main(int argc, char *argv[]) {
 	
 	printf("a sync\n");
 	qregs_alice_sync_en(1);
-      } else {
+#if QNICLL_LINKED
+      if (use_qnicll)
+	C(qnicll_bob_sync_go(1));
+#endif	
+      }else {
         qregs_search_en(search);
-#if OPT_QNICLL	
-	if (use_qnicll)
-	  C(qnicll_search(1));
-#endif
         qregs_txrx(1);
       }
 
@@ -736,6 +768,16 @@ int main(int argc, char *argv[]) {
       printf("made adc buf size %zd asamps\n", (ssize_t)buf_len_asamps);
       // supposedly creating buffer commences DMA
 
+#if QREGC_LINKED
+      if (use_qregc) {
+	printf("calling alice_txrx\n");
+        e = qregc_alice_txrx(frame_qty);
+        if (e) return 1;
+      }	
+#endif
+      
+      //      qregs_print_adc_status();
+      //      prompt("made buf, next will refill buf");
 
 
       if (opt_corr) {
@@ -756,6 +798,8 @@ int main(int argc, char *argv[]) {
 
 	//      qregs_print_adc_status();
 	if (sz<0) {
+	  qregs_print_adc_status();	
+	  qregs_print_hdr_det_status();
 	  sprintf(errmsg, "cant refill adc bufer %d", b_i);
 	  err(errmsg);
 	}
@@ -807,11 +851,8 @@ int main(int argc, char *argv[]) {
 	//      qregs_print_hdr_det_status();
 
 
-	//      prompt("OK");
-	//      qregs_print_hdr_det_status();
-	//
-	//      prompt("OK");
-	qregs_print_hdr_det_status();
+      prompt("DATA SAVED");
+      qregs_print_hdr_det_status();
 
       
 	qregs_search_en(0);
@@ -820,15 +861,25 @@ int main(int argc, char *argv[]) {
 
 
 
+#if QNICLL_LINKED
+    if (is_alice && use_qnicll) {
+      C(qnicll_bob_sync_go(0));
+      C(qnicll_done());
+    }
+#endif    
+#if QREGC_LINKED
+    if (use_qregc) {
+      qregc_disconnect();
+    }
+#endif
     
+    if (opt_corr) {
+      corr_find_peaks(corr, frame_qty);
+    }
+    //    prompt("end loop prompt ");
+    // qregs_print_adc_status();
     
-      if (opt_corr) {
-	corr_find_peaks(corr, frame_qty);
-      }
-      //    prompt("end loop prompt ");
-      // qregs_print_adc_status();
-    
-      // printf("adc buf p x%x\n", adc_buf_p);
+    // printf("adc buf p x%x\n", adc_buf_p);
 
       /*
       // calls convert and copies data from buffer
@@ -875,7 +926,7 @@ int main(int argc, char *argv[]) {
     
     //    printf("out of itr loop %d\n",  use_qnicll);
     
-#if OPT_QNICLL
+#if QNICLL_LINKED
     if (use_qnicll) {
       if (!is_alice) {
         printf("send search 0\n");
@@ -923,7 +974,7 @@ int main(int argc, char *argv[]) {
       fprintf(fp,"rx_same_hdrs = 1;\n");
     else
       fprintf(fp,"rx_same_hdrs = %d;\n", st.tx_same_hdrs);
-    fprintf(fp,"alice_syncing = %d;\n", st.alice_syncing);
+    fprintf(fp,"alice_syncing = %d;\n", alice_syncing);
     fprintf(fp,"search = %d;\n",       search);
     fprintf(fp,"osamp = %d;\n",        st.osamp);
     fprintf(fp,"cipher_m = %d;\n",     st.cipher_m);

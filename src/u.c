@@ -27,7 +27,9 @@
 #include "h.h"
 #include "util.h"
 
+#define QREGC_LINKED (0)
 
+#if QREGC_LINKED
 #include "qregc.h"
 
 // qregc level code calls this
@@ -37,6 +39,7 @@ static int remote_err_handler(char *str, int err) {
   return err;
 }
 
+#endif
 
 char errmsg[256];
 void err(char *str) {
@@ -464,6 +467,7 @@ int cmd_pm_dly(int arg) {
   return 0;
 }
 
+#if QREGC_LINKED
 int cmd_r(int arg) {
   int en;
   printf("remote tx always");
@@ -474,6 +478,7 @@ int cmd_r(int arg) {
   printf("%d\n", en);
   return 0;
 }
+#endif
 
 cmd_info_t cmds_info[];
 
@@ -577,10 +582,10 @@ int cmd_laser_wl(int arg) {
 }
 
 cmd_info_t dbg_cmds_info[]={
-  {"pwr",  cmd_dbg_pwr,  0, 0}, 
+  {"pwr",    cmd_dbg_pwr,  0, 0}, 
   {"search", cmd_dbg_search, 0, 0}, 
-  {"info", cmd_dbg_info,  0, 0},  
-  {"regs",   cmd_dbg_regs, 0, 0},  {0}};
+  {"info",   cmd_dbg_info,  0, 0},  
+  {"regs",   cmd_dbg_regs, 0, 0},  {0},
   {0}};
 
 
@@ -619,13 +624,15 @@ cmd_info_t cmds_info[]={
   {"sfp",     cmd_subcmd, (int)sfp_cmds_info, 0, 0}, 
   {"tx",      cmd_tx,     0, 0},
   {"rx",      cmd_rx,   0, 0},
-  {"regs",    cmd_regs,   0, 0},
+
   {"rp",      cmd_rp,   0, 0},
   {"pwr",     cmd_pwr,   0, 0},
   {"sweep",   cmd_sweep, 0, 0},
   {"sync",    cmd_subcmd, (int)sync_cmds_info, 0, 0},
   {"rst",     cmd_rst,   0, 0},
+#if QREGC_LINKED  
   {"r",       cmd_r,     0, 0},
+#endif  
   {"set",     cmd_set,  0, 0},
   {"stat",    cmd_stat,   0, 0},
   {"thresh",  cmd_thresh,   0, 0}, 

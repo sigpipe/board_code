@@ -1029,8 +1029,8 @@ void qregs_print_hdr_det_status(void) {
     printf("     hdr_cyc_avg %d\n", (int)hdr_rel_sum/qty);
 
     
-    qregs_w_fld(H_ADC_CSTAT_PROC_SEL, 6);
-    v = qregs_r_fld(H_ADC_CSTAT_PROC_DOUT);
+    h_w_fld(H_ADC_CSTAT_PROC_SEL, 6);
+    v = h_r_fld(H_ADC_CSTAT_PROC_DOUT);
     c = (short int)(v&0xffff);
     s=  (short int)((v>>16)&0xffff); 
     printf("     hdr_phase:  I %d  Q %d   deg %d \n", c, s,

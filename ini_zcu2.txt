@@ -6,3 +6,5 @@ ser_xon_xoff_en = 1;
 lfsr_rst_st = x50f;
 iq_rebalance = 1.0;
 pm_delay_cycs = 7;
+sync_dly_asamps = -1020;
+
