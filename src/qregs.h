@@ -285,6 +285,7 @@ void qregs_get_avgpwr(int *avg, int *mx, int *cnt);
 void qregs_dbg_new_go(int en);
 
 // pertaining to laser used as the local oscillator (LO):
+int qregs_set_laser_mode(char m);
 int qregs_set_laser_en(int en);
 int qregs_set_laser_pwr_dBm(double *dBm);
 int qregs_set_laser_wl_nm(double *wl_nm);

@@ -498,6 +498,15 @@ int cmd_laser_en(int arg) {
   return 0;
 }
 
+int cmd_laser_mode(int arg) {
+  int e;
+  char c;
+  if (!(c=parse_nonspace())) return CMD_ERR_SYNTAX;
+  e = qregs_set_laser_mode(c);
+  if (e) return e;
+  printf("%c\n", c);
+  return 0;
+}
 
 int cmd_laser_pwr(int arg) {
   int e;
@@ -577,7 +586,7 @@ int cmd_laser_wl(int arg) {
   if (parse_double(&wl_nm)) return CMD_ERR_SYNTAX;  
   e = qna_set_laser_wl_nm(&wl_nm);
   if (e) err("timeout from QNA");
-  printf("%g\n", wl_nm);
+  printf("%.3f\n", wl_nm);
   return 0;
 }
 
@@ -599,6 +608,7 @@ cmd_info_t sfp_cmds_info[]={
 
 cmd_info_t laser_cmds_info[]={
   {"en",   cmd_laser_en,   0, "enable LO laser", "0|1"},  
+  {"mode", cmd_laser_mode, 0, "set laser mode", "w|d"},
   {"pwr",  cmd_laser_pwr,  0, "set laser pwr", "dBm"},  
   {"set",  cmd_laser_set,  0, "view settings", 0},  
   {"stat", cmd_laser_stat, 0, "view status", 0},  

@@ -252,21 +252,6 @@ int qregs_ser_tx_buf(char *c, int len) {
   return e;
 }
 
-int qregs_ser_rx_buf_til_term(char *buf, int nchar, int *rxed) {
-// does not put 0 after recieved data  
-  char c;
-  int i,e=0;
-  qregs_ser_state_t *ss = &st.ser_state;
-  *rxed=0;
-  for(i=0; !e&&(i<nchar); ++i) {
-    e=qregs_ser_rx(&c);
-    if (e) return e;
-    buf[i]=c;
-    *rxed=i+1;
-    if (ss->term && (c==ss->term)) return 0;
-  }
-  return 0;
-}
 
 int qregs_ser_rx(char *c_p) {
   char c;
@@ -296,13 +281,14 @@ int qregs_ser_rx(char *c_p) {
     if (sz != sizeof(u32))
       return qregs_err_bug("read from uio did not return 4 bytes");
   }
-  e = h_r_fld(H_DAC_SER_RX_VLD)?0:QREGS_ERR_TIMO;
+  e = !h_r_fld(H_DAC_SER_RX_VLD);
   if (!e)
     *c_p = ser_rx();
   h_w_fld(H_DAC_CTL_SER_RX_IRQ_EN, 0);
   u32=1;
   write(st.uio_fd, &u32, sizeof(u32)); // re-enable irq
-  return e;
+  if (e) return qregs_err_fail("qregs_ser_rx: timeout");
+  return 0;
 }
 
 void qregs_ser_set_timo_ms(int timo_ms) {
@@ -323,14 +309,29 @@ void qregs_ser_set_params(int *baud_Hz, int parity, int en_xonxoff) {
   h_pulse_fld(H_DAC_SER_SET_PARAMS);
 }
 
+int qregs_ser_rx_buf_til_term(char *buf, int nchar, int *rxed) {
+// does not put 0 after recieved data  
+  char c;
+  int i,e=0;
+  qregs_ser_state_t *ss = &st.ser_state;
+  *rxed=0;
+  for(i=0; !e&&(i<nchar); ++i) {
+    e=qregs_ser_rx(&c);
+    if (e) return e;
+    buf[i]=c;
+    *rxed=i+1;
+    if (ss->term && (c==ss->term)) return 0;
+  }
+  return 0;
+}
+
+
 int qregs_ser_do_cmd(char *cmd, char *rsp, int rsp_len, int skip_echo) {
   int e, rxd;
   char c, *p, *d;
   e=qregs_ser_tx_buf(cmd, strlen(cmd));
-  if (e) {
-    printf("ERR: possible bug. ser tx timo\n");
-    return e;
-  }
+  if (e)
+    return qregs_err_fail("possible bug. ser tx timo");
   
   e=qregs_ser_rx_buf_til_term(rsp, rsp_len-1, &rxd);
   rsp[rxd]=0;
@@ -473,6 +474,10 @@ static double mclip(double m) {
   if (m >= 2.0) return  1.999;
   if (m <=-2.0) return -1.999;
   return m;
+}
+
+int qregs_set_laser_mode(char m) {
+  return qna_set_laser_mode(m);
 }
 
 int qregs_set_laser_en(int en) {
