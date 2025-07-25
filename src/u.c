@@ -284,7 +284,7 @@ int cmd_init(int arg) {
   int i;
   ini_val_t *ivars;
 
-  strcpy(fname, "ini_all.txt");
+  strcpy(fname, "cfg/ini_all.txt");
   ini_fname=fname;
   e = ini_read(fname, &ivars);
   if (e) {
@@ -338,8 +338,8 @@ int cmd_init(int arg) {
   printf("initialized qregs from %s\n", fname);
   
   
-  strcpy(fname,"ini_");
-  gethostname(fname+4, sizeof(fname)-4);
+  strcpy(fname,"cfg/ini_");
+  gethostname(fname+strlen(fname), sizeof(fname)-strlen(fname));
   fname[63]=0;
   strcat(fname, ".txt");
   
@@ -619,7 +619,7 @@ int cmd_sfp_rst(int arg) {
 
 int cmd_sfp_init(int arg) {
   int e;
-  char *ini_fname = "ini_all.txt";
+  char *ini_fname = "cfg/ini_all.txt";
   char *str_p;
   ini_val_t *ivars;  
   e = ini_read(ini_fname, &ivars);

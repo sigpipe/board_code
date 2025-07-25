@@ -1,3 +1,4 @@
+rebalance='cfg/cal_zcu1_rebal_d250627_012.txt';
 ser_baud_Hz = 115200;
 ser_parity =2;
 ser_xon_xoff_en = 1;

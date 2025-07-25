@@ -27,6 +27,8 @@ struct no_os_i2c_init_param i2c_init;
 #define U134_SEL_SFP0 (0x80)
 #define U134_SEL_SFP1 (0x40)
 
+static char i2c_errmsg[1024];
+
 
 // in u.c
 extern void err(char *str);
@@ -157,7 +159,8 @@ int i2c_program(char *fname, int verbose) {
   int a, v, n, fd, e;
   fp=fopen(fname,"r");
   if (!fp) {
-    err("cant open jitattn txt file");
+    snprintf(i2c_errmsg, 1024, "cant open %s", fname);
+    err(i2c_errmsg);
     return 1;
   }
 
