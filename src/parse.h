@@ -5,7 +5,7 @@
 #define _PARSE_H_
 
 
-#define PARSE_TOKEN_LEN 20
+#define PARSE_TOKEN_LEN 64
 
 #define PARSE_TRUE_DOUBLE (1)
 #define PARSE_DEF_PARSE_UNTIL_STR (0)

@@ -460,9 +460,9 @@ int main(int argc, char *argv[]) {
     if (j!=st.cipher_m)
       printf("  actually m = %d\n", st.cipher_m);
 
-   // TODO: move this frame size stuff into a common init file
-   //       read by u.c.  add an interactive cfg thing to u.c
-   if (is_alice && alice_txing) {
+   // added this frame size stuff into a common init file
+   //  read by u.c.  add an interactive cfg thing to u.c
+    if (0) {
       double gap_ns;
       qregs_qsdc_data_cfg_t data_cfg;
       data_cfg.is_qpsk      = ask_yn("is the data qpsk","body_is_qpsk", 0);
@@ -984,7 +984,8 @@ int main(int argc, char *argv[]) {
 
   if (qregs_done()) err("qregs_done fail");
 
-  
+
+  ini_free(tvars);    
   /*
   for(j=i-10; j<i; ++j)
     printf("\t%d", rx_mem[j]);
@@ -1017,6 +1018,7 @@ int main(int argc, char *argv[]) {
     else
       fprintf(fp,"rx_same_hdrs = %d;\n", st.tx_same_hdrs);
     fprintf(fp,"alice_syncing = %d;\n", alice_syncing);
+    fprintf(fp,"alice_txing = %d;\n", alice_txing);
     fprintf(fp,"search = %d;\n",       search);
     fprintf(fp,"osamp = %d;\n",        st.osamp);
     fprintf(fp,"cipher_m = %d;\n",     st.cipher_m);
@@ -1035,7 +1037,6 @@ int main(int argc, char *argv[]) {
     fprintf(fp,"qsdc_data_pos_asamps = %d;\n", st.qsdc_data_cfg.pos_asamps);
     fprintf(fp,"qsdc_data_len_asamps = %d;\n", st.qsdc_data_cfg.data_len_asamps);
     fprintf(fp,"qsdc_symbol_len_asamps = %d;\n", st.qsdc_data_cfg.symbol_len_asamps);
-
     
     fprintf(fp,"hdr_len_bits = %d;\n", st.hdr_len_bits);
     fprintf(fp,"data_hdr = 'i_adc q_adc';\n");

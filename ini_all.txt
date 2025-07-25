@@ -1,0 +1,8 @@
+ser_baud_Hz = 115200;
+ser_parity =2;
+qsdc_data_is_qpsk = 1;
+qsdc_symbol_len_asamps = 4;
+qsdc_data_pos_asamps = 252;
+qsdc_data_len_asamps = 952;
+
+

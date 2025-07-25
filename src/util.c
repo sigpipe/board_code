@@ -24,4 +24,3 @@ void u_print_all(char *str) {
 int u_max(int a, int b) {
   return a>b?a:b;
 }
-

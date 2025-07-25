@@ -586,7 +586,7 @@ int ini_parse_str(ini_val_t *vals, char *str) {
 	}else {
 	  parse_token(name, INI_TOKEN_LEN);
 #if DBG	  
-	  // printf("line %d: %s\n", ini_parse.l, name, INI_TOKEN_LEN);
+	  printf("line %d: %s %d\n", ini_parse.l, name, INI_TOKEN_LEN);
 #endif	  
 	  parse_space();
 	  c=parse_next();
@@ -863,4 +863,52 @@ void ini_ensure_matrix(ini_val_t *vals, char *name, mx_t *m_p) {
     ini_set_matrix(vals, name, m);
     *m_p=m;
   }
+}
+
+int ini_opt_dflt=0;
+
+int ini_ask_yn(ini_val_t *vars, char *prompt, char *var_name, int dflt) {
+  char c;
+  char buf[32];
+  int n, v=-1;
+  if (var_name)
+    ini_get_int(vars, var_name, &dflt);
+  if (ini_opt_dflt) {
+    printf("%s (y/n) ? [%c] > ", prompt, dflt?'y':'n');
+    printf("\n");
+    return dflt;
+  }
+  while (v<0) {
+    printf("%s (y/n) ? [%c] > ", prompt, dflt?'y':'n');
+    n=scanf("%[^\n]", buf);
+    getchar(); // get cr
+    if (n==1)
+      n=sscanf(buf, "%c", &c);
+    if (n==0) v=dflt;
+    else if ((c=='y')||(c=='1')) v=1;
+    else if ((c=='n')||(c=='0')) v=0;
+  }
+  if (var_name)
+    ini_set_int(vars, var_name, v);
+  return v;
+  
+}
+
+double ini_ask_num(ini_val_t *vars, char *prompt, char *var_name, double dflt) {
+  char buf[32];
+  int n;
+  double v;
+
+  if (var_name)
+    ini_get_double(vars, var_name, &dflt);
+  printf("%s [%g] > ", prompt, dflt);
+  if (ini_opt_dflt) {printf("\n"); return dflt;}
+  n=scanf("%[^\n]", buf);
+  getchar();
+  if (n==1)
+    n=sscanf(buf, "%lf", &v);
+  if (n!=1) v=dflt;
+  if (var_name)
+    ini_set_double(vars, var_name, v);
+  return v;
 }

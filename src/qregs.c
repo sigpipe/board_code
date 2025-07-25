@@ -629,7 +629,6 @@ void qregs_get_settings(void) {
   i = h_r_fld(H_DAC_QSDC_SYM_ASAMPS_MIN1);
   st.qsdc_data_cfg.symbol_len_asamps = i+1;
 
-
   
   // printf("DBG:clkdiv %d\n", h_r_fld(H_DAC_SER_REFCLK_DIV_MIN1));
   st.ser_state.sel     = h_r_fld(H_DAC_PCTL_SER_SEL);
@@ -671,15 +670,15 @@ void qregs_print_settings(void) {
   printf("body_len_asamps %d\n", st.body_len_asamps);
   printf("hdr_len_bits %d = %.3f ns\n", st.hdr_len_bits,
 	 qregs_dur_samps2us(st.hdr_len_bits*st.osamp)*1000);
-  printf("QSDC: data offset %d asamps = %.3f ns\n",
+  printf("QSDC: data_pos %d asamps = %.3f ns\n",
 	 st.qsdc_data_cfg.pos_asamps,
 	 qregs_dur_samps2us(st.qsdc_data_cfg.pos_asamps)*1000);
-  printf("      data len %d asamps = %.3f ns\n",
+  printf("      data_len %d asamps = %.3f ns per frame\n",
 	 st.qsdc_data_cfg.data_len_asamps,
 	 qregs_dur_samps2us(st.qsdc_data_cfg.data_len_asamps)*1000);
-  printf("      symbol len %d asamps = %.3f ns\n",
-	 st.qsdc_data_cfg.data_len_asamps,
-	 qregs_dur_samps2us(st.qsdc_data_cfg.data_len_asamps)*1000);
+  printf("      symbol_len %d asamps = %.3f ns\n",
+	 st.qsdc_data_cfg.symbol_len_asamps,
+	 qregs_dur_samps2us(st.qsdc_data_cfg.symbol_len_asamps)*1000);
 
 	 
   printf("hdr det thresh : init %d  pwr %d corr %d\n",
@@ -883,7 +882,7 @@ void qregs_set_qsdc_data_cfg(qregs_qsdc_data_cfg_t *data_cfg) {
   i = data_cfg->pos_asamps/4-1;
   i = h_w_fld(H_DAC_QSDC_POS_MIN1_CYCS, i);
   c->pos_asamps = (i+1)*4;
-  printf("DBG: pos %d\n",   c->pos_asamps);
+  //  printf("DBG: qsdc pos %d\n",   c->pos_asamps);
 
   j = st.frame_pd_asamps - c->pos_asamps; // what fits
   i = MIN(data_cfg->data_len_asamps, j);
@@ -892,20 +891,14 @@ void qregs_set_qsdc_data_cfg(qregs_qsdc_data_cfg_t *data_cfg) {
   i = h_w_fld(H_DAC_QSDC_DATA_CYCS_MIN1, i);
   i = h_w_fld(H_ADC_CTL2_DATA_LEN_MIN1_CYCS, i);
   c->data_len_asamps = (i+1)*4;
-  printf("DBG: data len per frame actually %d asamps\n", c->data_len_asamps);
-
-  i = h_r_fld(H_DAC_QSDC_DATA_CYCS_MIN1);
-  printf("DBG: data len per frame actually %d cycs\n", i+1);
-  i = h_r_fld(H_ADC_CTL2_DATA_LEN_MIN1_CYCS);
-  printf("DBG: adc data len per frame actually %d cycs\n", i+1);
-
+  //  printf("  data len per frame %d asamps = %d cycs\n", c->data_len_asamps, i+1);
 
   if (data_cfg->symbol_len_asamps > 3)
     data_cfg->symbol_len_asamps &= ~0x3; 
   i = data_cfg->symbol_len_asamps-1;
   i = h_w_fld(H_DAC_QSDC_SYM_ASAMPS_MIN1, i);
   c->symbol_len_asamps = i+1;
-  printf("DBG: symbol len actually %d asamps\n", c->symbol_len_asamps);
+  //  printf("   symbol len %d asamps\n", c->symbol_len_asamps);
   
   *data_cfg = *c;
 }

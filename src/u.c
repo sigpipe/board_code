@@ -229,7 +229,13 @@ int cmd_rp(int arg) {
 }
 
 
-
+char *ini_fname;
+void get_ini_int(ini_val_t *ivars, char *varname, int *d) {
+  int e;
+  e = ini_get_int(ivars, varname, d);
+  sprintf(errmsg,"no %s in %s", varname, ini_fname);
+  if (e) err(errmsg);
+}
 
 
 int cmd_init(int arg) {
@@ -239,6 +245,27 @@ int cmd_init(int arg) {
   int i;
   ini_val_t *ivars;
 
+  strcpy(fname, "ini_all.txt");
+  ini_fname=fname;
+  e = ini_read(fname, &ivars);
+  if (e) {
+    printf("err %d\n", e);
+    printf("%s\n", ini_err_msg());
+    return CMD_ERR_FAIL;
+  }
+  
+  // describe how Alice inserts data
+  qregs_qsdc_data_cfg_t data_cfg;
+  get_ini_int(ivars,"qsdc_symbol_len_asamps", &data_cfg.symbol_len_asamps);
+  get_ini_int(ivars,"qsdc_data_is_qpsk", &data_cfg.is_qpsk);
+  get_ini_int(ivars,"qsdc_data_len_asamps", &data_cfg.data_len_asamps);
+  get_ini_int(ivars,"qsdc_data_pos_asamps", &data_cfg.pos_asamps);
+  qregs_set_qsdc_data_cfg(&data_cfg);
+
+  
+  ini_free(ivars);
+  
+  
   strcpy(fname,"ini_");
   gethostname(fname+4, sizeof(fname)-4);
   fname[63]=0;
@@ -297,21 +324,13 @@ int cmd_init(int arg) {
   }
   */
   
-  // describe how Alice inserts data
-  qregs_qsdc_data_cfg_t data_cfg;
-  e = ini_get_int(ivars,"qsdc_data_symbol_len_asamps", &data_cfg.symbol_len_asamps);
-  if (!e) {
-    e = ini_get_int(ivars,"qsdc_data_is_qpsk", &data_cfg.is_qpsk);
-    if (e) data_cfg.is_qpsk=0;
-    e = ini_get_int(ivars,"qsdc_data_body_len_asamps", &data_cfg.data_len_asamps);
-    if (e) data_cfg.data_len_asamps=0;
-    e = ini_get_int(ivars,"qsdc_data_pos_asamps", &data_cfg.pos_asamps);
-    if (e) data_cfg.pos_asamps=st.hdr_len_asamps;
-    qregs_set_qsdc_data_cfg(&data_cfg);
-  }
 
   
   ini_free(ivars);
+
+
+
+
   printf("initialized qregs from %s\n", fname);
   return 0;
 }
@@ -571,7 +590,37 @@ int cmd_sync_ref(int arg) {
 }
 
 int cmd_qsdc_cfg(int arg) {
+  double gap_ns;
+  qregs_qsdc_data_cfg_t data_cfg;
+  int i, e;
+  ini_val_t *tvars;
+  e =  ini_read("tvars.txt", &tvars);
+  if (e)
+    printf("ini err %d\n",e);
   
+  data_cfg.is_qpsk      = ini_ask_yn(tvars, "is the data qpsk","body_is_qpsk", 0);
+
+  data_cfg.symbol_len_asamps = ini_ask_num(tvars,"data symbol len (asamps)",
+                                           "symbol_len_asamps", 8);
+
+  gap_ns = ini_ask_num(tvars,"gap after header (ns)", "post_hdr_gap_ns", 100);
+  i= round(gap_ns * 1e-9 * st.asamp_Hz / st.osamp) * st.osamp;
+  i = ((int)i/4)*4;
+  printf("rounded to %d asamps = %.1f ns\n", i, i/st.asamp_Hz*1.0e9);
+  data_cfg.pos_asamps   = st.hdr_len_asamps + i;
+
+  gap_ns = ini_ask_num(tvars,"gap at end (ns)", "post_body_gap_ns", 10);
+  i= round(gap_ns * 1e-9 * st.asamp_Hz / st.osamp) * st.osamp;
+  i = ((int)i/4)*4;
+  i = (st.frame_pd_asamps - i - data_cfg.pos_asamps);
+  data_cfg.data_len_asamps = i;
+  printf("data len %d asamps = %.1f ns\n", i, i/st.asamp_Hz*1.0e9);
+
+  qregs_set_qsdc_data_cfg(&data_cfg);
+  
+  ini_write("tvars.txt", tvars);
+  ini_free(tvars);  
+  return 0;
 }
 
 int cmd_dbg_search(int arg) {

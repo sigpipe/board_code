@@ -14,7 +14,7 @@
 #define INI_ERR_BADMDIM    3
 #define INI_ERR_FAIL       4
 
-#define INI_TOKEN_LEN 32
+#define INI_TOKEN_LEN 64
 #define INI_LINE_LEN  512
 
 #define INI_ITYPE_NONE    0
@@ -82,4 +82,10 @@ ini_val_t *ini_next(ini_val_t *vals);
 
 void ini_set_fname(ini_val_t *vals, char *fname);
 int ini_free(ini_val_t *vals);
+
+
+
+int ini_ask_yn(ini_val_t *vars, char *prompt, char *var_name, int dflt);
+double ini_ask_num(ini_val_t *vars, char *prompt, char *var_name, double dflt);
+
 #endif
