@@ -731,13 +731,14 @@ void show_ipaddr(void) {
   freeifaddrs(ifa);
 }
 
+/*
 int err_qna(char *s, int e) {
   // this is for qna_usb
   // printf("ERR: %s\n", s);
   sprintf(errmsg, s);
   return e;
 }
-
+*/
 
 int main(void) {
   int l_soc, c_soc, e, i;
