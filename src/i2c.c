@@ -31,6 +31,7 @@ struct no_os_i2c_init_param i2c_init;
 // in u.c
 extern void err(char *str);
 
+int i2c_dbg=0;
 
 unsigned char jitattn_rmap[] = {
   0, 0x14,
@@ -102,7 +103,8 @@ int si5324_write_reg(int fd, int addr, unsigned char val) {
   char buf[8];
   buf[0] = addr;
   buf[1] = val;
-  printf("w %3d x%02x\n", addr, val);
+  if (i2c_dbg)
+    printf("w %3d x%02x\n", addr, val);
   sz = write(fd, buf, 2);
   if (sz!=2) {
     err("i2c write failed");
@@ -148,7 +150,7 @@ int i2c_get_si5328_lol(int *lol) {
   return 0;  
 }
 
-int i2c_program(char *fname) {
+int i2c_program(char *fname, int verbose) {
   FILE *fp;
   ssize_t sz, len;
   char *line=NULL;
@@ -164,8 +166,9 @@ int i2c_program(char *fname) {
     err("cant open i2c device");
     return 1;
   }
-    
-  printf("reconfiguring si5328\n");
+  i2c_dbg=verbose;
+  if (verbose)
+    printf("reconfiguring si5328\n");
   
   while((sz=getline(&line, &len, fp))!=-1) {
     // printf("> %s\n", line);
@@ -180,6 +183,7 @@ int i2c_program(char *fname) {
   }
   close(fd);
   fclose(fp);  
+  i2c_dbg=0;
   return e;
 }
 

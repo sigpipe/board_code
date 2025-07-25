@@ -239,9 +239,41 @@ int cmd_rp(int arg) {
 char *ini_fname;
 void get_ini_int(ini_val_t *ivars, char *varname, int *d) {
   int e;
+  errno=0;
   e = ini_get_int(ivars, varname, d);
-  sprintf(errmsg,"no %s in %s", varname, ini_fname);
+  sprintf(errmsg,"no variable named %s in file %s", varname, ini_fname);
   if (e) err(errmsg);
+}
+
+int cmd_sfp_status(int arg) {
+  int e, lol;
+  qregs_sfp_gth_status();
+  e=i2c_get_si5328_lol(&lol);
+  printf("si5328_lol x%x\n", lol);
+  return 0;
+}
+
+
+
+
+int sfp_init(char *fname, int verbose) {
+  int e, i, lol;
+  e = i2c_program(fname, verbose);
+  if (verbose)
+    printf("wrote %s\n", fname);
+  for(i=1;i<30;++i) {
+    usleep(500000);
+    e=i2c_get_si5328_lol(&lol);
+    if (verbose)
+      printf("  si5328_lol x%x\n", lol);
+    if (e) return e;
+    if (!lol) break;
+  }
+  usleep(100000);  
+  qregs_sfp_gth_rst();
+  if (verbose)
+    cmd_sfp_status(0);
+  return e;
 }
 
 
@@ -261,7 +293,15 @@ int cmd_init(int arg) {
     return CMD_ERR_FAIL;
   }
 
-
+  e=ini_get_string(ivars,"sfp_init", &str_p);
+  if (e || !*str_p) {
+    printf("WARN: no sfp_init string in file %s", fname);
+    printf("      not initialzing si5328 or the SFP\n");
+  }else {
+    e=sfp_init(str_p, 0);
+    if (e) err("sfp init failed");
+  }
+  
   // describe QSDC frames
   get_ini_int(ivars,"osamp", &i);
   qregs_set_osamp(i);  
@@ -285,9 +325,6 @@ int cmd_init(int arg) {
   get_ini_int(ivars,"qsdc_data_len_asamps", &data_cfg.data_len_asamps);
   get_ini_int(ivars,"qsdc_data_pos_asamps", &data_cfg.pos_asamps);
   qregs_set_qsdc_data_cfg(&data_cfg);
-
-
-
 
   
 
@@ -579,22 +616,26 @@ int cmd_sfp_rst(int arg) {
   printf("1\n");
 }
 
+
 int cmd_sfp_init(int arg) {
   int e;
-  char fname[256];
-  strcpy(fname, "src/si5328_302MHz_to_61.667MHz.txt");
-  e = i2c_program(fname);
-  printf("wrote %s\n", fname);
+  char *ini_fname = "ini_all.txt";
+  char *str_p;
+  ini_val_t *ivars;  
+  e = ini_read(ini_fname, &ivars);
+  if (e) {
+    printf("err %d\n", e);
+    printf("%s\n", ini_err_msg());
+    return CMD_ERR_FAIL;
+  }
+  e=ini_get_string(ivars,"sfp_init", &str_p);
+  if (e) err("no sfp_init in ini_all.txt");
+  printf("reading %s\n", str_p);
+  e=sfp_init(str_p, 1);
+  ini_free(ivars);
   return e;
 }
 
-int cmd_sfp_status(int arg) {
-  int e, lol;
-  qregs_sfp_gth_status();
-  e=i2c_get_si5328_lol(&lol);
-  printf("si5328_lol x%x\n", lol);
-  return 0;
-}
 
 int cmd_sync_stat(int arg) {
   printf("sync dly %d asamps\n", st.sync_dly_asamps);

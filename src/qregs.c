@@ -989,7 +989,9 @@ void qregs_get_avgpwr(int *avg, int *mx, int *cnt) {
 
 void qregs_print_sync_status(void) {
   int sum, qty, ovf;
-  printf("  SYNCRONIZER    (using reference %c)\n", st.sync_ref);
+  if (st.is_bob)
+    printf("  is_bob=1 so tx from local framer not synchronizer\n");
+  printf("  syncronizer    (using reference %c)\n", st.sync_ref);
   sum=h_r_fld(H_ADC_SYNC_O_ERRSUM);
   qty=h_r_fld(H_ADC_SYNC_O_QTY);
   ovf=h_r_fld(H_ADC_SYNC_O_ERRSUM_OVF);

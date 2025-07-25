@@ -1,7 +1,7 @@
 // h_vhdl_extract.h
 // hardware access constants
 // This file was automatically generated
-// by Register Extractor (ver 4.14) on Fri Jul 25 00:38:23 2025
+// by Register Extractor (ver 4.14) on Fri Jul 25 15:50:08 2025
 // compile version Mon Jun 16 10:25:20 2025
 // current dir:  C:\reilly\proj\quanet\quanet_hdl\projects\daq3\zcu106
 // DO NOT MODIFY THIS FILE!
@@ -18,7 +18,7 @@
 // version constants
 #define H_VHDL_EXTRACT_VER (4)
 #define H_VHDL_EXTRACT_SUBVER (14)
-#define H_VHDL_EXTRACT_DATE "Fri Jul 25 00:38:23 2025"
+#define H_VHDL_EXTRACT_DATE "Fri Jul 25 15:50:08 2025"
 #define H_VHDL_EXTRACT_DIR "C:\reilly\proj\quanet\quanet_hdl\projects\daq3\zcu106"
 
 
@@ -247,10 +247,11 @@
 #define H_ADC_STAT_SAVE_GO_CNT            0x10001088  /* 0x00000f00  r  */
 #define H_ADC_STAT_XFER_REQ_CNT           0x1000108c  /* 0x0000f000  r  */
 #define H_ADC_STAT_ADC_RST_CNT            0x10001090  /* 0x000f0000  r  */
+#define H_ADC_STAT_SFP_RCLK_VLD           0x10001034  /* 0x00100000  r  */
 #define H_ADC_STAT_FWVER                  0x10001098  /* 0x0f000000  r  */
 #define H_ADC_STAT_SYNC_LOCK              0x1000103c  /* 0x10000000  r  */
 #define H_ADC_STAT_SAW_SYNC_OOL           0x1000103d  /* 0x20000000  r  */
-                                       // r 0x3f0ffff3
+                                       // r 0x3f1ffff3
                                        // w 0x00000000
 
 #define H_ADC_CSTAT                       0x10002000  /* 2 */
