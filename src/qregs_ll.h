@@ -39,5 +39,6 @@ extern qregs_st_t st;
 void qregs_dbg_print_regs(void);
 void qregs_dbg_get_info(int *info);
 void qregs_dbg_print_tx_status(void);
-
+void qregs_set_dbg_clk_sel(int sel);
+  
 #endif

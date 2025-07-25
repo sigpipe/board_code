@@ -165,6 +165,76 @@ double ask_nnum(char *var_name, double dflt) {
 
 
 
+
+void ask_protocol(void) {
+  double d;
+  int i, j;
+  
+  d = ask_num("osamp (1,2,4)", "osamp", 4);
+  qregs_set_osamp(d);
+  // printf("osamps %d\n", st.osamp);
+
+
+  d = ask_num("frame_pd (us)", "frame_pd_us", 1);
+  i = qregs_dur_us2samps(d);
+  // printf("adc samp freq %lg Hz\n", st.asamp_Hz);
+  i = ((int)(i/64))*64;
+  qregs_set_frame_pd_asamps(i);
+  printf("frame_pd_asamps %d = %.2f us\n", st.frame_pd_asamps,
+	   qregs_dur_samps2us(st.frame_pd_asamps));
+
+    //  if (qregs_done()) err("qregs_done fail");  
+    //  return 0;
+
+  
+    //  qregs_set_sync_dly_asamps(-346);
+
+  i=32;  
+  i = ask_nnum("hdr_len_bits", i);
+  qregs_set_hdr_len_bits(i);
+  printf("hdr_len_bits %d = %.2f ns\n", st.hdr_len_bits,
+	   qregs_dur_samps2us(st.hdr_len_bits*st.osamp)*1000);
+  printf("body_len_asamps %d\n", st.body_len_asamps);
+
+
+  i = ask_yn("cipher_en", "cipher_en", 0);
+  j = ask_num("cipher_m (for m-psk)", "cipher_m", 2);
+  qregs_set_cipher_en(i, st.osamp, j);
+  if (st.osamp!=st.cipher_symlen_asamps)
+    printf("  actually symlen = %d\n", st.cipher_symlen_asamps);
+  if (j!=st.cipher_m)
+    printf("  actually m = %d\n", st.cipher_m);
+
+   // added this frame size stuff into a common init file
+   //  read by u.c.  add an interactive cfg thing to u.c
+
+   double gap_ns;
+   qregs_qsdc_data_cfg_t data_cfg;
+   data_cfg.is_qpsk      = ask_yn("is the data qpsk","body_is_qpsk", 0);
+
+    data_cfg.symbol_len_asamps = ask_num("data symbol len (asamps)",
+                                           "symbol_len_asamps", 8);
+
+   gap_ns = ask_num("gap after header (ns)", "post_hdr_gap_ns", 100);
+    i= round(gap_ns * 1e-9 * st.asamp_Hz / st.osamp) * st.osamp;
+    i = ((int)i/4)*4;
+      printf("rounded to %d asamps = %.1f ns\n", i, i/st.asamp_Hz*1.0e9);
+      data_cfg.pos_asamps   = st.hdr_len_asamps + i;
+
+      gap_ns = ask_num("gap at end (ns)", "post_body_gap_ns", 100);
+      i= round(gap_ns * 1e-9 * st.asamp_Hz / st.osamp) * st.osamp;
+      i = ((int)i/4)*4;
+      i = (st.frame_pd_asamps - i - data_cfg.pos_asamps);
+      data_cfg.data_len_asamps = i;
+      printf("data len %d asamps = %.1f ns\n", i, i/st.asamp_Hz*1.0e9);
+
+      qregs_set_qsdc_data_cfg(&data_cfg);
+
+  
+}
+
+
+
 // THIS IS NEVER CALLED
 ssize_t pattern_into_buf(void *buf, ssize_t buf_sz) {
   ssize_t mem_sz;
@@ -407,94 +477,30 @@ int main(int argc, char *argv[]) {
   // TODO: combine concept with set_sync_ref.
   qregs_halfduplex_is_bob(!is_alice);
 
-  qregs_set_sync_ref('p'); // ignored if bob
+  // qregs_set_sync_ref('p'); // ignored if bob
   qregs_sync_resync();
 
   qregs_set_tx_go_condition(is_alice?'p':'r'); // r=tx when rxbuf rdy
 
       
-  hdr_preemph_en = 0;  
-  if (!is_alice) {
-    hdr_preemph_en = ask_yn("use IM preemphasis","hdr_preemph_en",1);
-    if (hdr_preemph_en)
-      strcpy(hdr_preemph_fname,
-	     ask_str("preemph_file", "preemph.bin","src/hdr.bin"));
-  }
-  qregs_hdr_preemph_en(hdr_preemph_en);
 
   
   if (!ask_yn("same protocol", "same_protocol", 1)) {
-  
-    d = ask_num("osamp (1,2,4)", "osamp", 4);
-    qregs_set_osamp(d);
-    // printf("osamps %d\n", st.osamp);
-
-
-    d = ask_num("frame_pd (us)", "frame_pd_us", 1);
-    i = qregs_dur_us2samps(d);
-    // printf("adc samp freq %lg Hz\n", st.asamp_Hz);
-    i = ((int)(i/64))*64;
-    qregs_set_frame_pd_asamps(i);
-    printf("frame_pd_asamps %d = %.2f us\n", st.frame_pd_asamps,
-	   qregs_dur_samps2us(st.frame_pd_asamps));
-
-    //  if (qregs_done()) err("qregs_done fail");  
-    //  return 0;
-
-  
-    //  qregs_set_sync_dly_asamps(-346);
-
-    i=32;  
-    i = ask_nnum("hdr_len_bits", i);
-    qregs_set_hdr_len_bits(i);
-    printf("hdr_len_bits %d = %.2f ns\n", st.hdr_len_bits,
-	   qregs_dur_samps2us(st.hdr_len_bits*st.osamp)*1000);
-    printf("body_len_asamps %d\n", st.body_len_asamps);
-
-
-    i = ask_yn("cipher_en", "cipher_en", 0);
-    j = ask_num("cipher_m (for m-psk)", "cipher_m", 2);
-    qregs_set_cipher_en(i, st.osamp, j);
-    if (st.osamp!=st.cipher_symlen_asamps)
-      printf("  actually symlen = %d\n", st.cipher_symlen_asamps);
-    if (j!=st.cipher_m)
-      printf("  actually m = %d\n", st.cipher_m);
-
-   // added this frame size stuff into a common init file
-   //  read by u.c.  add an interactive cfg thing to u.c
-    if (0) {
-      double gap_ns;
-      qregs_qsdc_data_cfg_t data_cfg;
-      data_cfg.is_qpsk      = ask_yn("is the data qpsk","body_is_qpsk", 0);
-
-      data_cfg.symbol_len_asamps = ask_num("data symbol len (asamps)",
-                                           "symbol_len_asamps", 8);
-
-      gap_ns = ask_num("gap after header (ns)", "post_hdr_gap_ns", 100);
-      i= round(gap_ns * 1e-9 * st.asamp_Hz / st.osamp) * st.osamp;
-      i = ((int)i/4)*4;
-      printf("rounded to %d asamps = %.1f ns\n", i, i/st.asamp_Hz*1.0e9);
-      data_cfg.pos_asamps   = st.hdr_len_asamps + i;
-
-      gap_ns = ask_num("gap at end (ns)", "post_body_gap_ns", 100);
-      i= round(gap_ns * 1e-9 * st.asamp_Hz / st.osamp) * st.osamp;
-      i = ((int)i/4)*4;
-      i = (st.frame_pd_asamps - i - data_cfg.pos_asamps);
-      data_cfg.data_len_asamps = i;
-      printf("data len %d asamps = %.1f ns\n", i, i/st.asamp_Hz*1.0e9);
-
-      qregs_set_qsdc_data_cfg(&data_cfg);
-    }
-
-
+    ask_protocol();
   }else {
-    printf("osamps %d\n", st.osamp);
-    printf("frame_pd_asamps %d = %.2Lf us\n", st.frame_pd_asamps,
+    printf("   osamps %d\n", st.osamp);
+    printf("   frame_pd_asamps %d = %.2Lf us\n", st.frame_pd_asamps,
          qregs_dur_samps2us(st.frame_pd_asamps));
-    printf("hdr_len_bits %d = %.2Lf ns\n", st.hdr_len_bits,
+    printf("   hdr_len_bits %d = %.2Lf ns\n", st.hdr_len_bits,
          qregs_dur_samps2us(st.hdr_len_bits*st.osamp)*1000);
-    printf("body_len_samps %d\n", st.body_len_asamps);
+    printf("   body_len_samps %d\n", st.body_len_asamps);
   }
+  hdr_preemph_en = !is_alice && st.pilot_cfg.im_from_mem;
+  if (hdr_preemph_en) {
+    strcpy(hdr_preemph_fname,
+	   ask_str("preemph_file", "preemph.bin","src/hdr.bin"));
+  }
+
 
   search = ask_yn("search for hdr", "search", 1);
   if (search) {
@@ -511,9 +517,7 @@ int main(int argc, char *argv[]) {
   }
   
   
-  //qregs_set_im_hdr_dac(0);
-  qregs_set_im_hdr_dac(0x7fff);
-  //  qregs_set_im_hdr_dac(0x2000);
+
 
 
   max_frames_per_buf = (int)floor(ADC_N/st.frame_pd_asamps);
@@ -653,7 +657,6 @@ int main(int argc, char *argv[]) {
   //  printf("adc samp size %zd\n", sz); // is 4 when 2 chans en
 
 
-
   
   //  sz = iio_device_get_sample_size(dac);
   // DAC sample size is 2 bytes per channel.  if 2 chans enabled, sz is 4.
@@ -663,19 +666,15 @@ int main(int argc, char *argv[]) {
   memset(mem, 0, sizeof(mem));
 
   mem_sz=0;
-  if (!is_alice && hdr_preemph_en) {
+  // in half-duplex FPGA, alice can't store IM in mem
+  if (!is_alice && st.pilot_cfg.im_from_mem) {
     mem_sz=read_file_into_buf(hdr_preemph_fname, mem, sizeof(mem));
-  }else {
+  }else
     // mem_sz=pattern_into_buf(hdr_preemph_fname, mem, sizeof(mem));
-  }
 
-  // basically there is no conversion
-  //  printf("converted:\n");
-  //  iio_channel_convert_inverse(dac_ch0,  dst, mem);
-  //  for(i=0; i<8; ++i)
-  //      printf(" %d", dst[i]);
-  //  printf("...\n");  
 
+  // IIO provides iio_channel_convert_inverse(dac_ch0,  dst, mem);
+  // but for dac3 zcu106 basically there is no conversion
 
   // sys/module/industrialio_buffer_dma/paraneters/max_bloxk_size is 16777216
   // iio_device_set_kernel_buffers_count(?
@@ -716,13 +715,13 @@ int main(int argc, char *argv[]) {
   }
 
   if (mem_sz>0) {
-    // oddly, this create buffer seems to cause the dac to output
-    // a GHz sin wave for about 450us.
   
     // prompt("will create dac buf");  
     sz = iio_device_get_sample_size(dac);
     // libiio sample size is 2 * number of enabled channels.
     dac_buf_sz = mem_sz / sz;
+    // NOTE: oddly, this create buffer seems to cause the dac to output
+    //       a GHz sin wave for about 450us.
     dac_buf = iio_device_create_buffer(dac, dac_buf_sz, false);
     if (!dac_buf) {
       sprintf(errmsg, "cant create dac bufer  nsamp %zu", dac_buf_sz);
@@ -732,7 +731,6 @@ int main(int argc, char *argv[]) {
 
     
     void *p;
-    // calls convert_inverse and copies data into buffer
     p = iio_buffer_start(dac_buf);
     if (!p) err("no buffer yet");
     memcpy(p, mem, mem_sz);

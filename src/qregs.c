@@ -566,7 +566,10 @@ void qregs_get_settings(void) {
   st.osamp         = h_r_fld(H_DAC_CTL_OSAMP_MIN1) + 1;
   st.cipher_en     = h_r_fld(H_DAC_CTL_CIPHER_EN);
   st.is_bob        = h_r_fld(H_DAC_CTL_IS_BOB);
-  st.hdr_preemph_en = h_r_fld(H_DAC_HDR_IM_PREEMPH);
+
+  st.pilot_cfg.im_from_mem         = h_r_fld(H_DAC_HDR_IM_PREEMPH);
+  st.pilot_cfg.im_simple_pilot_dac = h_r_signed_fld(H_DAC_IM_HDR);
+  st.pilot_cfg.im_simple_body_dac  = h_r_signed_fld(H_DAC_IM_BODY);
   
   i = h_r_fld(H_ADC_FR1_FRAME_PD_MIN1);
   st.frame_pd_asamps = (i+1)*4;
@@ -639,6 +642,10 @@ void qregs_get_settings(void) {
   st.ser_state.term = '>';
 }
 
+void qregs_set_dbg_clk_sel(int sel) {
+  h_w_fld(H_ADC_DBG_CLK_SEL, sel);
+}
+  
 void qregs_dbg_print_regs(void) {
   int rs, i;
   for(rs=0;rs<2;++rs) {
@@ -662,7 +669,7 @@ void qregs_print_settings(void) {
   printf("alice_txing %d\n", h_r_fld(H_DAC_CTL_ALICE_TXING));
   printf("halfduplex_is_bob %d\n", st.is_bob);
   printf("use_lfsr %d\n", st.use_lfsr);
-  printf("hdr_preemph_en %d (state)\n", st.hdr_preemph_en);
+  printf("pilot_im_from_mem %d (state)\n", st.pilot_cfg.im_from_mem);
   printf("frame_pd_asamps %d = %.3f us\n", st.frame_pd_asamps,
 	 qregs_dur_samps2us(st.frame_pd_asamps));
   
@@ -945,16 +952,23 @@ void qregs_set_hdr_len_bits(int hdr_len_bits) {
 
 
 void qregs_set_frame_pd_asamps(int frame_pd_asamps) {
-  int i;
+  int i, j;
   if (st.setflags&1 != 1)
     printf("BUG: call set_osamp before set_frame_pd_asamps\n");
 
   // actually write num cycs-1 (at fsamp/4=308MHz)
-  i = frame_pd_asamps/4-1;
+  i = frame_pd_asamps/4;
+  i=(int)(i/10)*10;
+  i=i-1;
   i = h_w_fld(H_ADC_FR1_FRAME_PD_MIN1, i);
   h_w_fld(H_DAC_FR1_FRAME_PD_MIN1, i);
   st.frame_pd_asamps = (i+1)*4;
   st.setflags |= 2;
+
+  // sfp rxclk is 1/10th of dac clk
+  j =  ((i+1)/10)-1;
+  h_w_fld(H_ADC_CTL2_EXT_FRAME_PD_MIN1_CYCS, j);
+  printf("DBG: ext_frame_pd_cycs %d\n", j+1);
 }
 
 void qregs_get_avgpwr(int *avg, int *mx, int *cnt) {
@@ -975,10 +989,11 @@ void qregs_get_avgpwr(int *avg, int *mx, int *cnt) {
 
 void qregs_print_sync_status(void) {
   int sum, qty, ovf;
-  printf("  SYNCRONIZER    (reference %c)\n", st.sync_ref);
+  printf("  SYNCRONIZER    (using reference %c)\n", st.sync_ref);
   sum=h_r_fld(H_ADC_SYNC_O_ERRSUM);
   qty=h_r_fld(H_ADC_SYNC_O_QTY);
   ovf=h_r_fld(H_ADC_SYNC_O_ERRSUM_OVF);
+  printf("    sum %d qty %d\n", sum, qty);
   if (ovf)
     printf("    mean_ref_err OVERFLOWED\n");
   else if (qty)
@@ -1084,6 +1099,7 @@ void qregs_dbg_print_tx_status(void) {
 void qregs_sfp_gth_rst(void) {
   h_pulse_fld(H_DAC_PCTL_GTH_RST);
 }
+
 void qregs_sfp_gth_status(void) {
   int i=h_r_fld(H_DAC_STATUS_GTH_STATUS);
   printf("  SFP GTH: tx_rst_done %d  rx_rst_done %d  qplllock %d\n",
@@ -1180,18 +1196,42 @@ void qregs_set_osamp(int osamp) {
   st.setflags |= 1;
 }
 
+//void qregs_hdr_preemph_en(int en) {
+//  en = !!en;
+//  h_w_fld(H_DAC_HDR_IM_PREEMPH, en);
+//  st.hdr_preemph_en = en;
+//}
 
-void qregs_set_im_hdr_dac(int hdr_dac) {
+int qregs_cfg_pilot(qregs_pilot_cfg_t *cfg, int autocalc_body_im) {
+  int i;
+  i = h_w_signed_fld(H_DAC_IM_HDR, cfg->im_simple_pilot_dac);
+  cfg->im_simple_pilot_dac = i;
+
+  if (autocalc_body_im) {
+    // set body level to preserve 0 Volts mean
+    i = - i * st.hdr_len_asamps / st.body_len_asamps;
+    //  printf("DBG: body lvl %d\n", i);
+  }else
+    i = cfg->im_simple_body_dac;
+  i = h_w_signed_fld(H_DAC_IM_BODY, i);
+  cfg->im_simple_body_dac = i;
+  i = h_w_fld(H_DAC_HDR_IM_PREEMPH, cfg->im_from_mem);
+  cfg->im_from_mem = i;
+  st.pilot_cfg = *cfg;
+  return 0;
+}
+
+//void qregs_set_im_hdr_dac(int hdr_dac) {
   // sets levels used during hdr and body for intensity modulator (IM)  
   // in: hdr_dac - value in dac units
-  int i;
-  i = MIN(0x7fff, hdr_dac);
-  h_w_fld(H_DAC_IM_HDR, (unsigned)i&0xffff);  
+//  int i;
+//  i = MIN(0x7fff, hdr_dac);
+//  h_w_fld(H_DAC_IM_HDR, (unsigned)i&0xffff);  
   // set body level to preserve 0 Volts mean
-  i = - i * st.hdr_len_asamps / st.body_len_asamps;
+//  i = - i * st.hdr_len_asamps / st.body_len_asamps;
   //  printf("DBG: body lvl %d\n", i);
-  h_w_fld(H_DAC_IM_BODY, (unsigned)i&0xffff);
-}
+//  h_w_fld(H_DAC_IM_BODY, (unsigned)i&0xffff);
+//}
 
 
 
@@ -1212,11 +1252,6 @@ void qregs_alice_sync_en(int en) {
   h_w(H_ADC_ACTL, v);
 }
 
-void qregs_hdr_preemph_en(int en) {
-  en = !!en;
-  h_w_fld(H_DAC_HDR_IM_PREEMPH, en);
-  st.hdr_preemph_en = en;
-}
 
 void qregs_txrx(int en) {
   // desc: we only take ADC samples, and transmit DAC samps,

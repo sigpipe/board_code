@@ -39,6 +39,14 @@ typedef struct iq_rebalance_struct {
 } qregs_rebalance_params_t;
 
 
+
+// QSDC pilot configuration
+typedef struct qregs_pilot_cfg_struct {
+  int im_from_mem;
+  int im_simple_pilot_dac; // sign extended
+  int im_simple_body_dac;  // sign extended
+} qregs_pilot_cfg_t;
+
 // describes how Alice inserts data
 typedef struct qsdc_data_cfg_st {
   int is_qpsk;           // data modulation. 0=bpsk, 1=qpsk
@@ -123,7 +131,6 @@ typedef struct qregs_struct {
   int hdr_pwr_thresh; // used for hdr detection
   int hdr_corr_thresh; // used for hdr detection
   int hdr_im_dly_cycs;
-  int hdr_preemph_en;
   int pm_dly_cycs;
 
   char sync_ref; // r=rxclk, p=power, or h=headers
@@ -150,6 +157,7 @@ typedef struct qregs_struct {
   
   qregs_rebalance_params_t rebal;
 
+  qregs_pilot_cfg_t     pilot_cfg;
   qregs_qsdc_data_cfg_t qsdc_data_cfg;
   
 } qregs_st_t;
@@ -237,7 +245,10 @@ void qregs_set_hdr_len_bits(int hdr_len_bits);
 // call this after qregs_set_frame_pd_asamps
 
 
-void qregs_set_im_hdr_dac(int hdr_dac);
+int qregs_cfg_pilot(qregs_pilot_cfg_t *cfg, int autocalc_body_im);
+
+
+//void qregs_set_im_hdr_dac(int hdr_dac);
   // sets DAC values used during hdr and body for intensity modulator (IM)  
   // in: hdr_dac - value in dac units
 

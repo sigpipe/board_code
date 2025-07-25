@@ -76,6 +76,13 @@ int cmd_pwr(int arg) {
   printf("  body/mean %.1f dB\n", pwrs.body_rat_dB);
   return 0;
 }
+int cmd_dbg_clksel(int arg) {
+  int i;
+  if (parse_int(&i)) return CMD_ERR_SYNTAX;
+  qregs_set_dbg_clk_sel(i);
+  return 0;
+}
+
 int cmd_dbg_pwr(int arg) {
   int pwr_avg, pwr_max, pwr_cnt;
   printf("pwr_avg pwr_max pwr_cnt\n");
@@ -253,6 +260,23 @@ int cmd_init(int arg) {
     printf("%s\n", ini_err_msg());
     return CMD_ERR_FAIL;
   }
+
+
+  // describe QSDC frames
+  get_ini_int(ivars,"osamp", &i);
+  qregs_set_osamp(i);  
+  get_ini_int(ivars,"frame_pd_asamps", &i);
+  qregs_set_frame_pd_asamps(i);
+  get_ini_int(ivars,"hdr_len_bits", &i);
+  qregs_set_hdr_len_bits(i);
+
+  // Bob's IM modulations
+  qregs_pilot_cfg_t pilot_cfg;
+  get_ini_int(ivars,"qsdc_im_simple_pilot_dac", &pilot_cfg.im_simple_pilot_dac);
+  get_ini_int(ivars,"qsdc_im_simple_body_dac", &pilot_cfg.im_simple_body_dac);
+  get_ini_int(ivars,"qsdc_im_from_mem", &pilot_cfg.im_from_mem);
+  qregs_cfg_pilot(&pilot_cfg,0);
+
   
   // describe how Alice inserts data
   qregs_qsdc_data_cfg_t data_cfg;
@@ -262,8 +286,19 @@ int cmd_init(int arg) {
   get_ini_int(ivars,"qsdc_data_pos_asamps", &data_cfg.pos_asamps);
   qregs_set_qsdc_data_cfg(&data_cfg);
 
+
+
+
+  
+
+  e = ini_get_string(ivars,"sync_ref", &str_p);
+  if (e) err("no sync_ref");
+  printf("DBG: set sync ref %s\n", str_p); 
+  e=qregs_set_sync_ref(str_p[0]);
+  if (e) err("cant set sync ref");
   
   ini_free(ivars);
+  printf("initialized qregs from %s\n", fname);
   
   
   strcpy(fname,"ini_");
@@ -308,12 +343,6 @@ int cmd_init(int arg) {
   e = ini_get_int(ivars,"pm_delay_cycs", &i);
   if (!e) qregs_set_pm_dly_cycs(i);
 
-  e = ini_get_string(ivars,"sync_ref", &str_p);
-  if (!e) {
-    printf("DBG: set sync ref %s\n", str_p); 
-    e=qregs_set_sync_ref(str_p[0]);
-    if (e) err("cant set sync ref");
-  }
   
   /*   not an init thing
   e = ini_get_string(ivars,"tx_go_condition", &str_p);
@@ -467,7 +496,6 @@ int cmd_pm_sin(int arg) {
   // h_w_fld(H_DAC_CTL_ALICE_SYNCING, 0); // for now halts IM hdr
   qregs_set_tx_mem_circ(1);
   qregs_set_memtx_to_pm(1);
-  qregs_hdr_preemph_en(0);
   qregs_set_tx_always(0);
   qregs_txrx(0);
 
@@ -573,7 +601,10 @@ int cmd_sync_stat(int arg) {
   qregs_print_sync_status();
   return 0;
 }
-
+int cmd_sync_resync(int arg) {
+  qregs_sync_resync();
+  return 0;
+}  
 int cmd_sync_dly(int arg) {
   int dly;
   if (parse_int(&dly)) return CMD_ERR_NO_INT;
@@ -658,6 +689,7 @@ int cmd_laser_wl(int arg) {
 
 cmd_info_t dbg_cmds_info[]={
   {"pwr",    cmd_dbg_pwr,  0, 0}, 
+  {"clksel", cmd_dbg_clksel, 0, 0}, 
   {"search", cmd_dbg_search, 0, 0}, 
   {"info",   cmd_dbg_info,  0, 0},  
   {"regs",   cmd_dbg_regs, 0, 0},  {0},
@@ -689,6 +721,7 @@ cmd_info_t sync_cmds_info[]={
   {"ref",  cmd_sync_ref,   0, "select sync reference", "i|h|r|p"},
   {"stat", cmd_sync_stat,  0, "view sync status", 0},
   {"dly",  cmd_sync_dly,   0, "set sync dly", 0},
+  {"resync", cmd_sync_resync, 0, "resync", 0},
   {0}};  
 
 cmd_info_t cmds_info[]={
