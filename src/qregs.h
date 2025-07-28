@@ -51,8 +51,9 @@ typedef struct qregs_pilot_cfg_struct {
 typedef struct qsdc_data_cfg_st {
   int is_qpsk;           // data modulation. 0=bpsk, 1=qpsk
   int pos_asamps;        // start of Alice's data relative to start of frame
-  int symbol_len_asamps; // could be 1000's.  May span multiple frames.
+  int symbol_len_asamps; // typically 1 or 4. Maybe 8.
   int data_len_asamps;   // portion of each frame that carries Alice's data.
+  int bit_dur_syms;      // duration of one bit in units of symbols
 } qregs_qsdc_data_cfg_t;
 
 
@@ -185,7 +186,7 @@ void qregs_set_use_lfsr(int use_lfsr);
 //     0 = code reads memory and sends that to DAC.
 //     
 
-void qregs_hdr_preemph_en(int en);
+//void qregs_hdr_preemph_en(int en);
 
 
 void qregs_set_sync_dly_asamps(int sync_dly_asamps);

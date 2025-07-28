@@ -332,6 +332,7 @@ int cmd_init(int arg) {
   get_ini_int(ivars,"qsdc_data_is_qpsk", &data_cfg.is_qpsk);
   get_ini_int(ivars,"qsdc_data_len_asamps", &data_cfg.data_len_asamps);
   get_ini_int(ivars,"qsdc_data_pos_asamps", &data_cfg.pos_asamps);
+  get_ini_int(ivars,"qsdc_data_bit_dur_syms", &data_cfg.bit_dur_syms);
   qregs_set_qsdc_data_cfg(&data_cfg);
 
   
@@ -544,16 +545,17 @@ int cmd_pm_sin(int arg) {
   memcpy(p, mem, mem_sz);
   // sz = iio_channel_write(dac_ch0, dac_buf, mem, mem_sz);
   // returned 256=DAC_N*2, makes sense
-  printf("filled dac_buf with %zd bytes\n", mem_sz);
+  printf("  filled dac_buf with %zd bytes\n", mem_sz);
 
   tx_sz = iio_buffer_push(dac_buf);
-  printf("pushed %zd bytes\n", tx_sz);
+  printf("  pushed %zd bytes\n", tx_sz);
   i=mem_sz/8-2;
   h_w_fld(H_DAC_DMA_MEM_RADDR_LIM_MIN1, i);
-  // This problem solved
-  //  printf("set raddr lim %d = x%x\n", i, i);
-  //  qregs_dbg_get_info(&i);
-  //  printf("DBG: waddr lim %d = x%08x\n", i, i);
+  //This problem solved
+  printf("DBG: set raddr lim %d = x%x\n", i, i);
+  qregs_dbg_get_info(&i);
+  printf("DBG: waddr lim %d = x%08x\n", i, i);
+
   
   //  qregs_halfduplex_is_bob(0);
 
@@ -723,7 +725,12 @@ int cmd_qsdc_cfg(int arg) {
   i = ((int)i/4)*4;
   i = (st.frame_pd_asamps - i - data_cfg.pos_asamps);
   data_cfg.data_len_asamps = i;
-  printf("data len %d asamps = %.1f ns\n", i, i/st.asamp_Hz*1.0e9);
+  printf("per-frame data len %d asamps = %.1f ns\n", i, i/st.asamp_Hz*1.0e9);
+
+
+  i = ini_ask_num(tvars,"duration of one data bit (in symbols)", "bit_dur_symbols", 10);
+  data_cfg.bit_dur_syms = i;
+  
 
   qregs_set_qsdc_data_cfg(&data_cfg);
   
@@ -796,7 +803,7 @@ cmd_info_t laser_cmds_info[]={
   {0}};  
   
 cmd_info_t sync_cmds_info[]={
-  {"ref",  cmd_sync_ref,   0, "select sync reference", "i|h|r|p"},
+  {"ref",  cmd_sync_ref,   0, "h=hdr,p=pwr,r=rxclk", "h|r|p"},
   {"stat", cmd_sync_stat,  0, "view sync status", 0},
   {"dly",  cmd_sync_dly,   0, "set sync dly", 0},
   {"resync", cmd_sync_resync, 0, "resync", 0},

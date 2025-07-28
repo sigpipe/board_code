@@ -623,15 +623,18 @@ void qregs_get_settings(void) {
   st.rebal.m22 = (double)i/REBAL_M_SCALE;
 
 
-  i = h_r_fld(H_DAC_CTL_QSDC_DATA_IS_QPSK);
+  i = h_r_fld(H_DAC_QSDC_DATA_IS_QPSK);
   st.qsdc_data_cfg.is_qpsk = i;
   i = h_r_fld(H_DAC_QSDC_POS_MIN1_CYCS);
   st.qsdc_data_cfg.pos_asamps = (i+1)*4;
-  i = h_r_fld(H_DAC_QSDC_DATA_CYCS_MIN1);
+  i = h_r_fld(H_DAC_QSDC_DATA_CYCS_MIN1); // per frame
   st.qsdc_data_cfg.data_len_asamps = (i+1)*4;
-  i = h_r_fld(H_DAC_QSDC_SYM_ASAMPS_MIN1);
+  i = h_r_fld(H_DAC_QSDC_SYMLEN_MIN1_ASAMPS);
   st.qsdc_data_cfg.symbol_len_asamps = i+1;
-
+  
+  i = h_r_fld(H_DAC_QSDC_BITDUR_MIN1_CODES);
+  st.qsdc_data_cfg.bit_dur_syms = (i+1)*10;
+  
   
   // printf("DBG:clkdiv %d\n", h_r_fld(H_DAC_SER_REFCLK_DIV_MIN1));
   st.ser_state.sel     = h_r_fld(H_DAC_PCTL_SER_SEL);
@@ -663,13 +666,14 @@ void qregs_print_settings(void) {
   printf("tx_0 %d\n", st.tx_0);
   printf("tx_same_hdrs %d\n", st.tx_same_hdrs);
   printf("tx_hdr_twopi %d\n", st.tx_hdr_twopi);
+  printf("im_preemph %d\n", h_r_fld(H_DAC_HDR_IM_PREEMPH));
+  printf("pilot_im_from_mem %d (state)\n", st.pilot_cfg.im_from_mem);
   printf("txrx %d\n", h_r_fld(H_ADC_ACTL_TXRX_EN));
   printf("search %d\n", h_r_fld(H_ADC_ACTL_SEARCH));
   printf("alice_syncing %d\n", st.alice_syncing);
   printf("alice_txing %d\n", h_r_fld(H_DAC_CTL_ALICE_TXING));
   printf("halfduplex_is_bob %d\n", st.is_bob);
   printf("use_lfsr %d\n", st.use_lfsr);
-  printf("pilot_im_from_mem %d (state)\n", st.pilot_cfg.im_from_mem);
   printf("frame_pd_asamps %d = %.3f us\n", st.frame_pd_asamps,
 	 qregs_dur_samps2us(st.frame_pd_asamps));
   
@@ -687,6 +691,10 @@ void qregs_print_settings(void) {
 	 st.qsdc_data_cfg.symbol_len_asamps,
 	 qregs_dur_samps2us(st.qsdc_data_cfg.symbol_len_asamps)*1000);
 
+  printf("      bit_len %d symbols (%d code reps)\n",
+	 st.qsdc_data_cfg.bit_dur_syms,
+	 st.qsdc_data_cfg.bit_dur_syms/10);
+  
 	 
   printf("hdr det thresh : init %d  pwr %d corr %d\n",
 	 st.init_pwr_thresh, st.hdr_pwr_thresh, st.hdr_corr_thresh);
@@ -883,7 +891,7 @@ void qregs_set_qsdc_data_cfg(qregs_qsdc_data_cfg_t *data_cfg) {
   int i,j;
   qregs_qsdc_data_cfg_t *c = &st.qsdc_data_cfg;
   i = !!data_cfg->is_qpsk;
-  i = h_w_fld(H_DAC_CTL_QSDC_DATA_IS_QPSK, i);
+  i = h_w_fld(H_DAC_QSDC_DATA_IS_QPSK, i);
   c->is_qpsk = i;
 
   i = data_cfg->pos_asamps/4-1;
@@ -900,12 +908,22 @@ void qregs_set_qsdc_data_cfg(qregs_qsdc_data_cfg_t *data_cfg) {
   c->data_len_asamps = (i+1)*4;
   //  printf("  data len per frame %d asamps = %d cycs\n", c->data_len_asamps, i+1);
 
+  
+
   if (data_cfg->symbol_len_asamps > 3)
     data_cfg->symbol_len_asamps &= ~0x3; 
   i = data_cfg->symbol_len_asamps-1;
-  i = h_w_fld(H_DAC_QSDC_SYM_ASAMPS_MIN1, i);
+  i = h_w_fld(H_DAC_QSDC_SYMLEN_MIN1_ASAMPS, i);
   c->symbol_len_asamps = i+1;
   //  printf("   symbol len %d asamps\n", c->symbol_len_asamps);
+
+  i = (data_cfg->bit_dur_syms / 10)-1;
+  i = h_w_fld(H_DAC_QSDC_BITDUR_MIN1_CODES, i);
+  c->bit_dur_syms = (i+1)*10;
+  //  printf("  code reps per bit = %d\n", i+1);
+
+  
+
   
   *data_cfg = *c;
 }

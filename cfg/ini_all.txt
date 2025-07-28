@@ -10,6 +10,7 @@ qsdc_data_pos_asamps = 252;
 qsdc_data_len_asamps = 952;
 qsdc_im_simple_pilot_dac = 0x7fff;
 qsdc_im_simple_body_dac = -200;
+qsdc_data_bit_dur_syms = 2;
 qsdc_im_from_mem = 1;
 sync_ref = 'r';
 

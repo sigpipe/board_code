@@ -1,7 +1,7 @@
 // h_vhdl_extract.h
 // hardware access constants
 // This file was automatically generated
-// by Register Extractor (ver 4.14) on Fri Jul 25 15:50:08 2025
+// by Register Extractor (ver 4.14) on Mon Jul 28 12:26:13 2025
 // compile version Mon Jun 16 10:25:20 2025
 // current dir:  C:\reilly\proj\quanet\quanet_hdl\projects\daq3\zcu106
 // DO NOT MODIFY THIS FILE!
@@ -18,7 +18,7 @@
 // version constants
 #define H_VHDL_EXTRACT_VER (4)
 #define H_VHDL_EXTRACT_SUBVER (14)
-#define H_VHDL_EXTRACT_DATE "Fri Jul 25 15:50:08 2025"
+#define H_VHDL_EXTRACT_DATE "Mon Jul 28 12:26:13 2025"
 #define H_VHDL_EXTRACT_DIR "C:\reilly\proj\quanet\quanet_hdl\projects\daq3\zcu106"
 
 
@@ -40,6 +40,8 @@
 #define H_SYNC_REF_PWR (0x1)
 #define H_SYNC_REF_RXCLK (0x0)
 #define H_QSDC_SYMS_PER_FR_W (9)
+#define H_QSDC_BITCODE (0x29a)
+#define H_QSDC_BITDUR_W (10)
 #define H_CORR_MEM_D_W (16)
 #define H_CORR_DISCARD_LSBS (4)
 #define H_CTR_W (4)
@@ -105,8 +107,8 @@
 #define H_DAC_CTL_SER_RX_IRQ_EN           0x0000202d  /* 0x00002000   w */
 #define H_DAC_CTL_PM_PREEMPH_CONST        0x0000206e  /* 0x0001c000   w */
 #define H_DAC_CTL_PM_PREEMPH_EN           0x00002031  /* 0x00020000   w */
+#define H_DAC_CTL_QSDC_TX_IRQ_EN          0x00002032  /* 0x00040000   w */
 #define H_DAC_CTL_IS_BOB                  0x00002033  /* 0x00080000   w */
-#define H_DAC_CTL_QSDC_DATA_IS_QPSK       0x00002034  /* 0x00100000   w -- 0=bpsk, 1=qpsk */
 #define H_DAC_CTL_ALICE_TXING             0x00002035  /* 0x00200000   w -- set for qsdc */
 #define H_DAC_CTL_SIMPLE_IM_HDR_EN        0x00002036  /* 0x00400000   w -- use vals from IM register */
 #define H_DAC_CTL_TX_DBITS                0x00002037  /* 0x00800000   w -- alice transmits data */
@@ -118,7 +120,7 @@
 #define H_DAC_CTL_CIPHER_EN               0x0000203e  /* 0x40000000   w -- bob sets to scramble frame bodies */
 #define H_DAC_CTL_TX_UNSYNC               0x0000203f  /* 0x80000000   w -- probaly will go away */
                                        // r 0xffffffff
-                                       // w 0xfefbffff
+                                       // w 0xfeefffff
 
 #define H_DAC_STATUS                      0x00003000  /* 3 */
 #define H_DAC_STATUS_GTH_STATUS           0x00003080  /* 0x0000000f  r  */
@@ -126,8 +128,9 @@
 #define H_DAC_STATUS_FRAME_SYNC_IN_CNT    0x000030c8  /* 0x00003f00  r  */
 #define H_DAC_STATUS_DAC_RST_AXI          0x0000302e  /* 0x00004000  r  */
 #define H_DAC_STATUS_MEM_ADDR_W           0x000030cf  /* 0x001f8000  r  */
+#define H_DAC_STATUS_QSDC_DATA_DONE       0x00003035  /* 0x00200000  r  */
 #define H_DAC_STATUS_SER_TX_MT            0x00003036  /* 0x00400000  r  */
-                                       // r 0x005fffff
+                                       // r 0x007fffff
                                        // w 0x00000000
 
 #define H_DAC_IM                          0x00004000  /* 4 */
@@ -164,11 +167,13 @@
 
 #define H_DAC_QSDC                        0x00008000  /* 8 */
 #define H_DAC_QSDC_REG_W                  0x00008400  /* 0xffffffff  r  */
-#define H_DAC_QSDC_DATA_CYCS_MIN1         0x00008140  /* 0x000003ff   w -- dur of body in frame */
-#define H_DAC_QSDC_SYM_ASAMPS_MIN1        0x0000814a  /* 0x000ffc00   w -- dur of one QSDC data symbol */
-#define H_DAC_QSDC_POS_MIN1_CYCS          0x00008154  /* 0x3ff00000   w -- offset of body from start of frame */
+#define H_DAC_QSDC_DATA_CYCS_MIN1         0x00008140  /* 0x000003ff   w -- dur of body in frame   */
+#define H_DAC_QSDC_SYMLEN_MIN1_ASAMPS     0x0000808a  /* 0x00003c00   w -- dur of one QSDC symbol aka chip. 1..8 */
+#define H_DAC_QSDC_POS_MIN1_CYCS          0x0000810e  /* 0x003fc000   w -- offset of data from start of frame */
+#define H_DAC_QSDC_DATA_IS_QPSK           0x00008036  /* 0x00400000   w -- 0=bpsk, 1=qpsk */
+#define H_DAC_QSDC_BITDUR_MIN1_CODES      0x00008137  /* 0xff800000   w -- num code reps per bit, min 1 */
                                        // r 0xffffffff
-                                       // w 0x3fffffff
+                                       // w 0xffffffff
 
 #define H_DAC_SER                         0x00009000  /* 9 */
 #define H_DAC_SER_RX_DATA                 0x00009100  /* 0x000000ff  r  */

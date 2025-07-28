@@ -170,17 +170,17 @@ void ask_protocol(void) {
   double d;
   int i, j;
   
-  d = ask_num("osamp (1,2,4)", "osamp", 4);
+  d = ini_ask_num(tvars, "osamp (1,2,4)", "osamp", 4);
   qregs_set_osamp(d);
   // printf("osamps %d\n", st.osamp);
 
 
-  d = ask_num("frame_pd (us)", "frame_pd_us", 1);
+  d = ini_ask_num(tvars, "frame_pd (us)", "frame_pd_us", 1);
   i = qregs_dur_us2samps(d);
   // printf("adc samp freq %lg Hz\n", st.asamp_Hz);
   i = ((int)(i/64))*64;
   qregs_set_frame_pd_asamps(i);
-  printf("frame_pd_asamps %d = %.2f us\n", st.frame_pd_asamps,
+  printf("frame_pd_asamps %d = %.3f us\n", st.frame_pd_asamps,
 	   qregs_dur_samps2us(st.frame_pd_asamps));
 
     //  if (qregs_done()) err("qregs_done fail");  
@@ -190,46 +190,53 @@ void ask_protocol(void) {
     //  qregs_set_sync_dly_asamps(-346);
 
   i=32;  
-  i = ask_nnum("hdr_len_bits", i);
+  i = ini_ask_num(tvars,"length of pilot (bits)", "hdr_len_bits", i);
   qregs_set_hdr_len_bits(i);
-  printf("hdr_len_bits %d = %.2f ns\n", st.hdr_len_bits,
+  printf("pilot_len_bits %d = %.2f ns\n", st.hdr_len_bits,
 	   qregs_dur_samps2us(st.hdr_len_bits*st.osamp)*1000);
   printf("body_len_asamps %d\n", st.body_len_asamps);
 
 
-  i = ask_yn("cipher_en", "cipher_en", 0);
-  j = ask_num("cipher_m (for m-psk)", "cipher_m", 2);
+  i = ini_ask_yn(tvars,"cipher_en", "cipher_en", 0);
+  j = ini_ask_num(tvars, "cipher_m (for m-psk)", "cipher_m", 2);
   qregs_set_cipher_en(i, st.osamp, j);
   if (st.osamp!=st.cipher_symlen_asamps)
     printf("  actually symlen = %d\n", st.cipher_symlen_asamps);
   if (j!=st.cipher_m)
     printf("  actually m = %d\n", st.cipher_m);
 
-   // added this frame size stuff into a common init file
-   //  read by u.c.  add an interactive cfg thing to u.c
+  // added this frame size stuff into a common init file
+  //  read by u.c.  add an interactive cfg thing to u.c
 
-   double gap_ns;
-   qregs_qsdc_data_cfg_t data_cfg;
-   data_cfg.is_qpsk      = ask_yn("is the data qpsk","body_is_qpsk", 0);
+  double gap_ns;
+  qregs_qsdc_data_cfg_t data_cfg;
+  printf("QSDC stuff:\n"); 
+  data_cfg.is_qpsk = ini_ask_yn(tvars, "is the data qpsk","body_is_qpsk", 0);
 
-    data_cfg.symbol_len_asamps = ask_num("data symbol len (asamps)",
-                                           "symbol_len_asamps", 8);
+  data_cfg.symbol_len_asamps = ini_ask_num(tvars, "data symbol len (asamps)",
+					   "symbol_len_asamps", 8);
 
-   gap_ns = ask_num("gap after header (ns)", "post_hdr_gap_ns", 100);
-    i= round(gap_ns * 1e-9 * st.asamp_Hz / st.osamp) * st.osamp;
-    i = ((int)i/4)*4;
-      printf("rounded to %d asamps = %.1f ns\n", i, i/st.asamp_Hz*1.0e9);
-      data_cfg.pos_asamps   = st.hdr_len_asamps + i;
+  gap_ns = ini_ask_num(tvars, "gap after pilot (ns)", "post_hdr_gap_ns", 100);
+  i= round(gap_ns * 1e-9 * st.asamp_Hz / st.osamp) * st.osamp;
+  i = ((int)i/4)*4;
+  printf("rounded to %d asamps = %.1f ns\n", i, i/st.asamp_Hz*1.0e9);
+  data_cfg.pos_asamps   = st.hdr_len_asamps + i;
 
-      gap_ns = ask_num("gap at end (ns)", "post_body_gap_ns", 100);
-      i= round(gap_ns * 1e-9 * st.asamp_Hz / st.osamp) * st.osamp;
-      i = ((int)i/4)*4;
-      i = (st.frame_pd_asamps - i - data_cfg.pos_asamps);
-      data_cfg.data_len_asamps = i;
-      printf("data len %d asamps = %.1f ns\n", i, i/st.asamp_Hz*1.0e9);
+  gap_ns = ini_ask_num(tvars, "gap at end (ns)", "post_body_gap_ns", 100);
+  i= round(gap_ns * 1e-9 * st.asamp_Hz / st.osamp) * st.osamp;
+  i = ((int)i/4)*4;
+  i = (st.frame_pd_asamps - i - data_cfg.pos_asamps);
+  data_cfg.data_len_asamps = i; // per fram
 
-      qregs_set_qsdc_data_cfg(&data_cfg);
 
+  data_cfg.bit_dur_syms = ini_ask_num(tvars,"  duration of one bit (symbols)",
+				       "qsdc_bit_dur_sym", 100);
+
+  qregs_set_qsdc_data_cfg(&data_cfg);
+
+  i = st.qsdc_data_cfg.data_len_asamps;
+  printf("  data len %d asamps = %.1f ns per frame\n", i, i/st.asamp_Hz*1.0e9);
+  printf("  bit duration ACTUALLY %d symbols\n", st.qsdc_data_cfg.bit_dur_syms);
   
 }
 
@@ -272,7 +279,7 @@ ssize_t pattern_into_buf(void *buf, ssize_t buf_sz) {
 
 
 ssize_t read_file_into_buf(char *fname, void *buf, ssize_t buf_sz) {
-  int fd = open(fname,O_RDWR);
+  int i, fd = open(fname,O_RDWR);
   ssize_t rd_sz;
   if (fd<0) {
     snprintf(errmsg, 512, "read_file_into_buf() cant open file %s", fname);
@@ -280,7 +287,7 @@ ssize_t read_file_into_buf(char *fname, void *buf, ssize_t buf_sz) {
     return 0;
   }
   rd_sz = read(fd, buf, DAC_N);
-  printf("read %zd bytes from %s\n", rd_sz, fname);
+  printf("  read %zd bytes from %s\n", rd_sz, fname);
   //for(i=0;i<16;++i)
   //  printf("%04x %d\n", mem[i], mem[i]);
   // printf("\n");
@@ -501,7 +508,7 @@ int main(int argc, char *argv[]) {
     ask_protocol();
   }else {
     printf("   osamps %d\n", st.osamp);
-    printf("   frame_pd_asamps %d = %.2Lf us\n", st.frame_pd_asamps,
+    printf("   frame_pd_asamps %d = %.3Lf us\n", st.frame_pd_asamps,
          qregs_dur_samps2us(st.frame_pd_asamps));
     printf("   hdr_len_bits %d = %.2Lf ns\n", st.hdr_len_bits,
          qregs_dur_samps2us(st.hdr_len_bits*st.osamp)*1000);
@@ -519,12 +526,12 @@ int main(int argc, char *argv[]) {
   }
 
 
-  search = ask_yn("search for hdr", "search", 1);
+  search = ini_ask_yn(tvars, "search for probe/pilot", "search", 1);
   if (search) {
-    i = ask_nnum("init_pwr_thresh", 100);
+    i = ini_ask_num(tvars, "initial pwr req (for debug. enter 0 if unknown)", "init_pwr_thresh", 0);
     qregs_dbg_set_init_pwr(i);
-    j = ask_nnum("hdr_pwr_thresh", 100);
-    k = ask_nnum("hdr_corr_thresh", 40);
+    j = ini_ask_num(tvars, "power threshold for probe/pilot detection", "hdr_pwr_thresh", 100);
+    k = ini_ask_num(tvars, "correlation threshold for probe/pilot detection", "hdr_corr_thresh", 40);
     qregs_set_hdr_det_thresh(j, k);
     
     // sync dly set in ini file or u cmd.
@@ -571,15 +578,15 @@ int main(int argc, char *argv[]) {
 
 
     if (frame_qty != frame_qty_req)
-      printf(" actually SAVING %d frames per itr\n", frame_qty);
+      printf("  actually SAVING %d frames per itr\n", frame_qty);
     buf_len_asamps = frames_per_buf * st.frame_pd_asamps;
     //    if (tst_sync)
     //      buf_len_asamps *= 2;
-    printf(" buf_len_asamps %d\n", buf_len_asamps);
+    printf("  buf_len_asamps %d\n", buf_len_asamps);
 
     // THIS might not be used
     cap_len_samps = num_bufs & buf_len_asamps;
-    printf(" cap_len_samps %d\n", cap_len_samps);
+    printf("  cap_len_samps %d\n", cap_len_samps);
     // This is cap len per iter
 
     
@@ -687,7 +694,9 @@ int main(int argc, char *argv[]) {
   if (hdr_preemph_en) { // !is_alice && st.pilot_cfg.im_from_mem) {
     mem_sz=read_file_into_buf(hdr_preemph_fname, mem, sizeof(mem));
   }
-    // mem_sz=pattern_into_buf(hdr_preemph_fname, mem, sizeof(mem));
+  st.pilot_cfg.im_from_mem = hdr_preemph_en;
+  qregs_cfg_pilot(&st.pilot_cfg, 0);
+  // mem_sz=pattern_into_buf(hdr_preemph_fname, mem, sizeof(mem));
 
 
   // IIO provides iio_channel_convert_inverse(dac_ch0,  dst, mem);
@@ -724,10 +733,12 @@ int main(int argc, char *argv[]) {
 	     ask_str("data_file", "data_file","src/data.bin"));
       mem_sz=read_file_into_buf(data_fname, mem, sizeof(mem));
     }
-    int data_len_asamps = (int)mem_sz * 8 / (st.qsdc_data_cfg.is_qpsk?2:1) *
-      st.qsdc_data_cfg.symbol_len_asamps;
-    printf("data len %d asamps\n", data_len_asamps);
-    int data_len_frames = (int)ceil((double)data_len_asamps / st.qsdc_data_cfg.data_len_asamps);
+    int data_len_syms = (int)mem_sz * 8 / (st.qsdc_data_cfg.is_qpsk?2:1) *
+      10 * st.qsdc_data_cfg.bit_dur_syms;
+    printf("total data len %d symbols\n", data_len_syms);
+    int data_len_frames = (int)ceil((double)data_len_syms
+				    * st.qsdc_data_cfg.symbol_len_asamps
+				    / st.qsdc_data_cfg.data_len_asamps);
     printf("   =  %d frames\n", data_len_frames);
   }
 
@@ -753,7 +764,8 @@ int main(int argc, char *argv[]) {
     memcpy(p, mem, mem_sz);
     // sz = iio_channel_write(dac_ch0, dac_buf, mem, mem_sz);
     // returned 256=DAC_N*2, makes sense
-    printf("filled dac_buf sz %zd\n", mem_sz);
+    printf("  filled dac_buf sz %zd\n", mem_sz);
+
   }
 
   qregs_set_use_lfsr(use_lfsr);
@@ -769,12 +781,13 @@ int main(int argc, char *argv[]) {
     set_blocking_mode(dac_buf, true); // default is blocking.  
       
     tx_sz = iio_buffer_push(dac_buf);
-    printf("pushed %zd bytes\n", tx_sz);
-      
-    h_w_fld(H_DAC_DMA_MEM_RADDR_LIM_MIN1, mem_sz/8-2);
-    qregs_dbg_get_info(&i);
-    printf("DBG: set raddr lim %zd bytes (dbg %d)\n", mem_sz/8-2, i);
+    printf("  pushed %zd bytes\n", tx_sz);
 
+    // This problem used to be solved
+    i = mem_sz/8-2;
+    h_w_fld(H_DAC_DMA_MEM_RADDR_LIM_MIN1, i);
+    qregs_dbg_get_info(&j);
+    printf("  DBG: set raddr lim %zd bytes (dbg %d)\n", i, j);
     
   }
 
