@@ -183,10 +183,11 @@ int cmd_thresh(int arg) {
   int pwr_th, corr_th, e;
   if (e=parse_int(&pwr_th)) {
     //    printf("parse int failed.  e %d\n", e);
-    return CMD_ERR_NO_INT;
+    printf("u thresh %d %d\n", st.hdr_pwr_thresh, st.hdr_corr_thresh);
+  }else {
+    if (parse_int(&corr_th)) corr_th = st.hdr_corr_thresh;
+    qregs_set_hdr_det_thresh(pwr_th, corr_th);
   }
-  if (parse_int(&corr_th)) corr_th = st.hdr_corr_thresh;
-  qregs_set_hdr_det_thresh(pwr_th, corr_th);
   return 0;
 }
 
@@ -242,6 +243,13 @@ void get_ini_int(ini_val_t *ivars, char *varname, int *d) {
   errno=0;
   e = ini_get_int(ivars, varname, d);
   sprintf(errmsg,"no variable named %s in file %s", varname, ini_fname);
+  if (e) err(errmsg);
+}
+void get_ini_double(ini_val_t *ivars, char *varname, double *d) {
+  int e;
+  errno=0;
+  e = ini_get_double(ivars, varname, d);
+  sprintf(errmsg,"no variable named %s of double in file %s", varname, ini_fname);
   if (e) err(errmsg);
 }
 
@@ -371,10 +379,39 @@ int cmd_init(int arg) {
   if (!e) qregs_set_lfsr_rst_st(i);
   else err("ini file lacks lfsr_rst_st");
 
+
   qregs_rebalance_params_t rebal={0};
-  rebal.m11=1;
-  rebal.m22=1;
-  // e = ini_get_double(ivars,"iq_rebalamce", &d);  
+  e=ini_get_string(ivars,"rebal_fname", &str_p);
+  if (e || !*str_p) {
+    printf("WARN: no rebal_fname variable in file %s", fname);
+    printf("      using default IQ rebalancing\n");
+    rebal.m11=1;
+    rebal.m22=1;
+  }else {
+    ini_val_t *rbvars;
+    double i_fact, q_fact, ang;
+    e =  ini_read(str_p, &rbvars);
+    if (e) {
+      printf("err %d\n", e);
+      printf("%s\n", ini_err_msg());
+      return CMD_ERR_FAIL;
+    }
+    get_ini_int(rbvars, "i_off", &rebal.i_off);
+    get_ini_int(rbvars,"q_off", &rebal.q_off);
+    get_ini_double(rbvars,"i_fact", &i_fact);
+    get_ini_double(rbvars,"q_fact", &q_fact);
+    get_ini_double(rbvars,"ang_deg", &ang);
+    ang = ang*M_PI/180;
+    rebal.m11 = rebal.m22 = cos(ang);
+    rebal.m21 = rebal.m12 = sin(ang);
+    rebal.m11 *= i_fact;
+    rebal.m12 *= i_fact;
+    rebal.m21 *= -q_fact;
+    rebal.m22 *= q_fact;
+    if (e) err("sfp init failed");
+      ini_free(rbvars);
+    printf("using %s\n", str_p);
+  }
   qregs_set_iq_rebalance(&rebal);
 
   e = ini_get_int(ivars,"pm_delay_cycs", &i);
@@ -791,7 +828,7 @@ cmd_info_t cmds_info[]={
 #endif  
   {"set",     cmd_set,  0, 0},
   {"stat",    cmd_stat,   0, 0},
-  {"thresh",  cmd_thresh,   0, 0}, 
+  {"thresh",  cmd_thresh, 0, "set detection thersholds", "<pwr> <corr>"}, 
   {"twopi",   cmd_twopi,   0, 0}, 
   {"ver",     cmd_ver,   0, 0}, 
   {0}};

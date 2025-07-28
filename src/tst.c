@@ -480,9 +480,17 @@ int main(int argc, char *argv[]) {
   // qregs_set_sync_ref('p'); // ignored if bob
   qregs_sync_resync();
 
-  qregs_set_tx_go_condition(is_alice?'p':'r'); // r=tx when rxbuf rdy
-
-      
+  
+  char cond;
+  if (is_alice)
+    if (!alice_txing && !alice_syncing)
+      cond='r';
+    else
+      cond='p';
+  else
+    cond='r'; // r=tx when rxbuf rdy
+  qregs_set_tx_go_condition(cond);
+  printf(" using tx_go condition %c\n", st.tx_go_condition);
 
   
   if (!ask_yn("same protocol", "same_protocol", 1)) {
@@ -1035,7 +1043,8 @@ int main(int argc, char *argv[]) {
     fprintf(fp,"qsdc_data_pos_asamps = %d;\n", st.qsdc_data_cfg.pos_asamps);
     fprintf(fp,"qsdc_data_len_asamps = %d;\n", st.qsdc_data_cfg.data_len_asamps);
     fprintf(fp,"qsdc_symbol_len_asamps = %d;\n", st.qsdc_data_cfg.symbol_len_asamps);
-    
+    fprintf(fp,"m11 = %g;\n", st.rebal.m11);
+    fprintf(fp,"m12 = %g;\n", st.rebal.m12);
     fprintf(fp,"hdr_len_bits = %d;\n", st.hdr_len_bits);
     fprintf(fp,"data_hdr = 'i_adc q_adc';\n");
     fprintf(fp,"data_len_samps = %d;\n", cap_len_samps);

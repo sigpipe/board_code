@@ -442,6 +442,11 @@ void ini_set_fname(ini_val_t *vals, char *fname) {
     vals->ptr    = (void *)ini_new_stringval();
   strcpy_l((char *)vals->ptr, INI_LINE_LEN, fname);
 }
+char *ini_get_fname(ini_val_t *vals) {
+  if (!vals->ptr)
+    vals->ptr    = (void *)ini_new_stringval();
+  return (char *)vals->ptr;
+}
 
 int ini_parse_val(ini_val_t *v, char *str) {
 // desc: parses a string as an int,double, string, matrix, etc.
