@@ -463,17 +463,17 @@ int cmd_dbg_info(int arg) {
 
 
 int cmd_pm_sin(int arg) {
-  int n, pd_ns, k, i, mx=0;
+  int n, k, i, mx=0;
   int npds;
   size_t mem_sz, sz, dac_buf_sz, tx_sz;
-  double th;
+  double th, pd_ns;
   struct iio_context *ctx;
   struct iio_device *dac;
   struct iio_channel *dac_ch0, *dac_ch1;    
   struct iio_buffer *dac_buf;
   short int *mem;  
     
-  if (parse_int(&pd_ns)) return CMD_ERR_NO_INT;
+  if (parse_double(&pd_ns)) return CMD_ERR_NO_INT;
   
   ctx = iio_create_local_context();
   if (!ctx)

@@ -85,7 +85,11 @@ int ini_free(ini_val_t *vals);
 
 
 
-int ini_ask_yn(ini_val_t *vars, char *prompt, char *var_name, int dflt);
+int    ini_ask_yn(ini_val_t *vars, char *prompt, char *var_name, int dflt);
 double ini_ask_num(ini_val_t *vars, char *prompt, char *var_name, double dflt);
+char * ini_ask_str(ini_val_t *vars, char *prompt, char *var_name, char *dflt);
+
+extern int ini_opt_dflt; // set to 1 to cause all ask* functions to use defaults
+
 
 #endif

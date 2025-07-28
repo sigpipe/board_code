@@ -660,7 +660,7 @@ int ini_read(char *fname, ini_val_t **rvals) {
 
   fp = fopen(fname, "r");
   if (!fp) {
-    sprintf(ini_la.err_msg, "cant open %s", fname);
+    sprintf(ini_la.err_msg, "ini_read() cant open %s", fname);
     return ini_err(INI_ERR_FAIL);
   }
 
@@ -916,4 +916,26 @@ double ini_ask_num(ini_val_t *vars, char *prompt, char *var_name, double dflt) {
   if (var_name)
     ini_set_double(vars, var_name, v);
   return v;
+}
+
+
+char *ini_ask_str(ini_val_t *vars, char *prompt, char *var_name, char *dflt) {
+  static char buf[512];
+  int n;
+  if (var_name)
+    ini_get_string(vars, var_name, &dflt);
+  printf("%s [%s] > ", prompt, dflt);
+  
+  if (ini_opt_dflt) {
+    printf("\n");
+    strcpy(buf, dflt);
+    return buf;
+  }
+  n=scanf("%[^\n]", buf);
+  getchar();
+  if (n!=1)
+    strcpy(buf, dflt);
+  if (var_name)
+    ini_set_string(vars, var_name, buf);
+  return buf;
 }

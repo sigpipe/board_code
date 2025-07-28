@@ -88,7 +88,7 @@ void set_blocking_mode(struct iio_buffer *buf, int en) {
 //  #define ADC_N (1024*16*32)
 
 
-ini_val_t *tvars, ivars;
+ini_val_t *tvars;
 
 int opt_dflt=0;
 
@@ -275,7 +275,7 @@ ssize_t read_file_into_buf(char *fname, void *buf, ssize_t buf_sz) {
   int fd = open(fname,O_RDWR);
   ssize_t rd_sz;
   if (fd<0) {
-    snprintf(errmsg, 512, "cant open file %s", fname);
+    snprintf(errmsg, 512, "read_file_into_buf() cant open file %s", fname);
     err(errmsg);
     return 0;
   }
@@ -397,22 +397,24 @@ int main(int argc, char *argv[]) {
   int *times_s, t0_s;
 
 
+  ini_opt_dflt = opt_dflt;
+  
   //  meas_noise = ask_yn("meas_noise", "meas_noise", 0);
   if (meas_noise) {
     use_lfsr=1;
     tx_0=1;
     mem_sz=0;
     tx_always=0;
-    noise_dith=(int)ask_num("noise_dith", "noise_dith", 1);
+    noise_dith=(int)ini_ask_num(tvars, "noise_dith", "noise_dith", 1);
   }else {
     use_lfsr=1;
-    //    use_lfsr = (int)ask_num("use_lfsr", 1);
+    use_lfsr = (int)ini_ask_num(tvars, "use lfsr", "use_lfsr", 1);
     // qregs_set_lfsr_rst_st(0x50f);
     
     tx_0=0;
     noise_dith=0;
     //  tx_0 = (int)ask_num("tx_0", 0);
-    tx_always = ask_yn("tx_always", "tx_always", 0);
+    tx_always = ini_ask_yn(tvars, "tx_always", "tx_always", 0);
   }
 
   qregs_set_meas_noise(noise_dith);
@@ -430,18 +432,20 @@ int main(int argc, char *argv[]) {
   qregs_get_avgpwr(&i,&j,&k); // just to clr ADC dbg ctrs
 
 
+  
+
   if (tst_sync) {
     qregs_set_tx_same_hdrs(1);
-    is_alice = ask_yn("is_alice", "is_alice", 1);
+    is_alice = ini_ask_yn(tvars, "is_alice", "is_alice", 1);
     qregs_alice_sync_en(0); // maybe not needed
-    alice_syncing = ask_yn("is alice syncing", "alice_syncing", 1);
+    alice_syncing = ini_ask_yn(tvars, "is alice syncing", "alice_syncing", 1);
     qregs_set_alice_syncing(alice_syncing);
     
-    alice_txing = ask_yn("is alice txing", "alice_txing", 1);
+    alice_txing = ini_ask_yn(tvars, "is alice txing", "alice_txing", 1);
 
     if (is_alice) {
 #if QNICLL_LINKED
-      use_qnicll=ask_yn("use qnicll", "use_qnicll",0);
+      use_qnicll=ini_ask_yn(tvars, "use qnicll", "use_qnicll",0);
       if (use_qnicll) {
 	char *h = ask_str("remote host", "remote_host", "");
 	qnicll_init_info_libiio_t libiio_init;
@@ -454,7 +458,7 @@ int main(int argc, char *argv[]) {
 
 
 #if QREGC_LINKED
-      use_qregc=ask_yn("use qregc","use_qregc",0);
+      use_qregc=ini_ask_yn(tvars, "use qregc","use_qregc",0);
       if (use_qregc) {
 	qregc_connect("10.0.0.5", &remote_err_handler);
 	qregc_iioopen();
@@ -493,7 +497,7 @@ int main(int argc, char *argv[]) {
   printf(" using tx_go condition %c\n", st.tx_go_condition);
 
   
-  if (!ask_yn("same protocol", "same_protocol", 1)) {
+  if (!ini_ask_yn(tvars, "same protocol", "same_protocol", 1)) {
     ask_protocol();
   }else {
     printf("   osamps %d\n", st.osamp);
@@ -503,7 +507,12 @@ int main(int argc, char *argv[]) {
          qregs_dur_samps2us(st.hdr_len_bits*st.osamp)*1000);
     printf("   body_len_samps %d\n", st.body_len_asamps);
   }
-  hdr_preemph_en = !is_alice && st.pilot_cfg.im_from_mem;
+
+  // for now I have to be able to turn off hdr_preemph
+  // If I want to send the test sinusoid.
+  
+  hdr_preemph_en = ask_yn("use IM preemphasis in pilot", "hdr_preemph_en", 1);
+  //  hdr_preemph_en = !is_alice && st.pilot_cfg.im_from_mem;
   if (hdr_preemph_en) {
     strcpy(hdr_preemph_fname,
 	   ask_str("preemph_file", "preemph.bin","src/hdr.bin"));
@@ -675,9 +684,9 @@ int main(int argc, char *argv[]) {
 
   mem_sz=0;
   // in half-duplex FPGA, alice can't store IM in mem
-  if (!is_alice && st.pilot_cfg.im_from_mem) {
+  if (hdr_preemph_en) { // !is_alice && st.pilot_cfg.im_from_mem) {
     mem_sz=read_file_into_buf(hdr_preemph_fname, mem, sizeof(mem));
-  }else
+  }
     // mem_sz=pattern_into_buf(hdr_preemph_fname, mem, sizeof(mem));
 
 
