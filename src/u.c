@@ -62,7 +62,6 @@ int cmd_cal(int arg) {
 */
 
 int cmd_set(int arg) {
-  printf("pm_dly_cycs %d\n", st.pm_dly_cycs);
   qregs_print_settings();
   return 0;
 }
@@ -308,6 +307,7 @@ int cmd_init(int arg) {
   }else {
     e=sfp_init(str_p, 0);
     if (e) err("sfp init failed");
+    printf("initialized SFP reference from %s\n", str_p);
   }
   
   // describe QSDC frames
@@ -384,8 +384,8 @@ int cmd_init(int arg) {
   qregs_rebalance_params_t rebal={0};
   e=ini_get_string(ivars,"rebal_fname", &str_p);
   if (e || !*str_p) {
-    printf("WARN: no rebal_fname variable in file %s", fname);
-    printf("      using default IQ rebalancing\n");
+    printf("WARN: no rebal_fname variable in file %s\n", fname);
+    printf("      there will be no effective IQ rebalancing\n");
     rebal.m11=1;
     rebal.m22=1;
   }else {
@@ -587,6 +587,13 @@ int cmd_pm_dly(int arg) {
   if (parse_int(&dly)) return CMD_ERR_NO_INT;
   qregs_set_pm_dly_cycs(dly);
   printf("%d\n", st.pm_dly_cycs);
+  return 0;
+}
+int cmd_im_dly(int arg) {
+  int dly;
+  if (parse_int(&dly)) return CMD_ERR_NO_INT;
+  qregs_set_hdr_im_dly_cycs(dly);
+  printf("%d\n", st.hdr_im_dly_cycs);
   return 0;
 }
 
@@ -818,6 +825,7 @@ cmd_info_t cmds_info[]={
   {"laser",   cmd_subcmd, (int)laser_cmds_info, 0, 0},
   {"help",    help,       0, 0},
   {"pm_dly",  cmd_pm_dly, 0, 0}, 
+  {"im_dly",  cmd_im_dly, 0, 0}, 
   {"pm_sin",  cmd_pm_sin, 0, 0}, 
   {"init",    cmd_init,   0, 0}, 
   {"sfp",     cmd_subcmd, (int)sfp_cmds_info, 0, 0}, 

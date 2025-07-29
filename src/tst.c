@@ -414,13 +414,14 @@ int main(int argc, char *argv[]) {
     tx_always=0;
     noise_dith=(int)ini_ask_num(tvars, "noise_dith", "noise_dith", 1);
   }else {
-    use_lfsr=1;
-    use_lfsr = (int)ini_ask_num(tvars, "use lfsr", "use_lfsr", 1);
+    tx_0 = (int)ini_ask_num(tvars,"tx nothing", "tx_0", 0);
+
+    use_lfsr=!tx_0;
+    //    use_lfsr = (int)ini_ask_num(tvars, "use lfsr", "use_lfsr", 1);
     // qregs_set_lfsr_rst_st(0x50f);
     
     tx_0=0;
     noise_dith=0;
-    //  tx_0 = (int)ask_num("tx_0", 0);
     tx_always = ini_ask_yn(tvars, "tx_always", "tx_always", 0);
   }
 
@@ -522,7 +523,7 @@ int main(int argc, char *argv[]) {
   //  hdr_preemph_en = !is_alice && st.pilot_cfg.im_from_mem;
   if (hdr_preemph_en) {
     strcpy(hdr_preemph_fname,
-	   ask_str("preemph_file", "preemph.bin","src/hdr.bin"));
+	   ask_str("preemph_file", "preemph.bin","cfg/preemph.bin"));
   }
 
 
@@ -693,6 +694,11 @@ int main(int argc, char *argv[]) {
   // in half-duplex FPGA, alice can't store IM in mem
   if (hdr_preemph_en) { // !is_alice && st.pilot_cfg.im_from_mem) {
     mem_sz=read_file_into_buf(hdr_preemph_fname, mem, sizeof(mem));
+    if (mem_sz/2 > st.frame_pd_asamps) {
+      sz = st.frame_pd_asamps * 2;
+      printf("WARN: file sz %zd is too long. truncating to %zd\n", mem_sz, sz);
+      mem_sz = sz;
+    }
   }
   st.pilot_cfg.im_from_mem = hdr_preemph_en;
   qregs_cfg_pilot(&st.pilot_cfg, 0);
@@ -764,7 +770,7 @@ int main(int argc, char *argv[]) {
     memcpy(p, mem, mem_sz);
     // sz = iio_channel_write(dac_ch0, dac_buf, mem, mem_sz);
     // returned 256=DAC_N*2, makes sense
-    printf("  filled dac_buf sz %zd\n", mem_sz);
+    printf("  filled dac_buf sz %zd bytes\n", mem_sz);
 
   }
 
@@ -780,7 +786,7 @@ int main(int argc, char *argv[]) {
   if (mem_sz) {
     set_blocking_mode(dac_buf, true); // default is blocking.  
       
-    tx_sz = iio_buffer_push(dac_buf);
+    tx_sz = iio_buffer_push(dac_buf); // supposed to ret num bytes
     printf("  pushed %zd bytes\n", tx_sz);
 
     // This problem used to be solved

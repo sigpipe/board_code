@@ -659,11 +659,12 @@ void qregs_dbg_print_regs(void) {
 }
 
 void qregs_print_settings(void) {
+  printf("pm_dly_cycs %d   \tim_dly_cycs %d\n", st.pm_dly_cycs, st.hdr_im_dly_cycs);
   printf("tx_go_condition %c\n",st.tx_go_condition);
   printf("tx_always %d\n", st.tx_always);
-  printf("tx_mem_circ %d\n", st.tx_mem_circ);
+  printf("tx_mem_circ %d   \t", st.tx_mem_circ);
   printf("tx_mem_to_pm %d\n", h_r_fld(H_DAC_CTL_MEMTX_TO_PM));
-  printf("tx_0 %d\n", st.tx_0);
+  printf("tx_0 %d   \t\t", st.tx_0);
   printf("tx_same_hdrs %d\n", st.tx_same_hdrs);
   printf("tx_hdr_twopi %d\n", st.tx_hdr_twopi);
   printf("im_preemph %d\n", h_r_fld(H_DAC_HDR_IM_PREEMPH));
@@ -676,6 +677,9 @@ void qregs_print_settings(void) {
   printf("use_lfsr %d\n", st.use_lfsr);
   printf("frame_pd_asamps %d = %.3f us\n", st.frame_pd_asamps,
 	 qregs_dur_samps2us(st.frame_pd_asamps));
+
+  printf("mem_raddr_lim_min1 %d\n", h_r_fld(H_DAC_DMA_MEM_RADDR_LIM_MIN1));
+
   
   printf("frame_qty %d\n", st.frame_qty);
   printf("body_len_asamps %d\n", st.body_len_asamps);
@@ -976,7 +980,7 @@ void qregs_set_frame_pd_asamps(int frame_pd_asamps) {
 
   // actually write num cycs-1 (at fsamp/4=308MHz)
   i = frame_pd_asamps/4;
-  i=(int)(i/10)*10;
+  i=(int)(i/10)*10; // The ten is because of SFP sync
   i=i-1;
   i = h_w_fld(H_ADC_FR1_FRAME_PD_MIN1, i);
   h_w_fld(H_DAC_FR1_FRAME_PD_MIN1, i);
