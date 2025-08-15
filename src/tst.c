@@ -423,7 +423,7 @@ int main(int argc, char *argv[]) {
     printf("NOTE: tx_mem_circ = 1\n");
     is_alice=0;
     alice_syncing=0;
-    qregs_alice_sync_en(0); // maybe not needed
+    //    qregs_alice_sync_en(0); // maybe not needed
     qregs_set_alice_syncing(0);
     // dont know why
     qregs_set_save_after_init(1);
