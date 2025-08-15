@@ -120,43 +120,11 @@ int ask_yn(char *prompt, char *var_name, int dflt) {
 }
 
 char *ask_str(char *prompt, char *var_name, char *dflt) {
-  static char buf[512];
-  int n;
-  if (var_name)
-    ini_get_string(tvars, var_name, &dflt);
-  printf("%s [%s] > ", prompt, dflt);
-  
-  if (opt_dflt) {
-    printf("\n");
-    strcpy(buf, dflt);
-    return buf;
-  }
-  n=scanf("%[^\n]", buf);
-  getchar();
-  if (n!=1)
-    strcpy(buf, dflt);
-  if (var_name)
-    ini_set_string(tvars, var_name, buf);
-  return buf;
+  return ini_ask_str(tvars, prompt, var_name, dflt);  
 }
 
 double ask_num(char *prompt, char *var_name, double dflt) {
-  char buf[32];
-  int n;
-  double v;
-
-  if (var_name)
-    ini_get_double(tvars, var_name, &dflt);
-  printf("%s [%g] > ", prompt, dflt);
-  if (opt_dflt) {printf("\n"); return dflt;}
-  n=scanf("%[^\n]", buf);
-  getchar();
-  if (n==1)
-    n=sscanf(buf, "%lf", &v);
-  if (n!=1) v=dflt;
-  if (var_name)
-    ini_set_double(tvars, var_name, v);
-  return v;
+  return ini_ask_num(tvars, prompt, var_name, dflt);
 }
 
 double ask_nnum(char *var_name, double dflt) {
@@ -166,7 +134,7 @@ double ask_nnum(char *var_name, double dflt) {
 
 
 
-void ask_protocol(void) {
+void ask_protocol(int is_alice) {
   double d;
   int i, j;
   
@@ -197,8 +165,13 @@ void ask_protocol(void) {
   printf("body_len_asamps %d\n", st.body_len_asamps);
 
 
-  i = ini_ask_yn(tvars,"cipher_en", "cipher_en", 0);
-  j = ini_ask_num(tvars, "cipher_m (for m-psk)", "cipher_m", 2);
+  if (is_alice) {
+    i=0;
+    j=2;
+  }else {
+    i = ini_ask_yn(tvars,"cipher_en", "cipher_en", 0);
+    j = ini_ask_num(tvars, "cipher_m (for m-psk)", "cipher_m", 2);
+  }
   qregs_set_cipher_en(i, st.osamp, j);
   if (st.osamp!=st.cipher_symlen_asamps)
     printf("  actually symlen = %d\n", st.cipher_symlen_asamps);
@@ -280,6 +253,7 @@ ssize_t pattern_into_buf(void *buf, ssize_t buf_sz) {
 
 ssize_t read_file_into_buf(char *fname, void *buf, ssize_t buf_sz) {
   int i, fd = open(fname,O_RDWR);
+  short int v;
   ssize_t rd_sz;
   if (fd<0) {
     snprintf(errmsg, 512, "read_file_into_buf() cant open file %s", fname);
@@ -288,9 +262,13 @@ ssize_t read_file_into_buf(char *fname, void *buf, ssize_t buf_sz) {
   }
   rd_sz = read(fd, buf, DAC_N);
   printf("  read %zd bytes from %s\n", rd_sz, fname);
-  //for(i=0;i<16;++i)
-  //  printf("%04x %d\n", mem[i], mem[i]);
-  // printf("\n");
+  /*
+  for(i=0;i<16;++i) {
+    v=((char *)buf)[i];
+    printf("%02x\n", (int)v&0xff);
+   }
+   printf("\n");
+  */
   return rd_sz;
 }
 
@@ -414,7 +392,7 @@ int main(int argc, char *argv[]) {
     tx_always=0;
     noise_dith=(int)ini_ask_num(tvars, "noise_dith", "noise_dith", 1);
   }else {
-    tx_0 = (int)ini_ask_num(tvars,"tx nothing", "tx_0", 0);
+    tx_0 = (int)ini_ask_yn(tvars,"tx nothing", "tx_0", 0);
 
     use_lfsr=!tx_0;
     //    use_lfsr = (int)ini_ask_num(tvars, "use lfsr", "use_lfsr", 1);
@@ -435,7 +413,7 @@ int main(int argc, char *argv[]) {
   qregs_search_en(0); // recover from prior crash if we need to.
   qregs_txrx(0);  
   qregs_set_cipher_en(0, st.osamp, 2);
-  qregs_set_tx_0(tx_0);
+  qregs_set_tx_pilot_pm_en(!tx_0);
   qregs_set_alice_txing(0);
   qregs_get_avgpwr(&i,&j,&k); // just to clr ADC dbg ctrs
 
@@ -450,9 +428,10 @@ int main(int argc, char *argv[]) {
     // dont know why
     qregs_set_save_after_init(1);
   }else if (tst_sync) {
+
     qregs_set_tx_same_hdrs(1);
     is_alice = ini_ask_yn(tvars, "is_alice", "is_alice", 1);
-    qregs_alice_sync_en(0); // maybe not needed
+    //    qregs_alice_sync_en(0); // maybe not needed
     alice_syncing = ini_ask_yn(tvars, "is alice syncing", "alice_syncing", 1);
     qregs_set_alice_syncing(alice_syncing);
 
@@ -507,7 +486,7 @@ int main(int argc, char *argv[]) {
     if (!alice_txing && !alice_syncing)
       cond='r';
     else
-      cond='p';
+      cond='h';
   else
     cond='r'; // r=tx when rxbuf rdy
   qregs_set_tx_go_condition(cond);
@@ -515,7 +494,7 @@ int main(int argc, char *argv[]) {
 
   
   if (!ini_ask_yn(tvars, "same protocol", "same_protocol", 1)) {
-    ask_protocol();
+    ask_protocol(is_alice);
   }else {
     printf("   osamps %d\n", st.osamp);
     printf("   frame_pd_asamps %d = %.3Lf us\n", st.frame_pd_asamps,
@@ -528,6 +507,7 @@ int main(int argc, char *argv[]) {
   hdr_preemph_en = 0;
   // for now I have to be able to turn off hdr_preemph
   // If I want to send the test sinusoid.
+
   if (!st.tx_mem_circ && !is_alice) {
     hdr_preemph_en = ask_yn("use IM preemphasis in pilot", "hdr_preemph_en", 1);
     //  hdr_preemph_en = !is_alice && st.pilot_cfg.im_from_mem;
@@ -535,7 +515,6 @@ int main(int argc, char *argv[]) {
       strcpy(hdr_preemph_fname,
 	   ask_str("preemph_file", "preemph.bin","cfg/preemph.bin"));
   }
-
 
   search = ini_ask_yn(tvars, "search for probe/pilot", "search", 1);
   if (search) {
@@ -750,12 +729,14 @@ int main(int argc, char *argv[]) {
       mem_sz=read_file_into_buf(data_fname, mem, sizeof(mem));
     }
     int data_len_syms = (int)mem_sz * 8 / (st.qsdc_data_cfg.is_qpsk?2:1) *
-      10 * st.qsdc_data_cfg.bit_dur_syms;
+      st.qsdc_data_cfg.bit_dur_syms;
     printf("total data len %d symbols\n", data_len_syms);
     int data_len_frames = (int)ceil((double)data_len_syms
 				    * st.qsdc_data_cfg.symbol_len_asamps
 				    / st.qsdc_data_cfg.data_len_asamps);
     printf("   =  %d frames\n", data_len_frames);
+
+
   }
 
   if (mem_sz>0) {
@@ -782,6 +763,7 @@ int main(int argc, char *argv[]) {
     // returned 256=DAC_N*2, makes sense
     printf("  filled dac_buf sz %zd bytes\n", mem_sz);
 
+
   }
 
   qregs_set_use_lfsr(use_lfsr);
@@ -794,17 +776,19 @@ int main(int argc, char *argv[]) {
   // sinusoid before willpush    
   //    prompt("will push");
   if (mem_sz) {
+    qregs_zero_mem_raddr();
+
     set_blocking_mode(dac_buf, true); // default is blocking.  
       
     tx_sz = iio_buffer_push(dac_buf); // supposed to ret num bytes
     printf("  pushed %zd bytes\n", tx_sz);
 
-    // This problem used to be solved
+    // This problem is solved
     i = mem_sz/8-2;
     h_w_fld(H_DAC_DMA_MEM_RADDR_LIM_MIN1, i);
     qregs_dbg_get_info(&j);
-    printf("  DBG: set raddr lim %zd bytes (dbg %d)\n", i, j);
-    
+    printf("  DBG: set raddr lim %zd (dbg %d)\n", i, j);
+
   }
 
   // this must be done after pushing the dma data, because it primes qsdc.
@@ -831,8 +815,8 @@ int main(int argc, char *argv[]) {
   prompt("OK");
 	*/	
 	
-	printf("a sync\n");
-	qregs_alice_sync_en(1);
+	printf("a txrx\n");
+	qregs_search_and_txrx(1);
 #if QNICLL_LINKED
       if (use_qnicll)
 	C(qnicll_bob_sync_go(1));
@@ -938,8 +922,10 @@ int main(int argc, char *argv[]) {
 	//      qregs_print_hdr_det_status();
 
 
-      prompt("DATA SAVED");
+	//      prompt("DATA SAVED");
+      usleep(1000*200);
       qregs_print_hdr_det_status();
+      usleep(1000*200);
 
       
 	qregs_search_en(0);
@@ -1025,7 +1011,7 @@ int main(int argc, char *argv[]) {
             prompt("ok");
     }
 #endif
-
+  qregs_set_alice_txing(0);
 
   if (qregs_done()) err("qregs_done fail");
 
@@ -1069,7 +1055,7 @@ int main(int argc, char *argv[]) {
     fprintf(fp,"cipher_m = %d;\n",     st.cipher_m);
     fprintf(fp,"cipher_en = %d;\n",     st.cipher_en);
     fprintf(fp,"cipher_symlen_asamps = %d;\n", st.cipher_symlen_asamps);
-    fprintf(fp,"tx_0 = %d;\n",  st.tx_0);
+    fprintf(fp,"tx_pilot_pm_en = %d;\n",  st.tx_pilot_pm_en);
     fprintf(fp,"frame_qty = %d;\n",    st.frame_qty);
     fprintf(fp,"frame_pd_asamps = %d;\n", st.frame_pd_asamps);
 
@@ -1101,6 +1087,10 @@ int main(int argc, char *argv[]) {
 
     printf("wrote out/r.txt and p.raw\n");
   }
+
+
+
+  
   //  fp = fopen("dg.txt","w");
   //  for(i=0; i<ADC_N; ++i) {
   //    fprintf(fp, "%g %d\n", (double)i/1233333333*1e9, rx_mem[i]);
