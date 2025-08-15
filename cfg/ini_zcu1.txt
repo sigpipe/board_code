@@ -1,7 +1,4 @@
 rebal_fname='cfg/cal_zcu1_rebal_d250725_009.txt';
-ser_baud_Hz = 115200;
-ser_parity =2;
-ser_xon_xoff_en = 1;
 lfsr_rst_st = x50f;
 iq_rebalance = 1.0
 pm_delay_cycs = 7;

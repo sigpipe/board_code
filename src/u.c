@@ -300,6 +300,17 @@ int cmd_init(int arg) {
     return CMD_ERR_FAIL;
   }
 
+  get_ini_int(ivars, "ser_baud_Hz", &i);
+  st.ser_state.baud_Hz       = i;
+  get_ini_int(ivars, "ser_parity",  &i);
+  st.ser_state.parity      = i;
+  get_ini_int(ivars, "ser_xon_xoff_en", &i);
+  st.ser_state.xon_xoff_en = i;
+  qregs_ser_set_params(&st.ser_state.baud_Hz,
+                       st.ser_state.parity ,
+                       st.ser_state.xon_xoff_en);
+
+  
   e=ini_get_string(ivars,"sfp_init", &str_p);
   if (e || !*str_p) {
     printf("WARN: no sfp_init string in file %s", fname);
@@ -365,15 +376,6 @@ int cmd_init(int arg) {
   //    return CMD_ERR_FAIL;
   //  }
   
-  e = ini_get_int(ivars, "ser_baud_Hz", &i);
-  if (!e) st.ser_state.baud_Hz       = i;
-  e = ini_get_int(ivars, "ser_parity",  &i);
-  if (!e) st.ser_state.parity      = i;
-  e = ini_get_int(ivars, "ser_xon_xoff_en", &i);
-  if (!e) st.ser_state.xon_xoff_en = i;
-  qregs_ser_set_params(&st.ser_state.baud_Hz,
-                       st.ser_state.parity ,
-                       st.ser_state.xon_xoff_en);
 
   e = ini_get_int(ivars,"lfsr_rst_st", &i);
   // printf("e %d i %d x%x\n", e, i, i);
