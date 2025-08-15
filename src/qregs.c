@@ -146,6 +146,13 @@ unsigned qregs_reg_r(int map_i, int reg_i) {
 }
 */
 
+
+void qregs_zero_mem_raddr(void) {
+  h_w_fld(H_DAC_CTL_DBG_ZERO_RADDR,1);
+  usleep(1000);
+  h_w_fld(H_DAC_CTL_DBG_ZERO_RADDR,0);
+}
+
 unsigned ext(int v, unsigned int fldmsk) {
   int i;
   for(i=0;i<32;++i) {
@@ -558,10 +565,10 @@ void qregs_get_settings(void) {
   st.use_lfsr      = h_r_fld(H_DAC_HDR_USE_LFSR);
   st.lfsr_rst_st   = h_r_fld(H_DAC_HDR_LFSR_RST_ST);
   st.tx_always     = h_r_fld(H_DAC_CTL_TX_ALWAYS);
-  st.tx_0          = h_r_fld(H_DAC_CTL_TX_0);
   st.tx_mem_circ   = h_r_fld(H_DAC_CTL_MEMTX_CIRC);
   st.tx_same_hdrs  = h_r_fld(H_DAC_HDR_SAME);
   st.tx_hdr_twopi  = h_r_fld(H_DAC_HDR_TWOPI);
+  st.tx_pilot_pm_en = !h_r_fld(H_DAC_CTL_PM_HDR_DISABLE);
   st.alice_syncing = h_r_fld(H_DAC_CTL_ALICE_SYNCING);
   st.osamp         = h_r_fld(H_DAC_CTL_OSAMP_MIN1) + 1;
   st.cipher_en     = h_r_fld(H_DAC_CTL_CIPHER_EN);
@@ -664,10 +671,10 @@ void qregs_print_settings(void) {
   printf("tx_always %d\n", st.tx_always);
   printf("tx_mem_circ %d   \t", st.tx_mem_circ);
   printf("tx_mem_to_pm %d\n", h_r_fld(H_DAC_CTL_MEMTX_TO_PM));
-  printf("tx_0 %d   \t\t", st.tx_0);
+  printf("tx_pilot_pm_en %d   \t", st.tx_pilot_pm_en);
   printf("tx_same_hdrs %d\n", st.tx_same_hdrs);
   printf("tx_hdr_twopi %d\n", st.tx_hdr_twopi);
-  printf("im_preemph %d\n", h_r_fld(H_DAC_HDR_IM_PREEMPH));
+  printf("im_preemph %d \t\t", h_r_fld(H_DAC_HDR_IM_PREEMPH));
   printf("pilot_im_from_mem %d (state)\n", st.pilot_cfg.im_from_mem);
   printf("txrx %d\n", h_r_fld(H_ADC_ACTL_TXRX_EN));
   printf("search %d\n", h_r_fld(H_ADC_ACTL_SEARCH));
@@ -700,7 +707,7 @@ void qregs_print_settings(void) {
 	 st.qsdc_data_cfg.bit_dur_syms/10);
   
 	 
-  printf("hdr det thresh : init %d  pwr %d corr %d\n",
+  printf("pilot/probe det thresh : init %d  pwr %d corr %d\n",
 	 st.init_pwr_thresh, st.hdr_pwr_thresh, st.hdr_corr_thresh);
   printf("sync_ref %c\n", st.sync_ref);
 
@@ -840,10 +847,10 @@ void qregs_set_cipher_en(int en, int symlen_asamps, int m) {
 }
 
 
-void qregs_set_tx_0(int tx_0) {
-  int i = !!tx_0;
-  h_w_fld(H_DAC_CTL_TX_0, i);
-  st.tx_0 = i;  
+void qregs_set_tx_pilot_pm_en(int en) {
+// enabled by default
+  h_w_fld(H_DAC_CTL_PM_HDR_DISABLE, !en);
+  st.tx_pilot_pm_en = en;
 }
 
 void qregs_set_tx_always(int en) {
@@ -878,8 +885,7 @@ void qregs_set_tx_hdr_twopi(int en) {
 
 
 void qregs_halfduplex_is_bob(int en) {
-  h_w_fld(H_DAC_CTL_IS_BOB, !!en);
-  st.is_bob=1;
+  st.is_bob = h_w_fld(H_DAC_CTL_IS_BOB, !!en);
 }
 
 //--void qregs_set_save_after_pwr(int en) {
@@ -1114,12 +1120,23 @@ void qregs_print_hdr_det_status(void) {
 }
 
 void qregs_dbg_print_tx_status(void) {
-  printf("\ndbg_print_tx_status\n");
-  printf("    frame_go_cnt %d\n", h_r_fld(H_DAC_DBG_FRAME_GO_CNT));
+  printf("\nqregs_dbg_print_tx_status()\n");
+  printf("  frame_sync_in_cnt %d\n", h_r_fld(H_DAC_STATUS_FRAME_SYNC_IN_CNT));
+  printf("       frame_go_cnt %d\n", h_r_fld(H_DAC_DBG_FRAME_GO_CNT));
+  printf("  qsdc_frame_go_cnt %d\n", h_r_fld(H_DAC_DBG_QSDC_FRAME_GO_CNT));
   //  printf("   dma_lastv_cnt %d\n", h_r_fld(H_DAC_DBG_DMA_LASTVLD_CNT));
-  printf("      frame_sync_out %d\n", h_r_fld(H_DAC_STATUS_FRAME_SYNC_IN_CNT));
+  printf("     qsdc_data_done %d\n", h_r_fld(H_DAC_STATUS_QSDC_DATA_DONE));
+
+  if (!h_r_fld(H_DAC_PCTL_DBG_SYM_VLD))
+    printf("WIERD: dbg sym not vld\n");
+  else {
+    int i = h_r_fld(H_DAC_PCTL_DBG_SYM);
+    printf("     qsdc_data_dbg_sym x%x\n",i);
+    h_pulse_fld(H_DAC_PCTL_DBG_SYM_CLR);
+  }
   h_pulse_fld(H_DAC_PCTL_CLR_CNTS);
 }
+
 void qregs_sfp_gth_rst(void) {
   h_pulse_fld(H_DAC_PCTL_GTH_RST);
 }
@@ -1155,10 +1172,10 @@ void qregs_print_adc_status(void) {
   //
   //  printf("     dmareq_cnt %d\n", H_EXT(H_ADC_STAT_XFER_REQ_CNT, v));
   printf("    save_go_cnt %d\n", H_EXT(H_ADC_STAT_SAVE_GO_CNT, v));
-  printf("    adc_rst_cnt %d\n", H_EXT(H_ADC_STAT_ADC_RST_CNT, v));
-  printf(" dma_wready_cnt %d\n", H_EXT(H_ADC_STAT_DMA_WREADY_CNT, v));
-  printf("           txrx %d\n", h_r_fld(H_ADC_ACTL_TXRX_EN));
-  printf("      tx_always %d\n", h_r_fld(H_DAC_CTL_TX_ALWAYS));
+  //printf("    adc_rst_cnt %d\n", H_EXT(H_ADC_STAT_ADC_RST_CNT, v));
+  //  printf(" dma_wready_cnt %d\n", H_EXT(H_ADC_STAT_DMA_WREADY_CNT, v));
+  //  printf("           txrx %d\n", h_r_fld(H_ADC_ACTL_TXRX_EN));
+  //  printf("      tx_always %d\n", h_r_fld(H_DAC_CTL_TX_ALWAYS));
  printf("    alice_txing %d\n", h_r_fld(H_DAC_CTL_ALICE_TXING));
 
 
@@ -1269,7 +1286,7 @@ void qregs_set_memtx_to_pm(int en) {
   h_w_fld(H_DAC_CTL_MEMTX_TO_PM, i);
 }
 
-void qregs_alice_sync_en(int en) {
+void qregs_search_and_txrx(int en) {
   int v = h_r(H_ADC_ACTL);
   v = h_ins(H_ADC_ACTL_SEARCH,  v, en);
   v = h_ins(H_ADC_ACTL_TXRX_EN, v, en);

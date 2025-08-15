@@ -464,7 +464,7 @@ int cmd_dbg_info(int arg) {
 
 
 int cmd_pm_sin(int arg) {
-  int n, k, i, mx=0;
+  int n, k, i, j, mx=0;
   int npds;
   size_t mem_sz, sz, dac_buf_sz, tx_sz;
   double th, pd_ns;
@@ -500,11 +500,13 @@ int cmd_pm_sin(int arg) {
     printf("--  %d %s\n", i, iio_channel_get_attr(dac_ch0, i));
   }
   */
-  
+
+
+  // I suspect DMA MUST be multiple of 16 bytes = 8 samps.
   npds=4;
   
-  n = (int)round(pd_ns*npds*1.0e-9*st.asamp_Hz/4)*4;
-  n = u_max(4, n);
+  n = (int)round(pd_ns*npds*1.0e-9*st.asamp_Hz/8)*8;
+  n = u_max(8, n);
   printf("  %d pds is %d asamps = %.2f ns\n", npds, n, n/st.asamp_Hz*1e9);
   printf("  one pd is actualy %.2f ns = %.2f MHz\n", n/st.asamp_Hz*1e9/npds,
 	  st.asamp_Hz*npds/1e6/n);
@@ -551,10 +553,11 @@ int cmd_pm_sin(int arg) {
   printf("  pushed %zd bytes\n", tx_sz);
   i=mem_sz/8-2;
   h_w_fld(H_DAC_DMA_MEM_RADDR_LIM_MIN1, i);
-  //This problem solved
-  printf("DBG: set raddr lim %d = x%x\n", i, i);
-  qregs_dbg_get_info(&i);
-  printf("DBG: waddr lim %d = x%08x\n", i, i);
+  // This problem solved
+  qregs_dbg_get_info(&j);
+  if (i!=j) {
+    printf("DBG: raddr lim %d = x%x but dbg %d= x%x\n", i, i,j,j);
+  }
 
   
   //  qregs_halfduplex_is_bob(0);

@@ -121,7 +121,7 @@ typedef struct qregs_struct {
 
   int alice_syncing; // set by Alice when she syncs to bob
   int alice_txing;   // set by Alice when she txes qsdc
-  int tx_0;
+  int tx_pilot_pm_en; // 0 disables phase modulation of pilot
   int frame_pd_asamps; // in units of 1.23GHz ADC samples
   int osamp; // oversampling rate in units of asamps. currently 1 2 or 4
   int hdr_len_bits; // hdr = probe = pilot
@@ -215,7 +215,8 @@ void qregs_set_cipher_en(int en, int symlen_asamps, int m);
 
 void qregs_set_tx_always(int en);
 
-void qregs_set_tx_0(int tx_0);
+void qregs_set_tx_pilot_pm_en(int en);
+// 1=enable (default), 0=disable pilot phase modulation
 
 void qregs_set_tx_hdr_twopi(int en);
 
@@ -226,14 +227,14 @@ void qregs_set_tx_mem_circ(int en);
 
 void qregs_set_tx_same_hdrs(int same);
 void qregs_set_tx_same_cipher(int same);
-void qregs_set_alice_syncing(int en);
+void qregs_search_and_txrx(int en);
 void qregs_halfduplex_is_bob(int en);
 
 
 void qregs_set_qsdc_data_cfg(qregs_qsdc_data_cfg_t *data_cfg);
 
 void qregs_set_alice_txing(int en);
-
+void qregs_set_alice_syncing(int en);
   
 
 void qregs_set_osamp(int osamp);
@@ -290,7 +291,7 @@ int qregs_set_tx_go_condition(char cond);
   //    'r'=start after DMA rx buffer is available
   //    'i'=start immediately (when code issues txrx en)
 
-
+void qregs_zero_mem_raddr(void);
 
   
 // void qregs_get_adc_samp(short int *s_p);

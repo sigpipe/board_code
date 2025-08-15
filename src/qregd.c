@@ -208,6 +208,9 @@ void iio_cap(void) {
   //  fprintf(fp,"sfp_attn_dB = %d;\n",   sfp_attn_dB);
   fprintf(fp,"host = '%s';\n",       hostname);
   //    fprintf(fp,"tst_sync = %d;\n",     tst_sync);
+
+
+  // TODO: move most of this to qregs?
   fprintf(fp,"err = %d;\n", e);
   fprintf(fp,"asamp_Hz = %lg;\n",    st.asamp_Hz);
   fprintf(fp,"tst_sync = 1;\n");
@@ -226,7 +229,7 @@ void iio_cap(void) {
   fprintf(fp,"osamp = %d;\n",        st.osamp);
   fprintf(fp,"cipher_w = %d;\n",     st.cipher_w);
   fprintf(fp,"cipher_en = %d;\n",     st.cipher_en);
-  fprintf(fp,"tx_0 = %d;\n",  st.tx_0);
+  fprintf(fp,"tx_pilot_pm_en = %d;\n", st.tx_pilot_pm_en);
   fprintf(fp,"frame_qty = %d;\n",    st.frame_qty);
   fprintf(fp,"frame_pd_asamps = %d;\n", st.frame_pd_asamps);
 
@@ -595,12 +598,12 @@ int cmd_txrx(int arg) {
 }
 
 
-int cmd_tx_0(int arg) {
+int cmd_tx_pilot_pm_en(int arg) {
   int en;
   if (parse_int(&en)) return CMD_ERR_NO_INT;
-  printf("tx_0 %d\n", en);
-  qregs_set_tx_0(en);
-  sprintf(rbuf, "0 %d", st.tx_0);
+  printf("pilot_pm_en %d\n", en);
+  qregs_set_tx_pilot_pm_en(en);
+  sprintf(rbuf, "0 %d", st.tx_pilot_pm_en);
   return 0;
 }
 
@@ -670,7 +673,7 @@ cmd_info_t cmds_info[]={
   {"tx",        cmd_tx,        0, 0},
   {"txrx",      cmd_txrx,      0, 0},
   {"tx_always", cmd_tx_always, 0, 0},
-  {"tx_0",      cmd_tx_0,      0, 0},
+  {"pilot_pm_en",  cmd_tx_pilot_pm_en,    0, 0},
   {"frame_pd",  cmd_frame_pd,  0, 0},
   {"frame_qty", cmd_frame_qty, 0, 0},
   {"fwver",     cmd_fwver,     0, 0},
@@ -780,7 +783,7 @@ int main(void) {
   if (qregs_init()) err("qregs fail");
   qregs_set_use_lfsr(1);
   qregs_set_tx_always(0);
-  qregs_set_tx_0(0);
+  qregs_set_tx_pilot_pm_en(1);
   //  i = qregs_dur_us2samps(2);
   //  qregs_set_frame_pd_asamps(i);
   //  qregs_set_osamp(4);
