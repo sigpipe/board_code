@@ -230,6 +230,7 @@ void qregs_set_alice_syncing(int en);
 void qregs_halfduplex_is_bob(int en);
 
 
+void qregs_set_save_after_init(int en);
 void qregs_set_qsdc_data_cfg(qregs_qsdc_data_cfg_t *data_cfg);
 
 void qregs_set_alice_txing(int en);
@@ -306,6 +307,9 @@ int qregs_set_laser_wl_nm(double *wl_nm);
 
 typedef struct qregs_laser_status_st {
   int    init_err; // should be zero
+  int    gas_lock; 
+  int    gas_lock_dur_s;
+  double gas_err_rms_MHz; 
   double pwr_dBm;  // laser measures its own output power
 } qregs_laser_status_t;
 int qregs_get_laser_status(qregs_laser_status_t *status);

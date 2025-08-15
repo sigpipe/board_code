@@ -439,16 +439,24 @@ int main(int argc, char *argv[]) {
   qregs_set_alice_txing(0);
   qregs_get_avgpwr(&i,&j,&k); // just to clr ADC dbg ctrs
 
+  qregs_set_save_after_init(0);
 
-  
-
-  if (tst_sync) {
+  if (st.tx_mem_circ) {
+    printf("NOTE: tx_mem_circ = 1\n");
+    is_alice=0;
+    alice_syncing=0;
+    qregs_alice_sync_en(0); // maybe not needed
+    qregs_set_alice_syncing(0);
+    // dont know why
+    qregs_set_save_after_init(1);
+  }else if (tst_sync) {
     qregs_set_tx_same_hdrs(1);
     is_alice = ini_ask_yn(tvars, "is_alice", "is_alice", 1);
     qregs_alice_sync_en(0); // maybe not needed
     alice_syncing = ini_ask_yn(tvars, "is alice syncing", "alice_syncing", 1);
     qregs_set_alice_syncing(alice_syncing);
-    
+
+    // entirely supeficial if is bob.
     alice_txing = ini_ask_yn(tvars, "is alice txing", "alice_txing", 1);
 
     if (is_alice) {
@@ -482,6 +490,7 @@ int main(int argc, char *argv[]) {
   }else {
     qregs_set_alice_syncing(0);
     qregs_set_tx_same_hdrs(0);
+
   }
 
   // For bob, this sets tx part to use an independent free-running sync
@@ -516,13 +525,14 @@ int main(int argc, char *argv[]) {
     printf("   body_len_samps %d\n", st.body_len_asamps);
   }
 
+  hdr_preemph_en = 0;
   // for now I have to be able to turn off hdr_preemph
   // If I want to send the test sinusoid.
-  
-  hdr_preemph_en = ask_yn("use IM preemphasis in pilot", "hdr_preemph_en", 1);
-  //  hdr_preemph_en = !is_alice && st.pilot_cfg.im_from_mem;
-  if (hdr_preemph_en) {
-    strcpy(hdr_preemph_fname,
+  if (!st.tx_mem_circ && !is_alice) {
+    hdr_preemph_en = ask_yn("use IM preemphasis in pilot", "hdr_preemph_en", 1);
+    //  hdr_preemph_en = !is_alice && st.pilot_cfg.im_from_mem;
+    if (hdr_preemph_en)
+      strcpy(hdr_preemph_fname,
 	   ask_str("preemph_file", "preemph.bin","cfg/preemph.bin"));
   }
 
@@ -802,6 +812,7 @@ int main(int argc, char *argv[]) {
 
   prompt("READY? ");
 
+
     
    
   for (itr=0; !num_itr || (itr<num_itr); ++itr) {
@@ -1071,6 +1082,7 @@ int main(int argc, char *argv[]) {
     fprintf(fp,"qsdc_data_pos_asamps = %d;\n", st.qsdc_data_cfg.pos_asamps);
     fprintf(fp,"qsdc_data_len_asamps = %d;\n", st.qsdc_data_cfg.data_len_asamps);
     fprintf(fp,"qsdc_symbol_len_asamps = %d;\n", st.qsdc_data_cfg.symbol_len_asamps);
+    fprintf(fp,"qsdc_bit_dur_syms = %d;\n", st.qsdc_data_cfg.bit_dur_syms);
     fprintf(fp,"m11 = %g;\n", st.rebal.m11);
     fprintf(fp,"m12 = %g;\n", st.rebal.m12);
     fprintf(fp,"hdr_len_bits = %d;\n", st.hdr_len_bits);

@@ -510,13 +510,15 @@ int cmd_pm_sin(int arg) {
 	  st.asamp_Hz*npds/1e6/n);
 
   if (n<=0) return CMD_ERR_FAIL;
-  
+
+  // for twopi use (1<<15)-1
+  // for pi use (1<<14)-1
   mem_sz = n*sizeof(short int);
   mem = (short int *)malloc(mem_sz);
   if (!mem) err("out of memory");
   for(k=0;k<n;++k) {
     th = k*npds*2*M_PI/n;
-    i = round(sin(th)*((1<<15) - 1));
+    i = round(sin(th)*((1<<14) - 1));
     mem[k  ]=(short int)i;
     if (i>mx) mx=i;
     printf("  %d %g %d\n", k, th, (int)mem[k]);
@@ -578,6 +580,8 @@ int cmd_pm_sin(int arg) {
   u_pause("");
   //  iio_context_destroy(ctx);    
 
+  printf("DBG: run tst dont use im preemph, search for probe using 0 thresh\n");
+  
   return 0;  
 }
 
@@ -652,11 +656,18 @@ int cmd_laser_stat(int arg) {
   int e;
   qregs_laser_status_t s;
   e = qna_get_laser_status(&s);
-  if (e) qregs_print_last_err();
-  printf("  pwr_dBm %.2f\n", s.pwr_dBm);
-  printf("  init_err %d\n", s.init_err);
+  if (e) {
+    qregs_print_last_err();
+    return CMD_ERR_FAIL;
+  }
+  printf("  pwr          %.2f dBm\n", s.pwr_dBm);
+  printf("  init_err     %d\n", s.init_err);
+  printf("  gas_lock     %d\n", s.gas_lock);
+  printf("  gas_lock_dur %d s\n", s.gas_lock_dur_s);
+  printf("  gas_err_rms  %.1f MHz\n", s.gas_err_rms_MHz);
   return 0;
 }
+
 int cmd_sfp_rst(int arg) {
   qregs_sfp_gth_rst();
   printf("1\n");

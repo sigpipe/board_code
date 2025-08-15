@@ -76,7 +76,18 @@ int qna_set_timo_ms(int timo_ms) {
 
 
 int qna_get_laser_status(qregs_laser_status_t *status) {
-  int e, e1, i=0;
+  int e, e1, i=0, j;
+  strcpy(qna_cmd, "stat\r");
+  e = qna_do_cmd();
+  if (e) return e;
+  e1 = qregs_findkey_int(qna_rsp, "gas_lock", &status->gas_lock);
+  if (e1) e=e1;
+  e1 = qregs_findkey_int(qna_rsp, "gas_lock_dur_s", &status->gas_lock_dur_s);
+  if (e1) e=e1;
+  e1 = qregs_findkey_int(qna_rsp, "gas_mse_MHz2", &j);
+  if (e1) e=e1;
+  status->gas_err_rms_MHz = sqrt((double)j);
+
   strcpy(qna_cmd, "cfg it stat\r");
   e = qna_do_cmd();
   if (e) return e;

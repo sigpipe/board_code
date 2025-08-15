@@ -887,6 +887,11 @@ void qregs_halfduplex_is_bob(int en) {
 //  h_w_fld(H_ADC_ACTL_SAVE_AFTER_PWR, i);
 //}
 
+void qregs_set_save_after_init(int en) {
+  int i = !!en;
+  h_w_fld(H_ADC_ACTL_SAVE_AFTER_INIT, i);
+}
+
 void qregs_set_alice_txing(int en) {
   h_w_fld(H_DAC_CTL_ALICE_TXING, en);
 }
@@ -1037,7 +1042,8 @@ void qregs_print_hdr_det_status(void) {
   //  printf("\nSETTINGS\n");
   //  printf("  async %d=%d\n", qregs_r_fld(H_DAC_CTL_ALICE_SYNCING),
   //	 qregs_r_fld(H_ADC_ACTL_ALICE_SYNCING));
-  //  printf("  save_after_pwr %d\n", qregs_r_fld(H_ADC_ACTL_SAVE_AFTER_PWR));
+  //  printf("  save_after_pwr %d\n", h_r_fld(H_ADC_ACTL_SAVE_AFTER_PWR));
+  //  printf("  save_after_init %d\n", h_r_fld(H_ADC_ACTL_SAVE_AFTER_INIT));
 
 
   qregs_print_adc_status();
@@ -1153,7 +1159,8 @@ void qregs_print_adc_status(void) {
   //  printf("         dmareq %d\n",
   //	 H_EXT(H_ADC_STAT_DMA_XFER_REQ_RC, v));
   //
-  //  printf("     dmareq_cnt %d\n", H_EXT(H_ADC_STAT_XFER_REQ_CNT, v));
+  printf("      rx_dmareq %d\n", H_EXT(H_ADC_STAT_DMA_XFER_REQ_RC, v));  
+  printf("  rx_dmareq_cnt %d\n", H_EXT(H_ADC_STAT_XFER_REQ_CNT, v));
   printf("    save_go_cnt %d\n", H_EXT(H_ADC_STAT_SAVE_GO_CNT, v));
   printf("    adc_rst_cnt %d\n", H_EXT(H_ADC_STAT_ADC_RST_CNT, v));
   printf(" dma_wready_cnt %d\n", H_EXT(H_ADC_STAT_DMA_WREADY_CNT, v));
