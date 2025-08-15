@@ -310,6 +310,8 @@ int cmd_init(int arg) {
                        st.ser_state.parity ,
                        st.ser_state.xon_xoff_en);
 
+  get_ini_int(ivars,"lfsr_rst_st", &i);
+  qregs_set_lfsr_rst_st(i);
   
   e=ini_get_string(ivars,"sfp_init", &str_p);
   if (e || !*str_p) {
@@ -377,10 +379,6 @@ int cmd_init(int arg) {
   //  }
   
 
-  e = ini_get_int(ivars,"lfsr_rst_st", &i);
-  // printf("e %d i %d x%x\n", e, i, i);
-  if (!e) qregs_set_lfsr_rst_st(i);
-  else err("ini file lacks lfsr_rst_st");
 
 
   qregs_rebalance_params_t rebal={0};
