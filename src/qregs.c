@@ -793,10 +793,10 @@ void qregs_set_sync_dly_asamps(int sync_dly_asamps) {
     printf("WARN: call set_osamp and set_frame_pd before set_sync_dly\n");
 
   dly = (sync_dly_asamps + 10*st.frame_pd_asamps) % st.frame_pd_asamps;
-  i = dly/4;
+  i = dly/4-1;
   i = h_w_fld(H_DAC_ALICE_FRAME_DLY_CYCS_MIN1, i);
-  dly=i*4;
-  printf("DBG: alice frame dly %d\n", dly);
+  dly=(i+1)*4;
+  // printf("DBG: alice sync dly %d\n", dly);
   st.sync_dly_asamps = dly;
 }
 
@@ -896,6 +896,10 @@ void qregs_halfduplex_is_bob(int en) {
 void qregs_set_save_after_init(int en) {
   int i = !!en;
   h_w_fld(H_ADC_ACTL_SAVE_AFTER_INIT, i);
+}
+void qregs_set_save_after_pwr(int en) {
+  int i = !!en;
+  h_w_fld(H_ADC_ACTL_SAVE_AFTER_PWR, i);
 }
 
 void qregs_set_alice_txing(int en) {
@@ -1133,13 +1137,16 @@ void qregs_dbg_print_tx_status(void) {
   //  printf("   dma_lastv_cnt %d\n", h_r_fld(H_DAC_DBG_DMA_LASTVLD_CNT));
   printf("     qsdc_data_done %d\n", h_r_fld(H_DAC_STATUS_QSDC_DATA_DONE));
 
-  if (!h_r_fld(H_DAC_PCTL_DBG_SYM_VLD))
-    printf("WIERD: dbg sym not vld\n");
-  else {
-    int i = h_r_fld(H_DAC_PCTL_DBG_SYM);
-    printf("     qsdc_data_dbg_sym x%x\n",i);
-    h_pulse_fld(H_DAC_PCTL_DBG_SYM_CLR);
+  if (!st.is_bob && h_r_fld(H_DAC_CTL_ALICE_TXING)) {
+    if (!h_r_fld(H_DAC_PCTL_DBG_SYM_VLD))
+      printf("WIERD: dbg sym not vld\n");
+    else {
+      int i = h_r_fld(H_DAC_PCTL_DBG_SYM);
+      printf("     qsdc_data_dbg_sym x%x\n",i);
+      h_pulse_fld(H_DAC_PCTL_DBG_SYM_CLR);
+    }
   }
+  
   h_pulse_fld(H_DAC_PCTL_CLR_CNTS);
 }
 

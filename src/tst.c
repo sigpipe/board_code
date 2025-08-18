@@ -91,6 +91,8 @@ void set_blocking_mode(struct iio_buffer *buf, int en) {
 ini_val_t *tvars;
 
 int opt_dflt=0;
+int opt_sync=0;
+int opt_qsdc=0;
 
 int ask_yn(char *prompt, char *var_name, int dflt) {
   char c;
@@ -338,6 +340,8 @@ int main(int argc, char *argv[]) {
     for(j=0; (c=argv[i][j]); ++j) {
       if (c=='c') opt_corr=1;
       else if (c=='d') opt_dflt=1;
+      else if (c=='s') {opt_dflt=1; opt_sync=1;}
+      else if (c=='q') {opt_dflt=1; opt_qsdc=1;}
       else if (c=='n') opt_save=0;
       else if (c=='i') { opt_ask_iter=1; opt_periter=1;}
       else if (c=='a') opt_periter=0;
@@ -431,14 +435,26 @@ int main(int argc, char *argv[]) {
 
     qregs_set_tx_same_hdrs(1);
     is_alice = ini_ask_yn(tvars, "is_alice", "is_alice", 1);
-    //    qregs_alice_sync_en(0); // maybe not needed
-    alice_syncing = ini_ask_yn(tvars, "is alice syncing", "alice_syncing", 1);
+    //    qregs_alice_sync_en(0); // maybe not needed    
+    if (opt_sync) {
+      alice_syncing=1;
+      alice_txing=0;
+    }else if (opt_qsdc) {
+      alice_syncing=0;
+      alice_txing=1;
+    }else {
+      alice_syncing = ini_ask_yn(tvars, "is alice syncing", "alice_syncing", 1);
+      alice_txing   = ini_ask_yn(tvars, "is alice txing", "alice_txing", 1);
+    }
     qregs_set_alice_syncing(alice_syncing);
 
-    // entirely supeficial if is bob.
-    alice_txing = ini_ask_yn(tvars, "is alice txing", "alice_txing", 1);
 
     if (is_alice) {
+
+      qregs_set_save_after_init(0);
+      qregs_set_save_after_pwr(1);
+
+      
 #if QNICLL_LINKED
       use_qnicll=ini_ask_yn(tvars, "use qnicll", "use_qnicll",0);
       if (use_qnicll) {
@@ -553,7 +569,12 @@ int main(int argc, char *argv[]) {
       dly_ms = ask_num("delay per itr (ms)", "dly_ms", dly_ms);
       printf("test will take %d s\n", num_itr*dly_ms/1000);
     }
-    frame_qty_req = ask_num("frames per itr", "frames_per_itr", 10);
+    if (opt_sync)
+      frame_qty_req = is_alice?16:8;
+    else if (opt_qsdc)
+      frame_qty_req = is_alice?10:270;
+    else
+      frame_qty_req = ask_num("frames per itr", "frames_per_itr", 10);
 
     if (!is_alice && alice_syncing)
       frame_qty = frame_qty_req*2;

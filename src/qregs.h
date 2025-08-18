@@ -230,8 +230,10 @@ void qregs_set_tx_same_cipher(int same);
 void qregs_search_and_txrx(int en);
 void qregs_halfduplex_is_bob(int en);
 
-
+// if we dont save after init or pwr, what do we save after?
 void qregs_set_save_after_init(int en);
+void qregs_set_save_after_pwr(int en);
+
 void qregs_set_qsdc_data_cfg(qregs_qsdc_data_cfg_t *data_cfg);
 
 void qregs_set_alice_txing(int en);
