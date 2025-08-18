@@ -259,6 +259,7 @@ void qregs_set_frame_qty(int frame_qty);
 
 void qregs_get_iq_pwr(int *avg, int *max);
 
+void qregs_clr_adc_status(void);
 void qregs_print_adc_status(void); // for dbg
 void qregs_print_hdr_det_status(void);
 

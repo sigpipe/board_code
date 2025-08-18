@@ -91,6 +91,8 @@ void set_blocking_mode(struct iio_buffer *buf, int en) {
 ini_val_t *tvars;
 
 int opt_dflt=0;
+int opt_sync=0;
+int opt_qsdc=0;
 
 int ask_yn(char *prompt, char *var_name, int dflt) {
   char c;
@@ -338,6 +340,8 @@ int main(int argc, char *argv[]) {
     for(j=0; (c=argv[i][j]); ++j) {
       if (c=='c') opt_corr=1;
       else if (c=='d') opt_dflt=1;
+      else if (c=='s') {opt_dflt=1; opt_sync=1;}
+      else if (c=='q') {opt_dflt=1; opt_qsdc=1;}
       else if (c=='n') opt_save=0;
       else if (c=='i') { opt_ask_iter=1; opt_periter=1;}
       else if (c=='a') opt_periter=0;
@@ -409,6 +413,7 @@ int main(int argc, char *argv[]) {
 
 
 
+  h_w_fld(H_ADC_DBG_SAVE_AFTER_HDR,0);
   qregs_set_tx_always(0); // set for real further down.
   qregs_search_en(0); // recover from prior crash if we need to.
   qregs_txrx(0);  
@@ -416,8 +421,8 @@ int main(int argc, char *argv[]) {
   qregs_set_tx_pilot_pm_en(!tx_0);
   qregs_set_alice_txing(0);
   qregs_get_avgpwr(&i,&j,&k); // just to clr ADC dbg ctrs
-
   qregs_set_save_after_init(0);
+  qregs_clr_adc_status();
 
   if (st.tx_mem_circ) {
     printf("NOTE: tx_mem_circ = 1\n");
@@ -432,11 +437,19 @@ int main(int argc, char *argv[]) {
     qregs_set_tx_same_hdrs(1);
     is_alice = ini_ask_yn(tvars, "is_alice", "is_alice", 1);
     //    qregs_alice_sync_en(0); // maybe not needed
-    alice_syncing = ini_ask_yn(tvars, "is alice syncing", "alice_syncing", 1);
+    if (opt_sync) {
+      alice_syncing=1;
+      alice_txing = 0;
+    }else if (opt_qsdc) {
+      alice_syncing=0;
+      alice_txing = 1;
+    }else {
+      alice_syncing = ini_ask_yn(tvars, "is alice syncing", "alice_syncing", 1);
+      alice_txing = ini_ask_yn(tvars, "is alice txing", "alice_txing", 1);
+    }
     qregs_set_alice_syncing(alice_syncing);
 
-    // entirely supeficial if is bob.
-    alice_txing = ini_ask_yn(tvars, "is alice txing", "alice_txing", 1);
+
 
     if (is_alice) {
 #if QNICLL_LINKED
@@ -471,6 +484,12 @@ int main(int argc, char *argv[]) {
     qregs_set_tx_same_hdrs(0);
 
   }
+
+  // When bob, if we set alice_syncing(1)
+  // that sets save_after_pwr which we dont want.
+  if (!is_alice)
+    qregs_set_alice_syncing(0);    
+  
 
   // For bob, this sets tx part to use an independent free-running sync
   // For alice, this uses the syncronizer
@@ -553,10 +572,16 @@ int main(int argc, char *argv[]) {
       dly_ms = ask_num("delay per itr (ms)", "dly_ms", dly_ms);
       printf("test will take %d s\n", num_itr*dly_ms/1000);
     }
-    frame_qty_req = ask_num("frames per itr", "frames_per_itr", 10);
+
+    if (opt_sync)
+      frame_qty_req = is_alice?16:8;
+    else if (opt_qsdc)
+      frame_qty_req = is_alice?10:180;
+    else
+      frame_qty_req = ask_num("frames per itr", "frames_per_itr", 10);
 
     if (!is_alice && alice_syncing)
-      frame_qty = frame_qty_req*2;
+      frame_qty = frame_qty_req*3;
     else
       frame_qty = frame_qty_req+1;
 
