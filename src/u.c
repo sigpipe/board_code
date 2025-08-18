@@ -452,13 +452,11 @@ int cmd_dbg_regs(int arg) {
 
 int cmd_dbg_info(int arg) {
   int i;
-  printf("set txgocond\n");
-  qregs_set_tx_go_condition('i'); // r=tx when rxbuf rdy
-  
-  h_w_fld(H_ADC_DBG_HOLD, 1);
-  h_w(H_ADC_DBG, 0xffffffff);
-  printf("wrote reg 1 but read %d\n", h_r_fld(H_ADC_DBG_HOLD));
-  printf("reg %d is x%08x\n", H_2REG(H_ADC_DBG), h_r_fld(H_ADC_DBG));
+
+  //  printf("set txgocond\n");
+  //  qregs_set_tx_go_condition('i'); // r=tx when rxbuf rdy
+  //  h_w_fld(H_ADC_DBG_HOLD, 1);
+
   return 0;
 }
 

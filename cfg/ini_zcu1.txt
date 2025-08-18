@@ -1,4 +1,3 @@
 rebal_fname='cfg/cal_zcu1_rebal_d250725_009.txt';
-iq_rebalance = 1.0
 pm_delay_cycs = 0;
 sync_dly_asamps = -793;
