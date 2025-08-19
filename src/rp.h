@@ -15,5 +15,6 @@ typedef struct rp_status_st {
 } rp_status_t;
 
 int rp_get_status(rp_status_t *stat);
-
+int rp_cfg_frames(int frame_pd_asamps, int pilot_dur_asamps);
+  
 #endif

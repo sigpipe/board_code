@@ -1,6 +1,6 @@
 sfp_init = 'cfg/si5328_302MHz_to_61.667MHz.txt';
 osamp = 4;
-frame_pd_asamps = 1216;
+frame_pd_asamps = 600;
 lfsr_rst_st = x50f;
 hdr_len_bits = 32;
 ser_baud_Hz = 57600;
@@ -8,11 +8,12 @@ ser_parity = 2;
 ser_xon_xoff_en = 1;
 qsdc_data_is_qpsk = 0;
 qsdc_symbol_len_asamps = 8;
-qsdc_data_pos_asamps = 252;
-qsdc_data_len_asamps = 936;
+qsdc_data_pos_asamps = 228;
+qsdc_data_len_asamps = 360;
 qsdc_im_simple_pilot_dac = 0x7fff;
 qsdc_im_simple_body_dac = -200;
 qsdc_data_bit_dur_syms = 20;
+qsdc_im_preemph_fname = 'cfg/preemph_f600.bin'
 qsdc_im_from_mem = 1;
 sync_ref = 'r';
 
