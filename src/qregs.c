@@ -792,14 +792,17 @@ void qregs_set_pm_dly_cycs(int pm_dly_cycs) {
 void qregs_set_sync_dly_asamps(int sync_dly_asamps) {
 //   sync_dly_asamps: sync delay in units of 1.23GHz ADC samples.
 //                    may be positive or negative.  
-  int dly, i;
+  int dly, i,j;
   if (st.setflags&3 != 3)
     printf("WARN: call set_osamp and set_frame_pd before set_sync_dly\n");
 
   dly = (sync_dly_asamps + 10*st.frame_pd_asamps) % st.frame_pd_asamps;
+  j=dly%4;
+  h_w_fld(H_ADC_ACTL_SAMP_DLY_ASAMPS, j);
+  
   i = dly/4-1;
   i = h_w_fld(H_DAC_ALICE_FRAME_DLY_CYCS_MIN1, i);
-  dly=(i+1)*4;
+  dly=(i+1)*4 + j;
   // printf("DBG: alice sync dly %d\n", dly);
   st.sync_dly_asamps = dly;
 }

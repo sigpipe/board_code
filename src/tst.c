@@ -193,7 +193,7 @@ void ask_protocol(int is_alice) {
 
   gap_ns = ini_ask_num(tvars, "gap after pilot (ns)", "post_hdr_gap_ns", 100);
   i= round(gap_ns * 1e-9 * st.asamp_Hz / st.osamp) * st.osamp;
-  i = ((int)i/4)*4;
+  i = (int)round((double)i/4)*4;
   printf("rounded to %d asamps = %.1f ns\n", i, i/st.asamp_Hz*1.0e9);
   data_cfg.pos_asamps   = st.hdr_len_asamps + i;
 
