@@ -545,10 +545,10 @@ int main(int argc, char *argv[]) {
 
   search = ini_ask_yn(tvars, "search for probe/pilot", "search", 1);
   if (search) {
-    i = ini_ask_num(tvars, "initial pwr req (for debug. enter 0 if unknown)", "init_pwr_thresh", 0);
+    i = ini_ask_num(tvars, "  initial pwr req (for debug. enter 0 if unknown)", "init_pwr_thresh", 0);
     qregs_dbg_set_init_pwr(i);
-    j = ini_ask_num(tvars, "power threshold for probe/pilot detection", "hdr_pwr_thresh", 100);
-    k = ini_ask_num(tvars, "correlation threshold for probe/pilot detection", "hdr_corr_thresh", 40);
+    j = ini_ask_num(tvars, "  power threshold for probe/pilot detection", "hdr_pwr_thresh", 100);
+    k = ini_ask_num(tvars, "  correlation threshold for probe/pilot detection", "hdr_corr_thresh", 40);
     qregs_set_hdr_det_thresh(j, k);
     
     // sync dly set in ini file or u cmd.
@@ -827,6 +827,9 @@ int main(int argc, char *argv[]) {
   // this must be done after pushing the dma data, because it primes qsdc.
   qregs_set_alice_txing(is_alice && alice_txing);
 
+
+
+  qregs_print_adc_status();	  
   prompt("READY? ");
 
 
@@ -901,6 +904,7 @@ int main(int argc, char *argv[]) {
 
 	//      qregs_print_adc_status();
 	if (sz<0) {
+	  printf("\nERR!\n");
 	  qregs_print_adc_status();	
 	  qregs_print_hdr_det_status();
 	  sprintf(errmsg, "cant refill adc bufer %d", b_i);

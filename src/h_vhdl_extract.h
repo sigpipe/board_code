@@ -1,7 +1,7 @@
 // h_vhdl_extract.h
 // hardware access constants
 // This file was automatically generated
-// by Register Extractor (ver 4.14) on Tue Aug 19 15:10:39 2025
+// by Register Extractor (ver 4.14) on Tue Aug 19 18:45:36 2025
 // compile version Mon Jun 16 10:25:20 2025
 // current dir:  C:\reilly\proj\quanet\quanet_hdl\projects\daq3\zcu106
 // DO NOT MODIFY THIS FILE!
@@ -18,7 +18,7 @@
 // version constants
 #define H_VHDL_EXTRACT_VER (4)
 #define H_VHDL_EXTRACT_SUBVER (14)
-#define H_VHDL_EXTRACT_DATE "Tue Aug 19 15:10:39 2025"
+#define H_VHDL_EXTRACT_DATE "Tue Aug 19 18:45:36 2025"
 #define H_VHDL_EXTRACT_DIR "C:\reilly\proj\quanet\quanet_hdl\projects\daq3\zcu106"
 
 
@@ -349,12 +349,12 @@
 
 #define H_ADC_DBG                          0x1000c000  /* 12 */
 #define H_ADC_DBG_REF_FRAME_DUR            0x1000c300  /* 0x00ffffff  r  */
-#define H_ADC_DBG_SAVE_BUF_AVAIL_ACLK      0x1000c038  /* 0x01000000  r  */
-#define H_ADC_DBG_AREG_W                   0x1000c0f9  /* 0xfe000000  r  */
+#define H_ADC_DBG_RXBUF_EXISTS_ACLK        0x1000c039  /* 0x02000000  r  */
+#define H_ADC_DBG_AREG_W                   0x1000c0bb  /* 0xf8000000  r  */
 #define H_ADC_DBG_CLK_SEL                  0x1000c03d  /* 0x20000000   w */
 #define H_ADC_DBG_HOLD                     0x1000c03e  /* 0x40000000   w */
 #define H_ADC_DBG_SAVE_AFTER_HDR           0x1000c03f  /* 0x80000000   w */
-                                       // r 0xffffffff
+                                       // r 0xfaffffff
                                        // w 0xe0000000
 
 #define H_ADC_CIPHER2                      0x1000d000  /* 13 */

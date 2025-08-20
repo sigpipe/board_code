@@ -159,6 +159,7 @@ int cmd_ciph(int arg) {
 
 
 int cmd_rst(int arg) {
+  qregs_txrx(0);
   qregs_set_tx_always(0);
   qregs_search_en(0);
   qregs_set_tx_mem_circ(0);

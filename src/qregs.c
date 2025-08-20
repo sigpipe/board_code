@@ -1219,6 +1219,11 @@ void qregs_print_adc_status(void) {
   
   h_w_fld(H_ADC_PCTL_EVENT_CNT_SEL, 0);
   printf(" dma_wready_cnt %d\n", h_r_fld(H_ADC_STAT_EVENT_CNT));
+
+  h_w_fld(H_ADC_PCTL_EVENT_CNT_SEL, 5);
+  printf("tx_commence_cnt %d\n", h_r_fld(H_ADC_STAT_EVENT_CNT));
+
+  //  printf("save_buf_avail %d\n", h_r_fld(H_ADC_DBG_SAVE_BUF_AVAIL_ACLK));
   
   h_w_fld(H_ADC_PCTL_EVENT_CNT_SEL, 4);
   printf("  dac_tx_in_cnt %d\n", h_r_fld(H_ADC_STAT_EVENT_CNT));
@@ -1352,7 +1357,6 @@ void qregs_txrx(int en) {
   int v=!!en;
 
   h_w_fld(H_ADC_ACTL_TXRX_EN, v);
-  
 }
 
 void qregs_dbg_new_go(int en) {
