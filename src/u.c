@@ -207,7 +207,14 @@ int cmd_rx(int arg) {
   return 0;
 }
 
-
+int cmd_rxdly(int arg) {
+  int dly;
+  if (parse_int(&dly))
+    return CMD_ERR_NO_INT;
+  qregs_set_rx_samp_dly_asamps(dly);
+  printf("%d\n", st.rx_samp_dly_asamps);
+  return 0;
+}
 int cmd_tx(int arg) {
   char c;
   parse_char();
@@ -846,6 +853,7 @@ cmd_info_t cmds_info[]={
   {"sfp",     cmd_subcmd, (int)sfp_cmds_info, 0, 0}, 
   {"tx",      cmd_tx,     0, 0},
   {"rx",      cmd_rx,   0, 0},
+  {"rxdly",   cmd_rxdly,  0, 0},
 
   {"rp",      cmd_rp,   0, 0},
   {"pwr",     cmd_pwr,   0, 0},

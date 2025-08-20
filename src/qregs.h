@@ -160,6 +160,7 @@ typedef struct qregs_struct {
 
   qregs_pilot_cfg_t     pilot_cfg;
   qregs_qsdc_data_cfg_t qsdc_data_cfg;
+  int rx_samp_dly_asamps;
   
 } qregs_st_t;
 
@@ -168,7 +169,8 @@ extern int qregs_fwver;
 
 int qregs_dur_us2samps(double us);
 double qregs_dur_samps2us(int s);
-  
+void qregs_set_rx_samp_dly_asamps(int dly);
+
 int  qregs_init();
 int  qregs_done();
 

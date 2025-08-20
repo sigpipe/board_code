@@ -595,10 +595,13 @@ void qregs_get_settings(void) {
   st.init_pwr_thresh = h_r_fld(H_ADC_SYNC_INIT_THRESH_D16)*16;
   st.hdr_pwr_thresh  = h_r_fld(H_ADC_HDR_PWR_THRESH);
   st.hdr_corr_thresh = h_r_fld(H_ADC_HDR_THRESH);
+  
   st.sync_dly_asamps = (h_r_fld(H_DAC_ALICE_FRAME_DLY_CYCS_MIN1)+1)*4;
 
   st.pm_dly_cycs = h_r_fld(H_DAC_FR2_PM_DLY_CYCS);
 
+  st.rx_samp_dly_asamps = h_r_fld(H_ADC_ACTL_SAMP_DLY_ASAMPS);
+  
 
   i=h_r_fld(H_ADC_HDR_SYNC_REF_SEL);
   switch(i) {
@@ -657,7 +660,11 @@ void qregs_get_settings(void) {
 void qregs_set_dbg_clk_sel(int sel) {
   h_w_fld(H_ADC_DBG_CLK_SEL, sel);
 }
-  
+
+void qregs_set_rx_samp_dly_asamps(int dly) {
+  st.rx_samp_dly_asamps = h_w_fld(H_ADC_ACTL_SAMP_DLY_ASAMPS, dly);
+}
+
 void qregs_dbg_print_regs(void) {
   int rs, i;
   for(rs=0;rs<2;++rs) {
@@ -686,6 +693,7 @@ void qregs_print_settings(void) {
   printf("search %d\n", h_r_fld(H_ADC_ACTL_SEARCH));
   printf("alice_syncing %d\n", st.alice_syncing);
   printf("alice_txing %d\n", h_r_fld(H_DAC_CTL_ALICE_TXING));
+  printf("rx_samp_dly_asamps %d\n", h_r_fld(H_ADC_ACTL_SAMP_DLY_ASAMPS));
   printf("halfduplex_is_bob %d\n", st.is_bob);
   printf("use_lfsr %d\n", st.use_lfsr);
   printf("frame_pd_asamps %d = %.3f us\n", st.frame_pd_asamps,
@@ -791,17 +799,18 @@ void qregs_set_pm_dly_cycs(int pm_dly_cycs) {
   st.pm_dly_cycs = i;
 }
 
-void qregs_set_sync_dly_asamps(int sync_dly_asamps) {
+void qregs_set_sync_dly_asamps(int dly_asamps) {
 //   sync_dly_asamps: sync delay in units of 1.23GHz ADC samples.
 //                    may be positive or negative.  
-  int dly, i,j;
+  int dly, i;
   if (st.setflags&3 != 3)
     printf("WARN: call set_osamp and set_frame_pd before set_sync_dly\n");
-  i = (sync_dly_asamps + 10*st.frame_pd_asamps) % st.frame_pd_asamps;
+  i = (dly_asamps + 10*st.frame_pd_asamps) % st.frame_pd_asamps;
   i = i/4-1;
-  i=h_w_fld(H_DAC_ALICE_FRAME_DLY_ASAMPS_MIN1, i);
+  i=h_w_fld(H_DAC_ALICE_FRAME_DLY_CYCS_MIN1, i);
   st.sync_dly_asamps = (i+1)*4;
-  // printf("DBG: alice sync dly %d\n", st.sync_dly_asamps);
+  printf("DBG: alice sync dly %d\n", st.sync_dly_asamps);
+  //  printf("DBG: alice sync dly %d\n", (h_r_fld(H_DAC_ALICE_FRAME_DLY_CYCS_MIN1)+1)*4);
 }
 
 
