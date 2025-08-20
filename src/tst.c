@@ -94,41 +94,16 @@ int opt_dflt=0;
 int opt_sync=0;
 int opt_qsdc=0;
 
-int ask_yn(char *prompt, char *var_name, int dflt) {
-  char c;
-  char buf[32];
-  int n, v=-1;
-  if (var_name)
-    ini_get_int(tvars, var_name, &dflt);
-  if (opt_dflt) {
-    printf("%s (y/n) ? [%c] > ", prompt, dflt?'y':'n');
-    printf("\n");
-    return dflt;
-  }
-  while (v<0) {
-    printf("%s (y/n) ? [%c] > ", prompt, dflt?'y':'n');
-    n=scanf("%[^\n]", buf);
-    getchar(); // get cr
-    if (n==1)
-      n=sscanf(buf, "%c", &c);
-    if (n==0) v=dflt;
-    else if ((c=='y')||(c=='1')) v=1;
-    else if ((c=='n')||(c=='0')) v=0;
-  }
-  if (var_name)
-    ini_set_int(tvars, var_name, v);
-  return v;
-  
-}
 
+int ask_yn(char *prompt, char *var_name, int dflt) {
+  return ini_ask_yn(tvars, prompt, var_name, dflt);
+}
 char *ask_str(char *prompt, char *var_name, char *dflt) {
   return ini_ask_str(tvars, prompt, var_name, dflt);  
 }
-
 double ask_num(char *prompt, char *var_name, double dflt) {
   return ini_ask_num(tvars, prompt, var_name, dflt);
 }
-
 double ask_nnum(char *var_name, double dflt) {
   return ask_num(var_name, var_name, dflt);
 }
@@ -170,8 +145,8 @@ void ask_protocol(int is_alice) {
     i=0;
     j=2;
   }else {
-    i = ini_ask_yn(tvars,"cipher_en", "cipher_en", 0);
-    j = ini_ask_num(tvars, "cipher_m (for m-psk)", "cipher_m", 2);
+    i = ask_yn("cipher_en", "cipher_en", 0);
+    j = ask_num("cipher_m (for m-psk)", "cipher_m", 2);
   }
   qregs_set_cipher_en(i, st.osamp, j);
   if (st.osamp!=st.cipher_symlen_asamps)
@@ -536,7 +511,7 @@ int main(int argc, char *argv[]) {
   // for now I have to be able to turn off hdr_preemph
   // If I want to send the test sinusoid.
   if (!st.tx_mem_circ && !is_alice) {
-    hdr_preemph_en = ask_yn("use IM preemphasis in pilot", "hdr_preemph_en", 1);
+    hdr_preemph_en = ini_ask_yn(tvars, "use IM preemphasis in pilot", "hdr_preemph_en", 1);
     //  hdr_preemph_en = !is_alice && st.pilot_cfg.im_from_mem;
     if (hdr_preemph_en) {
       e = ini_get_string(vars_cfg_all,"qsdc_im_preemph_fname", &pilot_preemph_fname_p);
