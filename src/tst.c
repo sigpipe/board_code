@@ -456,7 +456,8 @@ int main(int argc, char *argv[]) {
     if (is_alice) {
 
       qregs_set_save_after_init(0);
-      qregs_set_save_after_pwr(1);
+      qregs_set_save_after_pwr(0);
+      qregs_set_save_after_hdr(1);
 
       
 #if QNICLL_LINKED
@@ -952,7 +953,7 @@ int main(int argc, char *argv[]) {
     
       // qregs_print_adc_status();
     
-      qregs_print_sync_status();
+      // qregs_print_sync_status();
       
       if (search) {
 	// prompt("OK");
