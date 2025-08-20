@@ -55,6 +55,7 @@ int qregs_dur_us2samps(double us) {
   // here "samp" means 1.233GHz sample.  not an IQ "sample".  
   return (int)(floor(round(us*1e-6 * st.asamp_Hz)));
 }
+
 double qregs_dur_samps2us(int s) {
   // here "samp" means 1.233GHz sample.  not an IQ "sample".  
   return (double)s / 1e-6 / st.asamp_Hz;
@@ -509,12 +510,13 @@ int qregs_get_laser_settings(qregs_laser_settings_t *set) {
 }
 
 int qregs_measure_frame_pwrs(qregs_frame_pwrs_t *pwrs) {
-  int e;
+  int e, e1;
   rp_status_t status;
-  e=rp_get_status(&status);
+  e = rp_cfg_frames(st.frame_pd_asamps, st.hdr_len_asamps);
+  e1=rp_get_status(&status);
   pwrs->ext_rat_dB  = status.ext_rat_dB;
   pwrs->body_rat_dB = status.body_rat_dB;
-  return e;
+  return e || e1;
 }
 
 
@@ -908,6 +910,10 @@ void qregs_set_save_after_pwr(int en) {
   int i = !!en;
   h_w_fld(H_ADC_ACTL_SAVE_AFTER_PWR, i);
 }
+void qregs_set_save_after_hdr(int en) {
+  int i = !!en;
+  h_w_fld(H_ADC_DBG_SAVE_AFTER_HDR, i);
+}
 
 void qregs_set_alice_txing(int en) {
   h_w_fld(H_DAC_CTL_ALICE_TXING, en);
@@ -998,14 +1004,29 @@ void qregs_set_hdr_len_bits(int hdr_len_bits) {
 
 
 void qregs_set_frame_pd_asamps(int frame_pd_asamps) {
+// inputs:
+//       frame_pd_asamps: requested frame period in units of ADC/DAC samples.
+// call this BEFORE qregs_set_hdr_len_bits
+// NOTE: Calling code should NOT try to make probe_pd_samps
+//       conform to any restriction, such as being a multiple
+//       of 16 or 10.  In particular, the true restriction depends
+//       on the hardware implementation of the recovered clock from
+//       the SFP, which calling code should not have to anticipate.
+//       Qregs will choose the closeset frame period it can implement.
+//       Calling code can check st.frame_pd_asamps to see what
+//       the new effective frame period is.
   int i, j;
   if (st.setflags&1 != 1)
     printf("BUG: call set_osamp before set_frame_pd_asamps\n");
 
-  // actually write num cycs-1 (at fsamp/4=308MHz)
   i = frame_pd_asamps/4;
-  i=(int)(i/10)*10; // The ten is because of SFP sync
-  i=i-1;
+  // When SFP rxclk is 30.8333MHz, frame len must be mult of 10
+  // if rxclk were different, other frame lens are possible.
+  // Even at 30.83333, multiples other than 10 could be possible
+  // by increasing the complexity of the HDL, but lets not go
+  // there now.
+  i=(int)((i+5)/10)*10-1;
+  // actually write num cycs-1 (at fsamp/4=308MHz)
   i = h_w_fld(H_ADC_FR1_FRAME_PD_MIN1, i);
   h_w_fld(H_DAC_FR1_FRAME_PD_MIN1, i);
   st.frame_pd_asamps = (i+1)*4;
@@ -1014,7 +1035,7 @@ void qregs_set_frame_pd_asamps(int frame_pd_asamps) {
   // sfp rxclk is 1/10th of dac clk
   j =  ((i+1)/10)-1;
   h_w_fld(H_ADC_CTL2_EXT_FRAME_PD_MIN1_CYCS, j);
-  printf("DBG: ext_frame_pd_cycs %d\n", j+1);
+  // printf("DBG: ext_frame_pd_cycs %d\n", j+1);
 }
 
 void qregs_get_avgpwr(int *avg, int *mx, int *cnt) {
@@ -1200,11 +1221,8 @@ void qregs_print_adc_status(void) {
 	 h_r_fld(H_ADC_STAT_DMA_XFER_REQ_RC));
 	 
 
-  h_w_fld(H_ADC_PCTL_EVENT_CNT_SEL, 1);
-  printf("    save_go_cnt %d\n", h_r_fld(H_ADC_STAT_EVENT_CNT));
-  
-  h_w_fld(H_ADC_PCTL_EVENT_CNT_SEL, 3);
-  printf("    adc_rst_cnt %d\n", h_r_fld(H_ADC_STAT_EVENT_CNT));
+  //  h_w_fld(H_ADC_PCTL_EVENT_CNT_SEL, 3);
+  //  printf("    adc_rst_cnt %d\n", h_r_fld(H_ADC_STAT_EVENT_CNT));
   
   h_w_fld(H_ADC_PCTL_EVENT_CNT_SEL, 0);
   printf(" dma_wready_cnt %d\n", h_r_fld(H_ADC_STAT_EVENT_CNT));
@@ -1212,6 +1230,9 @@ void qregs_print_adc_status(void) {
   h_w_fld(H_ADC_PCTL_EVENT_CNT_SEL, 4);
   printf("  dac_tx_in_cnt %d\n", h_r_fld(H_ADC_STAT_EVENT_CNT));
 
+  h_w_fld(H_ADC_PCTL_EVENT_CNT_SEL, 1);
+  printf("    save_go_cnt %d\n", h_r_fld(H_ADC_STAT_EVENT_CNT));
+  
   //  printf("           txrx %d\n", h_r_fld(H_ADC_ACTL_TXRX_EN));
   //  printf("      tx_always %d\n", h_r_fld(H_DAC_CTL_TX_ALWAYS));
   printf("    alice_txing %d\n", h_r_fld(H_DAC_CTL_ALICE_TXING));

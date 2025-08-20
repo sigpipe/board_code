@@ -88,7 +88,7 @@ void set_blocking_mode(struct iio_buffer *buf, int en) {
 //  #define ADC_N (1024*16*32)
 
 
-ini_val_t *tvars;
+ini_val_t *tvars, *vars_cfg_all;
 
 int opt_dflt=0;
 int opt_sync=0;
@@ -148,7 +148,6 @@ void ask_protocol(int is_alice) {
   d = ini_ask_num(tvars, "frame_pd (us)", "frame_pd_us", 1);
   i = qregs_dur_us2samps(d);
   // printf("adc samp freq %lg Hz\n", st.asamp_Hz);
-  i = ((int)(i/64))*64;
   qregs_set_frame_pd_asamps(i);
   printf("frame_pd_asamps %d = %.3f us\n", st.frame_pd_asamps,
 	   qregs_dur_samps2us(st.frame_pd_asamps));
@@ -192,7 +191,7 @@ void ask_protocol(int is_alice) {
 					   "symbol_len_asamps", 8);
 
   gap_ns = ini_ask_num(tvars, "gap after pilot (ns)", "post_hdr_gap_ns", 100);
-  i= round(gap_ns * 1e-9 * st.asamp_Hz / st.osamp) * st.osamp;
+  i= round(gap_ns * 1.0e-9 * st.asamp_Hz / st.osamp) * st.osamp;
   i = (int)round((double)i/4)*4;
   printf("rounded to %d asamps = %.1f ns\n", i, i/st.asamp_Hz*1.0e9);
   data_cfg.pos_asamps   = st.hdr_len_asamps + i;
@@ -359,6 +358,9 @@ int main(int argc, char *argv[]) {
   e =  ini_read("tvars.txt", &tvars);
   if (e)
     printf("ini err %d\n",e);
+  e =  ini_read("cfg/ini_all.txt", &vars_cfg_all);
+  if (e)
+    printf("ini err %d\n",e);
 
 
   
@@ -376,7 +378,7 @@ int main(int argc, char *argv[]) {
 
   int use_lfsr=1;
   int  hdr_preemph_en=0;
-  char hdr_preemph_fname[256];
+  char *pilot_preemph_fname_p;
   char data_fname[256];
   int tx_always=0;
   int tx_0=0;  
@@ -454,7 +456,8 @@ int main(int argc, char *argv[]) {
     if (is_alice) {
 
       qregs_set_save_after_init(0);
-      qregs_set_save_after_pwr(1);
+      qregs_set_save_after_pwr(0);
+      qregs_set_save_after_hdr(1);
 
       
 #if QNICLL_LINKED
@@ -481,7 +484,8 @@ int main(int argc, char *argv[]) {
       
     }else { // not alice
       qregs_set_alice_syncing(0);
-      qregs_set_tx_same_hdrs(alice_txing || alice_syncing);
+      //      qregs_set_tx_same_hdrs(alice_txing || alice_syncing);
+      qregs_set_tx_same_hdrs(1);
     }
 
   }else {
@@ -531,13 +535,13 @@ int main(int argc, char *argv[]) {
   hdr_preemph_en = 0;
   // for now I have to be able to turn off hdr_preemph
   // If I want to send the test sinusoid.
-
   if (!st.tx_mem_circ && !is_alice) {
     hdr_preemph_en = ask_yn("use IM preemphasis in pilot", "hdr_preemph_en", 1);
     //  hdr_preemph_en = !is_alice && st.pilot_cfg.im_from_mem;
-    if (hdr_preemph_en)
-      strcpy(hdr_preemph_fname,
-	   ask_str("preemph_file", "preemph.bin","cfg/preemph.bin"));
+    if (hdr_preemph_en) {
+      e = ini_get_string(vars_cfg_all,"qsdc_im_preemph_fname", &pilot_preemph_fname_p);
+      if (e) err("missing qsdc_im_preemph_fname in cfg/ini_all.txt");
+    }
   }
 
   search = ini_ask_yn(tvars, "search for probe/pilot", "search", 1);
@@ -712,7 +716,7 @@ int main(int argc, char *argv[]) {
   mem_sz=0;
   // in half-duplex FPGA, alice can't store IM in mem
   if (hdr_preemph_en) { // !is_alice && st.pilot_cfg.im_from_mem) {
-    mem_sz=read_file_into_buf(hdr_preemph_fname, mem, sizeof(mem));
+    mem_sz=read_file_into_buf(pilot_preemph_fname_p, mem, sizeof(mem));
     if (mem_sz/2 > st.frame_pd_asamps) {
       sz = st.frame_pd_asamps * 2;
       printf("WARN: file sz %zd is too long. truncating to %zd\n", mem_sz, sz);
@@ -945,7 +949,7 @@ int main(int argc, char *argv[]) {
     
       // qregs_print_adc_status();
     
-      qregs_print_sync_status();
+      // qregs_print_sync_status();
       
       if (search) {
 	// prompt("OK");

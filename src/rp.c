@@ -54,6 +54,17 @@ int rp_connect() {
   return 0;
 }
 
+int rp_cfg_frames(int frame_pd_asamps, int pilot_dur_asamps) {
+  int e;
+  if (!rp_connected) {
+    if ((e=rp_connect())) return e;
+  }
+  sprintf(rp_cmd,"cfg %d %d\r", frame_pd_asamps, pilot_dur_asamps);
+  e = rp_do_cmd(rp_cmd);
+  if (e) return e;
+  return 0;
+}
+
 int rp_get_status(rp_status_t *status) {
   int e, e1;
   double dark, hdr, body, mean;

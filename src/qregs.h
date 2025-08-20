@@ -233,6 +233,7 @@ void qregs_halfduplex_is_bob(int en);
 // if we dont save after init or pwr, what do we save after?
 void qregs_set_save_after_init(int en);
 void qregs_set_save_after_pwr(int en);
+void qregs_set_save_after_hdr(int en);
 
 void qregs_set_qsdc_data_cfg(qregs_qsdc_data_cfg_t *data_cfg);
 
@@ -243,8 +244,18 @@ void qregs_set_alice_syncing(int en);
 void qregs_set_osamp(int osamp);
 // osamp: 1,2 or 4
 
-void qregs_set_frame_pd_asamps(int probe_pd_samps);
+void qregs_set_frame_pd_asamps(int frame_pd_asamps);
+// inputs:
+//       frame_pd_asamps: requested frame period in units of ADC/DAC samples.
 // call this BEFORE qregs_set_hdr_len_bits
+// NOTE: Calling code should NOT try to make probe_pd_samps
+//       conform to any restriction, such as being a multiple
+//       of 16 or 10.  In particular, the true restriction depends
+//       on the hardware implementation of the recovered clock from
+//       the SFP, which calling code should not have to anticipate.
+//       Qregs will choose the closeset frame period it can implement.
+//       Calling code can check st.frame_pd_asamps to see what
+//       the new effective frame period is.
 
 void qregs_set_hdr_len_bits(int hdr_len_bits);
 // call this after qregs_set_frame_pd_asamps

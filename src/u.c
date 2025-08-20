@@ -328,6 +328,8 @@ int cmd_init(int arg) {
   qregs_set_osamp(i);  
   get_ini_int(ivars,"frame_pd_asamps", &i);
   qregs_set_frame_pd_asamps(i);
+  if (i!=st.frame_pd_asamps)
+    printf("WARN: frame pd actually %d asamps not %d\n", st.frame_pd_asamps, i);
   get_ini_int(ivars,"hdr_len_bits", &i);
   qregs_set_hdr_len_bits(i);
 
