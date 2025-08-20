@@ -1228,7 +1228,8 @@ void qregs_print_adc_status(void) {
   printf(" dma_wready_cnt %d\n", h_r_fld(H_ADC_STAT_EVENT_CNT));
 
   h_w_fld(H_ADC_PCTL_EVENT_CNT_SEL, 5);
-  printf("tx_commence_cnt %d\n", h_r_fld(H_ADC_STAT_EVENT_CNT));
+  printf("tx_commence_cnt %d  (rbuf_is %d)\n", h_r_fld(H_ADC_STAT_EVENT_CNT),
+	 h_r_fld(H_ADC_DBG_RXBUF_EXISTS_ACLK));
 
   //  printf("save_buf_avail %d\n", h_r_fld(H_ADC_DBG_SAVE_BUF_AVAIL_ACLK));
   
