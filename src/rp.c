@@ -85,7 +85,11 @@ int rp_get_status(rp_status_t *status) {
   //  status->pwr_dBm = (double)i/100;
   printf("DBG: dark %.6f  hdr %.6f  body %.6f  mean %.6f\n",
 	 dark, hdr, body, mean);
-
+  status->pilot_pwr_adc = hdr;
+  status->mean_pwr_adc = mean;
+  status->body_pwr_adc = body;
+  status->dark_pwr_adc = dark;
+  
   status->ext_rat_dB  = (body < dark) ? 1000 :
     10*log10((hdr-dark)/(body-dark));
   

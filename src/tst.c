@@ -302,6 +302,7 @@ void ask_thresh(void) {
 
 int main(int argc, char *argv[]) {
   int num_dev, i, j, k, n, e, itr, sfp_attn_dB, search;
+  int refill_err=0;
   char name[32], attr[32], c;
   int pat[PAT_LEN] = {1,1,1,1,0,0,0,0,1,0,1,0,0,1,0,1,
        1,0,1,0,1,1,0,0,1,0,1,0,0,1,0,1,
@@ -911,6 +912,7 @@ int main(int argc, char *argv[]) {
 	  qregs_print_adc_status();	
 	  qregs_print_hdr_det_status();
 	  sprintf(errmsg, "cant refill adc bufer %d", b_i);
+	  refill_err=1;
 	  err(errmsg);
 	}
 	//      prompt("refilled buf");
@@ -1053,6 +1055,22 @@ int main(int argc, char *argv[]) {
 #endif
   qregs_set_alice_txing(0);
 
+
+  qregs_frame_pwrs_t pwrs={0};
+  if (!refill_err && !is_alice && alice_txing) {
+    qregs_set_tx_always(1);
+    usleep(1000);
+    e= qregs_measure_frame_pwrs(&pwrs);
+    if (e)
+      printf("err: no rsp from RP!\n");
+    else {
+      printf("  hdr/body  %.1f dB\n", pwrs.ext_rat_dB);
+      printf("  body/mean %.1f dB\n", pwrs.body_rat_dB);
+    }
+    qregs_set_tx_always(0);
+  }
+
+  
   if (qregs_done()) err("qregs_done fail");
 
 
@@ -1117,6 +1135,8 @@ int main(int argc, char *argv[]) {
     fprintf(fp,"data_in_other_file = 2;\n");
     fprintf(fp,"num_itr = %d;\n", num_itr);
     fprintf(fp,"time = %d;\n", (int)time(0));
+    fprintf(fp,"ext_rat_dB = %.1f;\n", pwrs.ext_rat_dB);
+    fprintf(fp,"body_rat_dB = %.1f;\n", pwrs.body_rat_dB);
     fprintf(fp,"itr_times = [");
     if (num_itr) {
       for(i=0;i<num_itr;++i)
