@@ -903,7 +903,6 @@ double ini_ask_num(ini_val_t *vars, char *prompt, char *var_name, double dflt) {
   char buf[32];
   int n;
   double v;
-
   if (var_name)
     ini_get_double(vars, var_name, &dflt);
   printf("%s [%g] > ", prompt, dflt);

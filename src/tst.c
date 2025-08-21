@@ -94,6 +94,13 @@ int opt_dflt=0;
 int opt_sync=0;
 int opt_qsdc=0;
 
+void lookup_int(char *var_name, int *i_p) {
+  int e=ini_get_int(tvars, var_name, i_p);
+  if (e)
+    printf("WARN: %s undefined in tvars\n", var_name);
+}
+
+
 
 int ask_yn(char *prompt, char *var_name, int dflt) {
   return ini_ask_yn(tvars, prompt, var_name, dflt);
@@ -278,6 +285,20 @@ static int remote_err_handler(char *str, int err) {
 }
 
 
+void ask_thresh(void) {
+  int i, j, k;
+  double d;
+  i = ini_ask_num(tvars, "  initial pwr req (for debug. enter 0 if unknown)",
+		  "init_pwr_thresh", 0);
+  qregs_dbg_set_init_pwr(i);
+  j = ini_ask_num(tvars, "  power threshold for probe/pilot detection",
+		  "hdr_pwr_thresh", 100);
+  k = ini_ask_num(tvars, "  correlation threshold for probe/pilot detection",
+		  "hdr_corr_thresh", 40);
+  qregs_set_hdr_det_thresh(j, k);
+  ini_write("tvars.txt", tvars);
+}
+
 
 int main(int argc, char *argv[]) {
   int num_dev, i, j, k, n, e, itr, sfp_attn_dB, search;
@@ -305,6 +326,7 @@ int main(int argc, char *argv[]) {
   //  short int rx_mem_i[ADC_N], rx_mem_q[ADC_N]; 
   //  short int corr[ADC_N];
   int alice_txing=0;
+  int opt_ask_thresh=0;
 
   int num_bufs, p_i;
   double d, *corr;
@@ -317,6 +339,7 @@ int main(int argc, char *argv[]) {
       else if (c=='s') {opt_dflt=1; opt_sync=1;}
       else if (c=='q') {opt_dflt=1; opt_qsdc=1;}
       else if (c=='n') opt_save=0;
+      else if (c=='t') opt_ask_thresh=1;
       else if (c=='i') { opt_ask_iter=1; opt_periter=1;}
       else if (c=='a') opt_periter=0;
       else if (c!='-') {
@@ -328,7 +351,6 @@ int main(int argc, char *argv[]) {
 
   
   
-  
   int meas_noise=0, noise_dith;
   e =  ini_read("tvars.txt", &tvars);
   if (e)
@@ -337,6 +359,7 @@ int main(int argc, char *argv[]) {
   if (e)
     printf("ini err %d\n",e);
 
+  
 
   
   sfp_attn_dB = 0;
@@ -347,6 +370,13 @@ int main(int argc, char *argv[]) {
   // printf("just called qregs init\n");
   //  qregs_print_adc_status();   printf("\n");
 
+  
+  if (opt_ask_thresh) {
+    ask_thresh();
+    return 0;
+  }
+
+  
 
   int tst_sync=1;
   int is_alice=0, alice_syncing=0;
@@ -521,19 +551,16 @@ int main(int argc, char *argv[]) {
 
   search = ini_ask_yn(tvars, "search for probe/pilot", "search", 1);
   if (search) {
-    i = ini_ask_num(tvars, "  initial pwr req (for debug. enter 0 if unknown)", "init_pwr_thresh", 0);
+    i=j=k=0;
+    lookup_int("init_pwr_thresh", &i);
     qregs_dbg_set_init_pwr(i);
-    j = ini_ask_num(tvars, "  power threshold for probe/pilot detection", "hdr_pwr_thresh", 100);
-    k = ini_ask_num(tvars, "  correlation threshold for probe/pilot detection", "hdr_corr_thresh", 40);
+    printf("  init_pwr_thresh %d\n", st.init_pwr_thresh);
+    lookup_int("hdr_pwr_thresh", &j);
+    lookup_int("hdr_corr_thresh",&k);
     qregs_set_hdr_det_thresh(j, k);
-    
-    // sync dly set in ini file or u cmd.
-    //    qregs_set_sync_dly_asamps(-443-350);
-    ///qregs_set_sync_dly_asamps(0);
-    // printf("init_pwr_thresh %d\n", st.init_pwr_thresh);
+    printf("  pilot_pwr_thresh %d\n", st.hdr_pwr_thresh);
+    printf("  pilot_corr_thresh %d\n", st.hdr_corr_thresh);
   }
-  
-  
 
 
 
