@@ -51,6 +51,8 @@ void err(char *str) {
   exit(1);
 }
 
+ini_val_t *tvars;
+
 /*
 int cmd_cal(int arg) {
   int en;
@@ -179,15 +181,106 @@ int cmd_stat(int arg) {
   return 0;
 }
 
+
+int cmd_proto(int arg) {
+  double d;
+  int i, j;
+  
+  d = ini_ask_num(tvars, "osamp (1,2,4)", "osamp", 4);
+  qregs_set_osamp(d);
+  // printf("osamps %d\n", st.osamp);
+
+
+  d = ini_ask_num(tvars, "frame_pd (us)", "frame_pd_us", 1);
+  i = qregs_dur_us2samps(d);
+  // printf("adc samp freq %lg Hz\n", st.asamp_Hz);
+  qregs_set_frame_pd_asamps(i);
+  printf("frame_pd_asamps %d = %.3f us\n", st.frame_pd_asamps,
+	   qregs_dur_samps2us(st.frame_pd_asamps));
+
+    //  if (qregs_done()) err("qregs_done fail");  
+    //  return 0;
+
+  
+    //  qregs_set_sync_dly_asamps(-346);
+
+  i=32;  
+  i = ini_ask_num(tvars,"length of pilot (bits)", "hdr_len_bits", i);
+  qregs_set_hdr_len_bits(i);
+  printf("pilot_len_bits %d = %.2f ns\n", st.hdr_len_bits,
+	   qregs_dur_samps2us(st.hdr_len_bits*st.osamp)*1000);
+  printf("body_len_asamps %d\n", st.body_len_asamps);
+
+
+
+  j = ini_ask_num(tvars, "cipher_m (for m-psk)", "cipher_m", 2);
+  qregs_set_cipher_en(st.cipher_en, st.osamp, j);
+  
+  if (st.osamp!=st.cipher_symlen_asamps)
+    printf("  actually symlen = %d\n", st.cipher_symlen_asamps);
+  if (j!=st.cipher_m)
+    printf("  actually m = %d\n", st.cipher_m);
+
+  // added this frame size stuff into a common init file
+  //  read by u.c.  add an interactive cfg thing to u.c
+
+  double gap_ns;
+  qregs_qsdc_data_cfg_t data_cfg;
+  printf("QSDC stuff:\n"); 
+  data_cfg.is_qpsk = ini_ask_yn(tvars, "is the data qpsk","body_is_qpsk", 0);
+
+  data_cfg.symbol_len_asamps = ini_ask_num(tvars, "data symbol len (asamps)",
+					   "symbol_len_asamps", 8);
+
+  gap_ns = ini_ask_num(tvars, "gap after pilot (ns)", "post_hdr_gap_ns", 100);
+  i= round(gap_ns * 1.0e-9 * st.asamp_Hz / st.osamp) * st.osamp;
+  i = (int)round((double)i/4)*4;
+  printf("rounded to %d asamps = %.1f ns\n", i, i/st.asamp_Hz*1.0e9);
+  data_cfg.pos_asamps   = st.hdr_len_asamps + i;
+
+  gap_ns = ini_ask_num(tvars, "gap at end (ns)", "post_body_gap_ns", 100);
+  i= round(gap_ns * 1e-9 * st.asamp_Hz / st.osamp) * st.osamp;
+  i = ((int)i/4)*4;
+  i = (st.frame_pd_asamps - i - data_cfg.pos_asamps);
+  data_cfg.data_len_asamps = i; // per fram
+
+
+  data_cfg.bit_dur_syms = ini_ask_num(tvars,"  duration of one bit (symbols)",
+				       "qsdc_bit_dur_sym", 100);
+
+  qregs_set_qsdc_data_cfg(&data_cfg);
+
+  i = st.qsdc_data_cfg.data_len_asamps;
+  printf("  data len %d asamps = %.1f ns per frame\n", i, i/st.asamp_Hz*1.0e9);
+  printf("  bit duration ACTUALLY %d symbols\n", st.qsdc_data_cfg.bit_dur_syms);
+  
+}
+
+
 int cmd_thresh(int arg) {
-  int pwr_th, corr_th, e;
-  if (e=parse_int(&pwr_th)) {
-    //    printf("parse int failed.  e %d\n", e);
-    printf("u thresh %d %d\n", st.hdr_pwr_thresh, st.hdr_corr_thresh);
-  }else {
-    if (parse_int(&corr_th)) corr_th = st.hdr_corr_thresh;
+  int init_th, pwr_th, corr_th, e;
+  if (parse_int(&pwr_th)) {
+    pwr_th = ini_ask_num(tvars, "  power threshold for probe/pilot detection",
+		  "hdr_pwr_thresh", 100);
+    corr_th = ini_ask_num(tvars, "  correlation threshold for probe/pilot detection",
+		  "hdr_corr_thresh", 40);
     qregs_set_hdr_det_thresh(pwr_th, corr_th);
+
+
+    init_th = ini_ask_num(tvars, "  initial pwr req (for debug. enter 0 if unknown)",
+		  "init_pwr_thresh", 0);
+    qregs_dbg_set_init_pwr(init_th);
+  }else {
+    
+    if (parse_int(&corr_th)) return CMD_ERR_FAIL;
+    qregs_set_hdr_det_thresh(pwr_th, corr_th);
+
+    if (!parse_int(&init_th)) {
+      qregs_dbg_set_init_pwr(init_th);      
+    }
   }
+  printf("\nthreshs:  pwr %d  corr %d   (init %d  for dbg)\n",
+	 st.hdr_pwr_thresh, st.hdr_corr_thresh, st.init_pwr_thresh);
   return 0;
 }
 
@@ -207,14 +300,26 @@ int cmd_rx(int arg) {
   return 0;
 }
 
+int cmd_roundtrip(int arg) {
+  int dly;
+  if (parse_int(&dly)) {
+    dly = ini_ask_num(tvars, "round_trip_dly (asamps)",
+		      "round_trip_dly", st.round_trip_asamps);
+  }
+  qregs_set_round_trip_asamps(dly);
+  printf("round_trip_asamps %d\n", st.round_trip_asamps);
+  return 0;
+}
+
 int cmd_rxdly(int arg) {
   int dly;
   if (parse_int(&dly))
     return CMD_ERR_NO_INT;
   qregs_set_rx_samp_dly_asamps(dly);
-  printf("%d\n", st.rx_samp_dly_asamps);
+  printf("rx_samp_dly %d\n", st.rx_samp_dly_asamps);
   return 0;
 }
+ 
 int cmd_tx(int arg) {
   char c;
   parse_char();
@@ -814,6 +919,7 @@ cmd_info_t dbg_cmds_info[]={
   {"search", cmd_dbg_search, 0, 0}, 
   {"info",   cmd_dbg_info,  0, 0},  
   {"regs",   cmd_dbg_regs, 0, 0},  {0},
+  {"rp",      cmd_rp,      0, "dbg RedPitaya cmds"},
   {0}};
 
 cmd_info_t qsdc_cmds_info[]={
@@ -857,14 +963,15 @@ cmd_info_t cmds_info[]={
   {"pm_dly",  cmd_pm_dly, 0, 0}, 
   {"im_dly",  cmd_im_dly, 0, 0}, 
   {"pm_sin",  cmd_pm_sin, 0, 0}, 
-  {"init",    cmd_init,   0, 0}, 
+  {"init",    cmd_init,   0, "initializes HDL"}, 
   {"sfp",     cmd_subcmd, (int)sfp_cmds_info, 0, 0}, 
   {"tx",      cmd_tx,     0, 0},
   {"rx",      cmd_rx,   0, 0},
   {"rxdly",   cmd_rxdly,  0, 0},
+  {"roundtrip",  cmd_roundtrip,  0, "set bobs rx dly", "[<dly>]"},
 
-  {"rp",      cmd_rp,   0, 0},
-  {"pwr",     cmd_pwr,   0, 0},
+  {"pwr",     cmd_pwr,     0, "querry RedPitaya for power"},
+  {"proto",   cmd_proto,   0, "asks for protocol params", 0},
   {"qsdc",    cmd_subcmd, (int)qsdc_cmds_info, 0, 0},
   {"sweep",   cmd_sweep, 0, 0},
   {"sync",    cmd_subcmd, (int)sync_cmds_info, 0, 0},
@@ -874,7 +981,7 @@ cmd_info_t cmds_info[]={
 #endif  
   {"set",     cmd_set,  0, 0},
   {"stat",    cmd_stat,   0, 0},
-  {"thresh",  cmd_thresh, 0, "set detection thersholds", "<pwr> <corr>"}, 
+  {"thresh",  cmd_thresh, 0, "set detection thersholds", "[<pwr> <corr> [<ini>]]"}, 
   {"twopi",   cmd_twopi,   0, 0}, 
   {"ver",     cmd_ver,   0, 0}, 
   {0}};
@@ -885,7 +992,11 @@ int main(int argc, char *argv[]) {
   int i, j, e;
   char c, ll[256]={0};
   
+  e =  ini_read("tvars.txt", &tvars);
+  if (e)
+    err("cant read tvars.txt");
 
+  
   if (qregs_init()) err("qregs fail");
 
   
@@ -898,9 +1009,15 @@ int main(int argc, char *argv[]) {
   if (e && (e!=CMD_ERR_QUIT))
     cmd_print_errcode(e);
 
+  e = ini_save(tvars);
+  if (e)
+    printf("ERR: cannot save tvars.txt\n%s\n", ini_err_msg());
+
+
   
   if (qregs_done()) err("qregs_done fail");  
 
   return 0;
   
 }
+

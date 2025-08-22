@@ -45,7 +45,9 @@ int ini_del_all(ini_val_t *vals); // results in an empty vars list
 int ini_free_vals(ini_val_t *vals); // frees entire thing
 
 int ini_read(char *fname, ini_val_t **vals);
-int        ini_write(char *fname, ini_val_t *vals);
+int ini_write(char *fname, ini_val_t *vals);
+int ini_save(ini_val_t *vals);
+
 int   ini_get_flags(ini_val_t *vals);
 void  ini_set_flags(ini_val_t *vals, int flags);
 

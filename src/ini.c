@@ -800,21 +800,32 @@ void ini_print_val(FILE *h, ini_val_t *val) {
   }
 }
 
+
+int ini_save(ini_val_t *vals) {
+  char *fname;
+  fname = ini_get_fname(vals);
+  if (!fname[0]) {
+    sprintf(ini_la.err_msg, "ini_save() fname unknown");
+    return ini_err(INI_ERR_FAIL);
+  }
+  ini_write(fname, vals);
+  return 0;
+}
+
 int ini_write(char *fname, ini_val_t *vals) {
   FILE *h;
   //char lbuf[INI_LINE_LEN];
-
-
   //ini_val_t *v;
   h = fopen(fname, "w");
   //  h = CreateFile(fname, GENERIC_READ | GENERIC_WRITE,
   //		 0, 0, CREATE_ALWAYS, 0, 0);
   //  if (h == INVALID_HANDLE_VALUE) {
     //    printf("ERR: cant write to %s\n", fname);
-  if (!h) return INI_ERR_FAIL;
-
+  if (!h) {
+    sprintf(ini_la.err_msg, "ini_write() cannot open %s for writing", fname);
+    return INI_ERR_FAIL;
+  }
   //    printf("    writing %s\n", fname);
-
   vals=vals->nxt;
   while (vals) {
     ini_print_val(h, vals);
