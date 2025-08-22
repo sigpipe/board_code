@@ -1285,6 +1285,12 @@ void qregs_print_adc_status(void) {
 	 h_r_fld(H_ADC_DBG_RXBUF_EXISTS_ACLK));
 
 
+  h_w_fld(H_ADC_PCTL_EVENT_CNT_SEL, 6);
+  i=h_r_fld(H_ADC_STAT_EVENT_CNT);
+  if (i)
+    printf("dac_tx_in_change_cnt %d  !!!!\n", i);
+  
+
   
   //  printf("save_buf_avail %d\n", h_r_fld(H_ADC_DBG_SAVE_BUF_AVAIL_ACLK));
   
@@ -1296,7 +1302,7 @@ void qregs_print_adc_status(void) {
   
   //  printf("           txrx %d\n", h_r_fld(H_ADC_ACTL_TXRX_EN));
   //  printf("      tx_always %d\n", h_r_fld(H_DAC_CTL_TX_ALWAYS));
-  printf("    alice_txing %d\n", h_r_fld(H_DAC_CTL_ALICE_TXING));
+  //  printf("    alice_txing %d\n", h_r_fld(H_DAC_CTL_ALICE_TXING));
 
 
   qregs_clr_adc_status();

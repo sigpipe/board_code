@@ -52,3 +52,13 @@ clean:
 
 obj:
 	mkdir obj
+
+tar:
+	rm -f src/*~
+	tar -cf src.tar src
+
+diff:
+	tar --diff -f src.tar src
+
+send:
+	scp src.tar root@zcu1:/home/analog/board_code
