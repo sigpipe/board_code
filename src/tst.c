@@ -334,8 +334,8 @@ int main(int argc, char *argv[]) {
     }
   }
 
-
-  
+  // TODO: make a "cap" option that uses tx_0.
+  // could be used for IQ imbal calib.
   
   int meas_noise=0, noise_dith;
   e =  ini_read("tvars.txt", &tvars);
@@ -509,16 +509,13 @@ int main(int argc, char *argv[]) {
   printf(" using tx_go condition %c\n", st.tx_go_condition);
 
   
-  if (!ini_ask_yn(tvars, "same protocol", "same_protocol", 1)) {
-    ask_protocol(is_alice);
-  }else {
-    printf("   osamps %d\n", st.osamp);
-    printf("   frame_pd_asamps %d = %.3Lf us\n", st.frame_pd_asamps,
-         qregs_dur_samps2us(st.frame_pd_asamps));
-    printf("   hdr_len_bits %d = %.2Lf ns\n", st.hdr_len_bits,
+  printf("   osamps %d\n", st.osamp);
+  printf("   frame_pd_asamps %d = %.3Lf us\n", st.frame_pd_asamps,
+       qregs_dur_samps2us(st.frame_pd_asamps));
+  printf("   hdr_len_bits %d = %.2Lf ns\n", st.hdr_len_bits,
          qregs_dur_samps2us(st.hdr_len_bits*st.osamp)*1000);
-    printf("   body_len_samps %d\n", st.body_len_asamps);
-  }
+  printf("   body_len_samps %d\n", st.body_len_asamps);
+
 
   hdr_preemph_en = 0;
   // for now I have to be able to turn off hdr_preemph

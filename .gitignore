@@ -4,6 +4,7 @@
 \#*
 *.bak
 *.a
+*.tar
 qregd
 tst
 build
