@@ -160,6 +160,8 @@ typedef struct qregs_struct {
 
   qregs_pilot_cfg_t     pilot_cfg;
   qregs_qsdc_data_cfg_t qsdc_data_cfg;
+
+  int round_trip_asamps;
   int rx_samp_dly_asamps;
   
 } qregs_st_t;
@@ -274,14 +276,12 @@ void qregs_set_frame_qty(int frame_qty);
 
 void qregs_get_iq_pwr(int *avg, int *max);
 
-void qregs_clr_adc_status(void);
-void qregs_print_adc_status(void); // for dbg
-void qregs_print_hdr_det_status(void);
 
 // This SFP stuff will be different when Corundum is in place
 void qregs_sfp_gth_rst(void);
 void qregs_sfp_gth_status(void); // for dbg
 
+void qregs_set_round_trip_asamps(int dly);
 
 
 void qregs_search_en(int en);

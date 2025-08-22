@@ -1,7 +1,7 @@
 // h_vhdl_extract.h
 // hardware access constants
 // This file was automatically generated
-// by Register Extractor (ver 4.14) on Wed Aug 20 21:06:38 2025
+// by Register Extractor (ver 4.14) on Fri Aug 22 04:52:38 2025
 // compile version Mon Jun 16 10:25:20 2025
 // current dir:  C:\reilly\proj\quanet\quanet_hdl\projects\daq3\zcu106
 // DO NOT MODIFY THIS FILE!
@@ -18,7 +18,7 @@
 // version constants
 #define H_VHDL_EXTRACT_VER (4)
 #define H_VHDL_EXTRACT_SUBVER (14)
-#define H_VHDL_EXTRACT_DATE "Wed Aug 20 21:06:38 2025"
+#define H_VHDL_EXTRACT_DATE "Fri Aug 22 04:52:38 2025"
 #define H_VHDL_EXTRACT_DIR "C:\reilly\proj\quanet\quanet_hdl\projects\daq3\zcu106"
 
 
@@ -75,9 +75,9 @@
 #define H_NUM_REGSPACES (2)
 
 // max register offset per regspace, indexed by regspace:
-#define H_MAX_REG_OFFSETS_INIT {12, 14}
+#define H_MAX_REG_OFFSETS_INIT {13, 14}
 // num registers per regspace, indexed by regspace:
-#define H_NUM_REGS_INIT {13, 15}
+#define H_NUM_REGS_INIT {14, 15}
 
 // inferred register locations and fields
 //   opt_old_consts 0
@@ -87,8 +87,8 @@
 //
 
 #define H_DAC (0)
-#define H_DAC_NUM_REGS       (13)
-#define H_DAC_MAX_REG_OFFSET (12)
+#define H_DAC_NUM_REGS       (14)
+#define H_DAC_MAX_REG_OFFSET (13)
 
 #define H_DAC_FR1                       0x00000000  /* 0 */
 #define H_DAC_FR1_REG_W                 0x00000400  /* 0xffffffff  r  */
@@ -124,7 +124,7 @@
 #define H_DAC_CTL_TX_ALWAYS             0x0000203c  /* 0x10000000   w -- used for dbg to view on scope */
 #define H_DAC_CTL_MEMTX_TO_PM           0x0000203d  /* 0x20000000   w --  */
 #define H_DAC_CTL_CIPHER_EN             0x0000203e  /* 0x40000000   w -- bob sets to scramble frame bodies */
-#define H_DAC_CTL_TX_UNSYNC             0x0000203f  /* 0x80000000   w -- probaly will go away */
+#define H_DAC_CTL_FRAMER_RST            0x0000203f  /* 0x80000000   w -- for dbg. probably dont need. */
                                        // r 0xffffffff
                                        // w 0xffffffff
 
@@ -206,14 +206,14 @@
 #define H_DAC_DBG_SER_SAW_XOFF_TIMO     0x0000a022  /* 0x00000004  r  */
 #define H_DAC_DBG_SER_TX_OVF            0x0000a023  /* 0x00000008  r  */
 #define H_DAC_DBG_SER_RX_OVF            0x0000a024  /* 0x00000010  r  */
-#define H_DAC_DBG_QSDC_FRAME_GO_CNT     0x0000a105  /* 0x00001fe0  r  */
-#define H_DAC_DBG_FRAME_GO_CNT          0x0000a10d  /* 0x001fe000  r  */
+#define H_DAC_DBG_TX_EVENT_CNT_SEL      0x0000a045  /* 0x00000060  r  */
+#define H_DAC_DBG_TX_EVENT_CNT          0x0000a14a  /* 0x000ffc00  r  */
 #define H_DAC_DBG_TX_COMMENCE_ACLK      0x0000a035  /* 0x00200000  r  */
 #define H_DAC_DBG_TX_FORCE              0x0000a03a  /* 0x04000000  rw */
 #define H_DAC_DBG_SER_CLR_CTRS          0x0000a03b  /* 0x08000000  rw */
 #define H_DAC_DBG_SER_CTR_SEL           0x0000a05c  /* 0x30000000  rw */
 #define H_DAC_DBG_SER_CLR_ERRS          0x0000a03e  /* 0x40000000  rw */
-                                       // r 0xfe3fffff
+                                       // r 0xfe2ffc7f
                                        // w 0xfe000000
 
 #define H_DAC_CIPHER                    0x0000b000  /* 11 */
@@ -231,6 +231,12 @@
 #define H_DAC_ALICE_WADDR_LIM_MIN1      0x0000c210  /* 0xffff0000  r  -- for debug */
                                        // r 0xffffffff
                                        // w 0x00001ffc
+
+#define H_DAC_HDR2                      0x0000d000  /* 13 */
+#define H_DAC_HDR2_LFSR_RST_ST2         0x0000d160  /* 0x000007ff   w -- often x0a5   */
+#define H_DAC_HDR2_REG_W                0x0000d400  /* 0xffffffff  r  */
+                                       // r 0xffffffff
+                                       // w 0x000007ff
 
 //
 // register space ADC

@@ -40,5 +40,10 @@ void qregs_dbg_print_regs(void);
 void qregs_dbg_get_info(int *info);
 void qregs_dbg_print_tx_status(void);
 void qregs_set_dbg_clk_sel(int sel);
-  
+
+void qregs_clr_adc_status(void);
+void qregs_clr_tx_status(void);
+void qregs_print_adc_status(void); // for dbg
+void qregs_print_hdr_det_status(void);
+
 #endif

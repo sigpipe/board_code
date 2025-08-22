@@ -285,19 +285,6 @@ static int remote_err_handler(char *str, int err) {
 }
 
 
-void ask_thresh(void) {
-  int i, j, k;
-  double d;
-  i = ini_ask_num(tvars, "  initial pwr req (for debug. enter 0 if unknown)",
-		  "init_pwr_thresh", 0);
-  qregs_dbg_set_init_pwr(i);
-  j = ini_ask_num(tvars, "  power threshold for probe/pilot detection",
-		  "hdr_pwr_thresh", 100);
-  k = ini_ask_num(tvars, "  correlation threshold for probe/pilot detection",
-		  "hdr_corr_thresh", 40);
-  qregs_set_hdr_det_thresh(j, k);
-  ini_write("tvars.txt", tvars);
-}
 
 
 int main(int argc, char *argv[]) {
@@ -327,7 +314,6 @@ int main(int argc, char *argv[]) {
   //  short int rx_mem_i[ADC_N], rx_mem_q[ADC_N]; 
   //  short int corr[ADC_N];
   int alice_txing=0;
-  int opt_ask_thresh=0;
 
   int num_bufs, p_i;
   double d, *corr;
@@ -340,7 +326,6 @@ int main(int argc, char *argv[]) {
       else if (c=='s') {opt_dflt=1; opt_sync=1;}
       else if (c=='q') {opt_dflt=1; opt_qsdc=1;}
       else if (c=='n') opt_save=0;
-      else if (c=='t') opt_ask_thresh=1;
       else if (c=='i') { opt_ask_iter=1; opt_periter=1;}
       else if (c=='a') opt_periter=0;
       else if (c!='-') {
@@ -371,11 +356,6 @@ int main(int argc, char *argv[]) {
   // printf("just called qregs init\n");
   //  qregs_print_adc_status();   printf("\n");
 
-  
-  if (opt_ask_thresh) {
-    ask_thresh();
-    return 0;
-  }
 
   
 
@@ -430,8 +410,10 @@ int main(int argc, char *argv[]) {
   qregs_set_alice_txing(0);
   qregs_get_avgpwr(&i,&j,&k); // just to clr ADC dbg ctrs
   qregs_set_save_after_init(0);
-  qregs_clr_adc_status();
 
+  qregs_clr_adc_status();
+  qregs_clr_tx_status();
+  
   if (st.tx_mem_circ) {
     printf("NOTE: tx_mem_circ = 1\n");
     is_alice=0;
@@ -589,6 +571,7 @@ int main(int argc, char *argv[]) {
       frame_qty_req = is_alice?16:8;
     else if (opt_qsdc)
       frame_qty_req = is_alice?10:270;
+    //     frame_qty_req = is_alice?10:200;
     else
       frame_qty_req = ask_num("frames per itr", "frames_per_itr", 10);
 
@@ -841,8 +824,8 @@ int main(int argc, char *argv[]) {
    
   for (itr=0; !num_itr || (itr<num_itr); ++itr) {
 
-      printf("itr %d: time %ld (s)\n", itr, time(0)-t0_s);
-
+      if (num_itr) printf("itr %d: time %ld (s)\n", itr, time(0)-t0_s);
+      
       if (num_itr)
         *(times_s + itr) = (int)time(0);
 
@@ -861,7 +844,7 @@ int main(int argc, char *argv[]) {
       if (use_qnicll)
 	C(qnicll_bob_sync_go(1));
 #endif	
-      }else {
+      }else { // IS BOB
         qregs_search_en(search);
         qregs_txrx(1);
       }
@@ -875,7 +858,7 @@ int main(int argc, char *argv[]) {
       adc_buf = iio_device_create_buffer(adc, buf_len_asamps, false);
       if (!adc_buf)
         err("cant make adc buffer");
-      printf("made adc buf size %zd asamps\n", (ssize_t)buf_len_asamps);
+      // printf("made adc buf size %zd asamps\n", (ssize_t)buf_len_asamps);
       // supposedly creating buffer commences DMA
 
 #if QREGC_LINKED
@@ -909,8 +892,7 @@ int main(int argc, char *argv[]) {
 	//      qregs_print_adc_status();
 	if (sz<0) {
 	  printf("\nERR!\n");
-	  qregs_print_adc_status();	
-	  qregs_print_hdr_det_status();
+	  qregs_print_hdr_det_status(); // this prints it all
 	  sprintf(errmsg, "cant refill adc bufer %d", b_i);
 	  refill_err=1;
 	  err(errmsg);
@@ -922,6 +904,8 @@ int main(int argc, char *argv[]) {
 	// pushes double the dac_buf size.
 	//qregs_print_adc_status();
 
+	qregs_print_adc_status();	
+	
 	// iio_buffer_start can return a non-zero ptr after a refill.
 	adc_buf_p = iio_buffer_start(adc_buf);
 	if (!adc_buf_p) err("iio_buffer_start returned 0");
