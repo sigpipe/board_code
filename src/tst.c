@@ -462,8 +462,8 @@ int main(int argc, char *argv[]) {
     if (is_alice) {
 
       qregs_set_save_after_init(0);
-      qregs_set_save_after_pwr(0);
-      qregs_set_save_after_hdr(1);
+      qregs_set_save_after_pwr(1);
+      qregs_set_save_after_hdr(0);
 
       
 #if QNICLL_LINKED
