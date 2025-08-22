@@ -411,8 +411,6 @@ int main(int argc, char *argv[]) {
   qregs_get_avgpwr(&i,&j,&k); // just to clr ADC dbg ctrs
   qregs_set_save_after_init(0);
 
-  qregs_clr_adc_status();
-  qregs_clr_tx_status();
   
   if (st.tx_mem_circ) {
     printf("NOTE: tx_mem_circ = 1\n");
@@ -423,6 +421,10 @@ int main(int argc, char *argv[]) {
     // dont know why
     qregs_set_save_after_init(1);
   }else if (tst_sync) {
+    qregs_sync_status_t sstat;
+    qregs_get_sync_status(&sstat);
+    if (!sstat.locked)
+      err("synchronizer unlocked");
 
     qregs_set_tx_same_hdrs(1);
     is_alice = ini_ask_yn(tvars, "is_alice", "is_alice", 1);
@@ -431,6 +433,7 @@ int main(int argc, char *argv[]) {
     if (opt_sync) {
       alice_syncing=1;
       alice_txing=0;
+      
     }else if (opt_qsdc) {
       alice_syncing=0;
       alice_txing=1;
@@ -813,7 +816,12 @@ int main(int argc, char *argv[]) {
 
 
 
-  qregs_print_adc_status();	  
+  qregs_clr_adc_status();
+  qregs_clr_tx_status();
+  qregs_clr_corr_status();
+
+  
+  // qregs_print_adc_status();	  
   prompt("READY? ");
 
 
@@ -821,7 +829,7 @@ int main(int argc, char *argv[]) {
    
   for (itr=0; !num_itr || (itr<num_itr); ++itr) {
 
-      if (num_itr) printf("itr %d: time %ld (s)\n", itr, time(0)-t0_s);
+      if (num_itr>1) printf("itr %d: time %ld (s)\n", itr, time(0)-t0_s);
       
       if (num_itr)
         *(times_s + itr) = (int)time(0);

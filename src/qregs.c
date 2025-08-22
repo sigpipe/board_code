@@ -516,6 +516,7 @@ int qregs_measure_frame_pwrs(qregs_frame_pwrs_t *pwrs) {
   e1=rp_get_status(&status);
   pwrs->ext_rat_dB  = status.ext_rat_dB;
   pwrs->body_rat_dB = status.body_rat_dB;
+  pwrs->body_pwr_mV = status.body_pwr_mV;  
   return e || e1;
 }
 
@@ -695,10 +696,10 @@ void qregs_print_settings(void) {
   printf("pilot_im_from_mem %d (state)\n", st.pilot_cfg.im_from_mem);
   printf("txrx %d\n", h_r_fld(H_ADC_ACTL_TXRX_EN));
   printf("search %d\n", h_r_fld(H_ADC_ACTL_SEARCH));
-  printf("alice_syncing %d\n", st.alice_syncing);
+  printf("alice_syncing %d   \talice_txing %d\n", st.alice_syncing, st.alice_txing);
   //  printf("alice_txing %d\n", h_r_fld(H_DAC_CTL_ALICE_TXING));
   printf("rx_samp_dly_asamps %d\n", h_r_fld(H_ADC_ACTL_SAMP_DLY_ASAMPS));
-  printf("use_lfsr %d\n", st.use_lfsr);
+  printf("use_lfsr %d    \tlfsr_rst_st=x%x\n", st.use_lfsr, st.lfsr_rst_st);
   printf("frame_pd_asamps %d = %.3f us\n", st.frame_pd_asamps,
 	 qregs_dur_samps2us(st.frame_pd_asamps));
 
@@ -873,6 +874,8 @@ void qregs_set_tx_always(int en) {
   int i = !!en;
   h_w_fld(H_DAC_CTL_TX_ALWAYS, i);  
   st.tx_always = i;
+  if (!i)
+    h_pulse_fld(H_DAC_CTL_FRAMER_RST); // for dbg    
 }
 
 void qregs_set_tx_mem_circ(int en) {
@@ -1061,6 +1064,24 @@ void qregs_get_avgpwr(int *avg, int *mx, int *cnt) {
   h_pulse_fld(H_ADC_PCTL_PROC_CLR_CNTS);  
 }
 
+
+
+void qregs_get_sync_status(qregs_sync_status_t *s) {
+  int sum, qty, ovf;
+  sum=h_r_fld(H_ADC_SYNC_O_ERRSUM);
+  qty=h_r_fld(H_ADC_SYNC_O_QTY);
+  ovf=h_r_fld(H_ADC_SYNC_O_ERRSUM_OVF);
+  s->errsum = sum;
+  if (ovf) {
+    s->qty    = INT_MAX;
+    s->mean_ref_err_asamps = INT_MAX;
+  }else {
+    s->qty = qty;
+    s->mean_ref_err_asamps = sum/qty;
+  }
+  s->locked = h_r_fld(H_ADC_STAT_SYNC_LOCK);
+}
+
 void qregs_print_sync_status(void) {
   int sum, qty, ovf;
   if (st.is_bob)
@@ -1161,9 +1182,7 @@ void qregs_print_hdr_det_status(void) {
 //  printf("dac_rst %d\n", qregs_r_fld(H_DAC_STATUS_DAC_RST_AXI));
 //  printf("dac_tx_in_cnt %d\n", qregs_r_fld(H_DAC_STATUS_DAC_TX_IN_CNT));
 //  qregs_pulse(H_DAC_PCTL_CLR_CNTS);
-
-  h_pulse_fld(H_ADC_PCTL_PROC_CLR_CNTS);
-  printf("    CLR CORRELATOR CNTS\n");
+  qregs_clr_corr_status();
 }
 
 void qregs_set_round_trip_asamps(int dly) {
@@ -1177,10 +1196,13 @@ void qregs_dbg_print_tx_status(void) {
   printf("\nTX STATUS\n");
   printf("  frame_sync_in_cnt %d\n", h_r_fld(H_DAC_STATUS_FRAME_SYNC_IN_CNT));
 
-  h_w_fld(H_DAC_DBG_TX_EVENT_CNT_SEL, 1);  
-  printf("    frame_fisrt_cnt %d\n", h_r_fld(H_DAC_DBG_TX_EVENT_CNT));
+  h_w_fld(H_DAC_DBG_TX_EVENT_CNT_SEL, 1);
+  usleep(1000);  
+  printf("    frame_first_cnt %d\n", h_r_fld(H_DAC_DBG_TX_EVENT_CNT));
+  
   h_w_fld(H_DAC_DBG_TX_EVENT_CNT_SEL, 0);
   printf("       frame_go_cnt %d\n", h_r_fld(H_DAC_DBG_TX_EVENT_CNT));
+  
   h_w_fld(H_DAC_DBG_TX_EVENT_CNT_SEL, 2);  
   printf("  qsdc_frame_go_cnt %d\n", h_r_fld(H_DAC_DBG_TX_EVENT_CNT));
   
@@ -1221,6 +1243,11 @@ void qregs_clr_tx_status(void) {
   h_pulse_fld(H_DAC_PCTL_CLR_CNTS);  
   printf("    CLR TX CNTS\n");  
 }
+void qregs_clr_corr_status(void) {
+  h_pulse_fld(H_ADC_PCTL_PROC_CLR_CNTS);
+  printf("    CLR CORRELATOR CNTS\n");
+}
+
 
 void qregs_print_adc_status(void) {
 // for dbg  
@@ -1393,6 +1420,8 @@ void qregs_txrx(int en) {
   int v=!!en;
 
   h_w_fld(H_ADC_ACTL_TXRX_EN, v);
+  if (!en)
+    h_pulse_fld(H_DAC_CTL_FRAMER_RST); // for dbg
 }
 
 void qregs_dbg_new_go(int en) {

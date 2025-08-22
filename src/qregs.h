@@ -296,6 +296,15 @@ void qregs_alice_sync_en(int en);
 
 void qregs_get_settings(void);
 void qregs_print_settings(void);
+
+typedef struct qregs_sync_status_struct {
+  int locked;
+  int errsum;
+  int qty;
+  double mean_ref_err_asamps;
+} qregs_sync_status_t;
+
+void qregs_get_sync_status(qregs_sync_status_t *s);
 void qregs_print_sync_status(void);
 
 void qregs_txrx(int en);
@@ -342,6 +351,7 @@ int qregs_get_laser_settings(qregs_laser_settings_t *set);
 
 
 typedef struct qregs_frame_pwrs_st {
+  double body_pwr_mV;
   double ext_rat_dB;
   double body_rat_dB;
 } qregs_frame_pwrs_t;

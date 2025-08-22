@@ -10,10 +10,10 @@ extern rp_st_t rp_st;
 
 
 typedef struct rp_status_st {
-  int pilot_pwr_adc;
-  int mean_pwr_adc;
-  int body_pwr_adc;
-  int dark_pwr_adc;
+  double pilot_pwr_mV;
+  double mean_pwr_mV;
+  double body_pwr_mV;
+  double dark_pwr_mV;
   double ext_rat_dB;
   double body_rat_dB;
 } rp_status_t;

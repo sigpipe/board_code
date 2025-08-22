@@ -71,10 +71,21 @@ int cmd_set(int arg) {
 int cmd_pwr(int arg) {
   int e;
   qregs_frame_pwrs_t pwrs;
-  e= qregs_measure_frame_pwrs(&pwrs);
-  if (e) {printf("err: no rsp from RP?\n");  return CMD_ERR_FAIL;}
-  printf("  hdr/body  %.1f dB\n", pwrs.ext_rat_dB);
-  printf("  body/mean %.1f dB\n", pwrs.body_rat_dB);
+  char c=parse_nonspace();
+  if (c==0) {
+    e= qregs_measure_frame_pwrs(&pwrs);
+    if (e) {printf("err: no rsp from RP?\n");  return CMD_ERR_FAIL;}
+    printf("  hdr/body  %.1f dB\n", pwrs.ext_rat_dB);
+    printf("  body/mean %.1f dB\n", pwrs.body_rat_dB);
+  }else {
+    while(1) {
+      e= qregs_measure_frame_pwrs(&pwrs);
+      if (e) {printf("err: no rsp from RP?\n");  break;}
+      printf("  ext  %4.1f dB    b/m %4.1f dB   body %7.5f mV\n",
+	     pwrs.ext_rat_dB, pwrs.body_rat_dB, pwrs.body_pwr_mV);
+      usleep(1000*500);
+    }
+  }
   return 0;
 }
 int cmd_dbg_clksel(int arg) {
