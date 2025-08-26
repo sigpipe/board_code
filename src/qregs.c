@@ -568,6 +568,7 @@ void qregs_get_settings(void) {
   st.use_lfsr      = h_r_fld(H_DAC_HDR_USE_LFSR);
   st.lfsr_rst_st   = h_r_fld(H_DAC_HDR_LFSR_RST_ST);
   st.tx_always     = h_r_fld(H_DAC_CTL_TX_ALWAYS);
+  st.tx_indefinite = h_r_fld(H_DAC_CTL_TX_INDEFINITE);
   st.tx_mem_circ   = h_r_fld(H_DAC_CTL_MEMTX_CIRC);
   st.tx_same_hdrs  = h_r_fld(H_DAC_HDR_SAME);
   st.tx_hdr_twopi  = h_r_fld(H_DAC_HDR_TWOPI);
@@ -575,6 +576,7 @@ void qregs_get_settings(void) {
   st.alice_syncing = h_r_fld(H_DAC_CTL_ALICE_SYNCING);
   st.osamp         = h_r_fld(H_DAC_CTL_OSAMP_MIN1) + 1;
   st.cipher_en     = h_r_fld(H_DAC_CTL_CIPHER_EN);
+  st.decipher_en   = h_r_fld(H_ADC_ACTL_DECIPHER_EN);
   st.is_bob        = h_r_fld(H_DAC_CTL_IS_BOB);
 
   st.pilot_cfg.im_from_mem         = h_r_fld(H_DAC_HDR_IM_PREEMPH);
@@ -680,7 +682,7 @@ void qregs_dbg_print_regs(void) {
 void qregs_print_settings(void) {
   printf("halfduplex_is_bob %d\n", st.is_bob);
   printf("DLYS:  pm_dly_cycs %d   \tim_dly_cycs %d\n", st.pm_dly_cycs, st.hdr_im_dly_cycs);
-  printf("       round_trup_asamps %d\n", st.round_trip_asamps);
+  printf("       round_trip_asamps %d\n", st.round_trip_asamps);
   printf("tx_go_condition %c\n",st.tx_go_condition);
   printf("save afer hdr %d pwr %d init %d\n",
 	 h_r_fld(H_ADC_DBG_SAVE_AFTER_HDR),
@@ -700,19 +702,22 @@ void qregs_print_settings(void) {
   //  printf("alice_txing %d\n", h_r_fld(H_DAC_CTL_ALICE_TXING));
   printf("rx_samp_dly_asamps %d\n", h_r_fld(H_ADC_ACTL_SAMP_DLY_ASAMPS));
   printf("use_lfsr %d    \tlfsr_rst_st=x%x\n", st.use_lfsr, st.lfsr_rst_st);
-  printf("frame_pd_asamps %d = %.3f us\n", st.frame_pd_asamps,
+  printf("frame_qty %d\n", st.frame_qty);
+  printf("PROTOCOL: frame_pd_asamps %d = %.3f us\n", st.frame_pd_asamps,
 	 qregs_dur_samps2us(st.frame_pd_asamps));
+  printf("          body_len_asamps %d\n", st.body_len_asamps);
+  printf("          hdr_len_bits %d = %.3f ns \tosamp %d\n", st.hdr_len_bits,
+	 qregs_dur_samps2us(st.hdr_len_bits*st.osamp)*1000,
+	 st.osamp);
 
   //  printf("mem_raddr_lim_min1 %d\n", h_r_fld(H_DAC_DMA_MEM_RADDR_LIM_MIN1));
 
   
-  printf("frame_qty %d\n", st.frame_qty);
-  printf("body_len_asamps %d\n", st.body_len_asamps);
-  printf("hdr_len_bits %d = %.3f ns\n", st.hdr_len_bits,
-	 qregs_dur_samps2us(st.hdr_len_bits*st.osamp)*1000);
   printf("QSDC: data_pos %d asamps = %.3f ns\n",
 	 st.qsdc_data_cfg.pos_asamps,
 	 qregs_dur_samps2us(st.qsdc_data_cfg.pos_asamps)*1000);
+  printf("      cipher_en %d    decipher_en %d\n",
+	 st.cipher_en, st.decipher_en);
   printf("      data_len %d asamps = %.3f ns per frame\n",
 	 st.qsdc_data_cfg.data_len_asamps,
 	 qregs_dur_samps2us(st.qsdc_data_cfg.data_len_asamps)*1000);
@@ -876,6 +881,12 @@ void qregs_set_tx_always(int en) {
   st.tx_always = i;
   if (!i)
     h_pulse_fld(H_DAC_CTL_FRAMER_RST); // for dbg    
+}
+
+void qregs_set_tx_indefinite(int en) {
+  int i = !!en;
+  h_w_fld(H_DAC_CTL_TX_INDEFINITE, i);  
+  st.tx_indefinite = i;
 }
 
 void qregs_set_tx_mem_circ(int en) {
@@ -1229,7 +1240,7 @@ void qregs_sfp_gth_rst(void) {
 }
 
 void qregs_sfp_gth_status(void) {
-  int i=h_r_fld(H_DAC_STATUS_GTH_STATUS);
+  int i=h_r_fld(H_DAC_STATUS_GTH_STATUS_RC);
   printf("  SFP GTH: tx_rst_done %d  rx_rst_done %d  qplllock %d\n",
 	 (i&1),(i>>1)&1,(1>>2)&1);
 }

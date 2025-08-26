@@ -107,13 +107,15 @@ typedef struct qregs_struct {
   
   int use_lfsr;
   int lfsr_rst_st;
-  int cipher_en; // 1=frame bodies are ciphered
+  int cipher_en;   // 1=txed frame bodies are ciphered
+  int decipher_en; // 1=rxed frame bodies are deciphered
   int cipher_m;  // cipher modulation m-psk. 2=bpsk,4=qpsk,etc.
   int cipher_symlen_asamps;  // cipher symbol length in asamps
   int cipher_w;  // HDL detail
 
 
   int tx_always;
+  int tx_indefinite;
   int tx_mem_circ;
   int tx_same_hdrs; // used with use_lfsr.  All hdrs will be same.
   int tx_same_cipher;
@@ -218,7 +220,7 @@ void qregs_set_cipher_en(int en, int symlen_asamps, int m);
 
 
 void qregs_set_tx_always(int en);
-
+void qregs_set_tx_indefinite(int en);
 void qregs_set_tx_pilot_pm_en(int en);
 // 1=enable (default), 0=disable pilot phase modulation
 

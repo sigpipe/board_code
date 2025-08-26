@@ -22,7 +22,7 @@
 #include "h_vhdl_extract.h"
 #include "h.h"
 
-#define QNICLL_LINKED (0)
+#define QNICLL_LINKED (1)
 #define QREGC_LINKED (0)
 
 #if QNICLL_LINKED
@@ -313,7 +313,7 @@ int main(int argc, char *argv[]) {
   short int mem[DAC_N];
   //  short int rx_mem_i[ADC_N], rx_mem_q[ADC_N]; 
   //  short int corr[ADC_N];
-  int alice_txing=0;
+  int alice_txing=0,cipher_en=0;
 
   int num_bufs, p_i;
   double d, *corr;
@@ -422,9 +422,11 @@ int main(int argc, char *argv[]) {
     qregs_set_save_after_init(1);
   }else if (tst_sync) {
     qregs_sync_status_t sstat;
-    qregs_get_sync_status(&sstat);
-    if (!sstat.locked)
-      err("synchronizer unlocked");
+    if (is_alice) {
+      qregs_get_sync_status(&sstat);
+      if (!sstat.locked)
+        err("synchronizer unlocked");
+    }
 
     qregs_set_tx_same_hdrs(1);
     is_alice = ini_ask_yn(tvars, "is_alice", "is_alice", 1);
@@ -511,14 +513,6 @@ int main(int argc, char *argv[]) {
   qregs_set_tx_go_condition(cond);
   printf(" using tx_go condition %c\n", st.tx_go_condition);
 
-  
-  printf("   osamps %d\n", st.osamp);
-  printf("   frame_pd_asamps %d = %.3Lf us\n", st.frame_pd_asamps,
-       qregs_dur_samps2us(st.frame_pd_asamps));
-  printf("   hdr_len_bits %d = %.2Lf ns\n", st.hdr_len_bits,
-         qregs_dur_samps2us(st.hdr_len_bits*st.osamp)*1000);
-  printf("   body_len_samps %d\n", st.body_len_asamps);
-
 
   hdr_preemph_en = 0;
   // for now I have to be able to turn off hdr_preemph
@@ -537,12 +531,12 @@ int main(int argc, char *argv[]) {
     i=j=k=0;
     lookup_int("init_pwr_thresh", &i);
     qregs_dbg_set_init_pwr(i);
-    printf("  init_pwr_thresh %d\n", st.init_pwr_thresh);
+    // printf("  init_pwr_thresh %d\n", st.init_pwr_thresh);
     lookup_int("hdr_pwr_thresh", &j);
     lookup_int("hdr_corr_thresh",&k);
     qregs_set_hdr_det_thresh(j, k);
-    printf("  pilot_pwr_thresh %d\n", st.hdr_pwr_thresh);
-    printf("  pilot_corr_thresh %d\n", st.hdr_corr_thresh);
+    //  printf("  pilot_pwr_thresh %d\n", st.hdr_pwr_thresh);
+    // printf("  pilot_corr_thresh %d\n", st.hdr_corr_thresh);
   }
 
 
@@ -568,17 +562,22 @@ int main(int argc, char *argv[]) {
     }
 
     if (opt_sync)
-      frame_qty_req = is_alice?16:8;
+      frame_qty_req = 2;
     else if (opt_qsdc)
-      frame_qty_req = is_alice?10:270;
+      frame_qty_req = is_alice?10:1862;
     //     frame_qty_req = is_alice?10:200;
     else
       frame_qty_req = ask_num("frames per itr", "frames_per_itr", 10);
 
+
+    i = round(8e-6 * st.asamp_Hz); // est round trip
+    //    printf("6us = %d asamps\n", i);
+    i = ceil((double)i/st.frame_pd_asamps);
+    // printf(" = %d frames\n", i);
     if (!is_alice && alice_syncing)
-      frame_qty = frame_qty_req*3;
+      frame_qty = frame_qty_req*2 + i;
     else
-      frame_qty = frame_qty_req+1;
+      frame_qty = frame_qty_req + i;
 
     
     num_bufs = ceil((double)(frame_qty) / max_frames_per_buf);
@@ -595,8 +594,8 @@ int main(int argc, char *argv[]) {
     printf("  buf_len_asamps %d\n", buf_len_asamps);
 
     // THIS might not be used
-    cap_len_samps = num_bufs & buf_len_asamps;
-    printf("  cap_len_samps %d\n", cap_len_samps);
+    //    cap_len_samps = num_bufs & buf_len_asamps;
+    //    printf("  cap_len_samps %d\n", cap_len_samps);
     // This is cap len per iter
 
     
@@ -627,8 +626,8 @@ int main(int argc, char *argv[]) {
     buf_len_asamps = st.frame_pd_asamps * frames_per_buf;
     printf(" buf_len_asamps %d\n", buf_len_asamps);
 
-    cap_len_samps = frame_qty * st.frame_pd_asamps;
-    printf(" cap_len_samps %d\n", cap_len_samps);
+    //    cap_len_samps = frame_qty * st.frame_pd_asamps;
+    //    printf(" cap_len_samps %d\n", cap_len_samps);
     
       //    printf("cap_len_samps %d must be < %d \n", cap_len_samps, ADC_N);
       //    printf("WARN: must increase buf size\n");
@@ -813,7 +812,12 @@ int main(int argc, char *argv[]) {
 
   // this must be done after pushing the dma data, because it primes qsdc.
   qregs_set_alice_txing(is_alice && alice_txing);
+  if (!is_alice)
+    lookup_int("cipher_en", &cipher_en);
 
+  // TODO: make cipher prime not be dependent on cipher_en
+  // going low.  Then we can just keep it high all the time.
+  qregs_set_cipher_en(cipher_en, st.osamp, 2);
 
 
   qregs_clr_adc_status();
@@ -1100,7 +1104,7 @@ int main(int argc, char *argv[]) {
     fprintf(fp,"search = %d;\n",       search);
     fprintf(fp,"osamp = %d;\n",        st.osamp);
     fprintf(fp,"cipher_m = %d;\n",     st.cipher_m);
-    fprintf(fp,"cipher_en = %d;\n",     st.cipher_en);
+    fprintf(fp,"cipher_en = %d;\n",    cipher_en);
     fprintf(fp,"cipher_symlen_asamps = %d;\n", st.cipher_symlen_asamps);
     fprintf(fp,"tx_pilot_pm_en = %d;\n",  st.tx_pilot_pm_en);
     fprintf(fp,"frame_qty = %d;\n",    st.frame_qty);
@@ -1120,7 +1124,7 @@ int main(int argc, char *argv[]) {
     fprintf(fp,"m12 = %g;\n", st.rebal.m12);
     fprintf(fp,"hdr_len_bits = %d;\n", st.hdr_len_bits);
     fprintf(fp,"data_hdr = 'i_adc q_adc';\n");
-    fprintf(fp,"data_len_samps = %d;\n", cap_len_samps);
+    //    fprintf(fp,"data_len_samps = %d;\n", cap_len_samps);
     fprintf(fp,"data_in_other_file = 2;\n");
     fprintf(fp,"num_itr = %d;\n", num_itr);
     fprintf(fp,"time = %d;\n", (int)time(0));

@@ -88,6 +88,15 @@ int cmd_pwr(int arg) {
   }
   return 0;
 }
+
+int cmd_dbg_pminv(int arg) {
+  int i;
+  if (parse_int(&i)) return CMD_ERR_SYNTAX;
+  h_w_fld(H_DAC_CTL_ALICE_TXING, 0);
+  h_w_fld(H_DAC_ALICE_PM_INVERT, !!i);
+  return 0;
+}
+
 int cmd_dbg_clksel(int arg) {
   int i;
   if (parse_int(&i)) return CMD_ERR_SYNTAX;
@@ -223,9 +232,12 @@ int cmd_proto(int arg) {
   printf("body_len_asamps %d\n", st.body_len_asamps);
 
 
-
+  if (st.is_bob)
+    i = ini_ask_yn(tvars,"cipher_en", "cipher_en", st.cipher_en);
+  else
+    i=0;
   j = ini_ask_num(tvars, "cipher_m (for m-psk)", "cipher_m", 2);
-  qregs_set_cipher_en(st.cipher_en, st.osamp, j);
+  qregs_set_cipher_en(i, st.osamp, j);
   
   if (st.osamp!=st.cipher_symlen_asamps)
     printf("  actually symlen = %d\n", st.cipher_symlen_asamps);
@@ -244,16 +256,17 @@ int cmd_proto(int arg) {
 					   "symbol_len_asamps", 8);
 
   gap_ns = ini_ask_num(tvars, "gap after pilot (ns)", "post_hdr_gap_ns", 100);
-  i= round(gap_ns * 1.0e-9 * st.asamp_Hz / st.osamp) * st.osamp;
-  i = (int)round((double)i/4)*4;
-  printf("rounded to %d asamps = %.1f ns\n", i, i/st.asamp_Hz*1.0e9);
-  data_cfg.pos_asamps   = st.hdr_len_asamps + i;
+  i = round(gap_ns * 1.0e-9 * st.asamp_Hz) + st.hdr_len_asamps;
+  i = round(i/4)*4;
+  j = i-st.hdr_len_asamps;
+  printf("rounded to %d asamps = %.1f ns\n", j, j/st.asamp_Hz*1.0e9);
+  data_cfg.pos_asamps   = i;
 
   gap_ns = ini_ask_num(tvars, "gap at end (ns)", "post_body_gap_ns", 100);
-  i= round(gap_ns * 1e-9 * st.asamp_Hz / st.osamp) * st.osamp;
-  i = ((int)i/4)*4;
+  i= round(gap_ns * 1e-9 * st.asamp_Hz);
   i = (st.frame_pd_asamps - i - data_cfg.pos_asamps);
-  data_cfg.data_len_asamps = i; // per fram
+  i = floor(i/data_cfg.symbol_len_asamps)*data_cfg.symbol_len_asamps;
+  data_cfg.data_len_asamps = i; // per frame
 
 
   data_cfg.bit_dur_syms = ini_ask_num(tvars,"  duration of one bit (symbols)",
@@ -927,6 +940,7 @@ int cmd_laser_wl(int arg) {
 cmd_info_t dbg_cmds_info[]={
   {"pwr",    cmd_dbg_pwr,  0, 0}, 
   {"clksel", cmd_dbg_clksel, 0, 0}, 
+  {"pminv",  cmd_dbg_pminv,  0, 0}, 
   {"search", cmd_dbg_search, 0, 0}, 
   {"info",   cmd_dbg_info,  0, 0},  
   {"regs",   cmd_dbg_regs, 0, 0},  {0},
@@ -978,7 +992,7 @@ cmd_info_t cmds_info[]={
   {"sfp",     cmd_subcmd, (int)sfp_cmds_info, 0, 0}, 
   {"tx",      cmd_tx,     0, 0},
   {"rx",      cmd_rx,   0, 0},
-  {"rxdly",   cmd_rxdly,  0, 0},
+  {"rxdly",   cmd_rxdly,  0, "sub-cycle sample dly (asamps)", "0..3"},
   {"roundtrip",  cmd_roundtrip,  0, "set bobs rx dly", "[<dly>]"},
 
   {"pwr",     cmd_pwr,     0, "querry RedPitaya for power"},
@@ -1025,7 +1039,6 @@ int main(int argc, char *argv[]) {
     printf("ERR: cannot save tvars.txt\n%s\n", ini_err_msg());
 
 
-  
   
   if (qregs_done()) err("qregs_done fail");  
 

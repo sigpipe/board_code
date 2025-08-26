@@ -1,7 +1,7 @@
 // h_vhdl_extract.h
 // hardware access constants
 // This file was automatically generated
-// by Register Extractor (ver 4.14) on Fri Aug 22 17:52:42 2025
+// by Register Extractor (ver 4.14) on Mon Aug 25 18:36:18 2025
 // compile version Mon Jun 16 10:25:20 2025
 // current dir:  C:\reilly\proj\quanet\quanet_hdl\projects\daq3\zcu106
 // DO NOT MODIFY THIS FILE!
@@ -18,7 +18,7 @@
 // version constants
 #define H_VHDL_EXTRACT_VER (4)
 #define H_VHDL_EXTRACT_SUBVER (14)
-#define H_VHDL_EXTRACT_DATE "Fri Aug 22 17:52:42 2025"
+#define H_VHDL_EXTRACT_DATE "Mon Aug 25 18:36:18 2025"
 #define H_VHDL_EXTRACT_DIR "C:\reilly\proj\quanet\quanet_hdl\projects\daq3\zcu106"
 
 
@@ -118,7 +118,7 @@
 #define H_DAC_CTL_SIMPLE_IM_HDR_EN      0x00002036  /* 0x00400000   w -- use vals from IM register */
 #define H_DAC_CTL_TX_DBITS              0x00002037  /* 0x00800000   w -- alice transmits data */
 #define H_DAC_CTL_TX_INDEFINITE         0x00002038  /* 0x01000000   w -- runs until stopped */
-#define H_DAC_CTL_ALICE_SYNCING         0x00002039  /* 0x02000000   w -- disables pm hdr if alice */
+#define H_DAC_CTL_ALICE_SYNCING         0x00002039  /* 0x02000000   w */
 #define H_DAC_CTL_MEMTX_CIRC            0x0000203a  /* 0x04000000   w -- circular xmit from mem */
 #define H_DAC_CTL_PM_HDR_DISABLE        0x0000203b  /* 0x08000000   w -- header has no PM modulation */
 #define H_DAC_CTL_TX_ALWAYS             0x0000203c  /* 0x10000000   w -- used for dbg to view on scope */
@@ -129,7 +129,7 @@
                                        // w 0xffffffff
 
 #define H_DAC_STATUS                    0x00003000  /* 3 */
-#define H_DAC_STATUS_GTH_STATUS         0x00003080  /* 0x0000000f  r  */
+#define H_DAC_STATUS_GTH_STATUS_RC      0x00003080  /* 0x0000000f  r  */
 #define H_DAC_STATUS_FWVER              0x00003084  /* 0x000000f0  r  */
 #define H_DAC_STATUS_FRAME_SYNC_IN_CNT  0x000030c8  /* 0x00003f00  r  */
 #define H_DAC_STATUS_DAC_RST_AXI        0x0000302e  /* 0x00004000  r  */
@@ -206,15 +206,16 @@
 #define H_DAC_DBG_SER_SAW_XOFF_TIMO     0x0000a022  /* 0x00000004  r  */
 #define H_DAC_DBG_SER_TX_OVF            0x0000a023  /* 0x00000008  r  */
 #define H_DAC_DBG_SER_RX_OVF            0x0000a024  /* 0x00000010  r  */
-#define H_DAC_DBG_TX_EVENT_CNT_SEL      0x0000a045  /* 0x00000060  r  */
-#define H_DAC_DBG_TX_EVENT_CNT          0x0000a14a  /* 0x000ffc00  r  */
-#define H_DAC_DBG_TX_COMMENCE_ACLK      0x0000a035  /* 0x00200000  r  */
+#define H_DAC_DBG_TX_EVENT_CNT          0x0000a146  /* 0x0000ffc0  r  */
+#define H_DAC_DBG_FOO_CNT               0x0000a0f0  /* 0x007f0000  r  */
+#define H_DAC_DBG_TX_COMMENCE_ACLK      0x0000a037  /* 0x00800000  r  */
+#define H_DAC_DBG_TX_EVENT_CNT_SEL      0x0000a058  /* 0x03000000  rw */
 #define H_DAC_DBG_TX_FORCE              0x0000a03a  /* 0x04000000  rw */
 #define H_DAC_DBG_SER_CLR_CTRS          0x0000a03b  /* 0x08000000  rw */
 #define H_DAC_DBG_SER_CTR_SEL           0x0000a05c  /* 0x30000000  rw */
 #define H_DAC_DBG_SER_CLR_ERRS          0x0000a03e  /* 0x40000000  rw */
-                                       // r 0xfe2ffc7f
-                                       // w 0xfe000000
+                                       // r 0xffffffdf
+                                       // w 0xff000000
 
 #define H_DAC_CIPHER                    0x0000b000  /* 11 */
 #define H_DAC_CIPHER_REG_W              0x0000b400  /* 0xffffffff  r  */
@@ -349,11 +350,13 @@
 #define H_ADC_REBALO_AREG_W                0x1000b400  /* 0xffffffff  r  */
 #define H_ADC_REBALO_I_OFFSET              0x1000b0c0  /* 0x0000003f   w */
 #define H_ADC_REBALO_Q_OFFSET              0x1000b0c6  /* 0x00000fc0   w */
+#define H_ADC_REBALO_XPH_COS               0x1000b12c  /* 0x001ff000   w -- 8/25 */
+#define H_ADC_REBALO_XPH_SIN               0x1000b135  /* 0x3fe00000   w -- 8/25 */
                                        // r 0xffffffff
-                                       // w 0x00000fff
+                                       // w 0x3fffffff
 
 #define H_ADC_DBG                          0x1000c000  /* 12 */
-#define H_ADC_DBG_REF_FRAME_DUR            0x1000c300  /* 0x00ffffff  r  */
+#define H_ADC_DBG_REF_FRAME_DUR            0x1000c300  /* 0x00ffffff  r  -- for dbg */
 #define H_ADC_DBG_RXBUF_EXISTS_ACLK        0x1000c039  /* 0x02000000  r  */
 #define H_ADC_DBG_AREG_W                   0x1000c0bb  /* 0xf8000000  r  */
 #define H_ADC_DBG_DMA_FLUSH                0x1000c03c  /* 0x10000000   w */
