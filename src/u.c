@@ -26,6 +26,7 @@
 #include "i2c.h"
 #include "h.h"
 #include "util.h"
+#include <sys/reboot.h>
 
 #define QREGC_LINKED (0)
 
@@ -52,6 +53,7 @@ void err(char *str) {
 }
 
 ini_val_t *tvars;
+int shutdown=0;
 
 /*
 int cmd_cal(int arg) {
@@ -190,6 +192,35 @@ int cmd_rst(int arg) {
   printf("rst\n");
   return 0;
 }
+
+int cmd_shutdown(int arg) {
+  if (!u_ask_yn("really shutdown",-1)) return 0;
+  if (qregs_rp_shutdown()) {
+    printf("ERR: cant shut down Red Pitaya");
+    return CMD_ERR_FAIL;
+  }
+  shutdown=1;
+  return 0;
+}
+int cmd_dbg_rpinfo(int arg) {
+  char str[512];
+  if (qregs_rp_info(str, 512)) {
+    printf("ERR: cant get info from Red Pitaya");
+    return CMD_ERR_FAIL;
+  }else
+    printf(str);
+  return 0;
+}
+int cmd_dbg_rpreboot(int arg) {
+  if (!u_ask_yn("really reboot Red Pitaya",-1)) return 0;
+  if (qregs_rp_reboot()) {
+    printf("ERR: cant reboot Red Pitaya");
+    return CMD_ERR_FAIL;
+  }
+}
+
+
+
 
 int cmd_stat(int arg) {
   printf("\nstatus\n");
@@ -449,6 +480,8 @@ int cmd_init(int arg) {
 
   get_ini_int(ivars,"lfsr_rst_st", &i);
   qregs_set_lfsr_rst_st(i);
+  get_ini_int(ivars,"use_lfsr", &i);
+  qregs_set_use_lfsr(i);
   
   e=ini_get_string(ivars,"sfp_init", &str_p);
   if (e || !*str_p) {
@@ -941,6 +974,8 @@ cmd_info_t dbg_cmds_info[]={
   {"pwr",    cmd_dbg_pwr,  0, 0}, 
   {"clksel", cmd_dbg_clksel, 0, 0}, 
   {"pminv",  cmd_dbg_pminv,  0, 0}, 
+  {"rpreboot",  cmd_dbg_rpreboot,  0, 0}, 
+  {"rpinfo",   cmd_dbg_rpinfo,  0, 0}, 
   {"search", cmd_dbg_search, 0, 0}, 
   {"info",   cmd_dbg_info,  0, 0},  
   {"regs",   cmd_dbg_regs, 0, 0},  {0},
@@ -1004,9 +1039,10 @@ cmd_info_t cmds_info[]={
 #if QREGC_LINKED  
   {"r",       cmd_r,     0, 0},
 #endif  
-  {"set",     cmd_set,  0, 0},
-  {"stat",    cmd_stat,   0, 0},
-  {"thresh",  cmd_thresh, 0, "set detection thersholds", "[<pwr> <corr> [<ini>]]"}, 
+  {"set",      cmd_set,  0, 0},
+  {"stat",     cmd_stat,   0, 0},
+  {"shutdown", cmd_shutdown,   0, 0},
+  {"thresh",   cmd_thresh, 0, "set detection thersholds", "[<pwr> <corr> [<ini>]]"}, 
   {"twopi",   cmd_twopi,   0, 0}, 
   {"ver",     cmd_ver,   0, 0}, 
   {0}};
@@ -1038,11 +1074,17 @@ int main(int argc, char *argv[]) {
   if (e)
     printf("ERR: cannot save tvars.txt\n%s\n", ini_err_msg());
 
+  if (qregs_done()) err("qregs_done fail");
 
-  
-  if (qregs_done()) err("qregs_done fail");  
-
+  if (shutdown) {
+    if (u_ask_yn("really really shutdown",-1)) {
+    printf("shutting down in 1 second...\n");
+    usleep(1000000);
+    sync();
+    setuid(0);
+    reboot(RB_POWER_OFF);
+    }
+  }
   return 0;
-  
 }
 

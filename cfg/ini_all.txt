@@ -2,6 +2,7 @@ sfp_init = 'cfg/si5328_302MHz_to_61.667MHz.txt';
 osamp = 4;
 frame_pd_asamps = 600;
 lfsr_rst_st = x50f;
+use_lfsr = 1;
 hdr_len_bits = 32;
 ser_baud_Hz = 57600;
 ser_parity = 2;

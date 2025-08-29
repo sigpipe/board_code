@@ -1,4 +1,6 @@
 
+// Client-side code for qrp service running on Red Pitaya.
+
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
@@ -63,6 +65,38 @@ int rp_cfg_frames(int frame_pd_asamps, int pilot_dur_asamps) {
   e = rp_do_cmd(rp_cmd);
   if (e) return e;
   return 0;
+}
+
+int rp_shutdown(void) {
+  int e;
+  if (!rp_connected) {
+    if ((e=rp_connect())) return e;
+  }
+  e = rp_do_cmd("shutdown\r");
+  return e;
+}
+
+int rp_info(char *str, int strlen) {
+  int e;
+  if (!rp_connected) {
+    if ((e=rp_connect())) return e;
+  }
+  e = rp_do_cmd("info\r");
+  str[0]=0;
+  if (!e) {
+    strncpy(str, rp_rsp, strlen);
+    str[strlen-1]=0;
+  }
+  return e;
+}
+
+int rp_reboot(void) {
+  int e;
+  if (!rp_connected) {
+    if ((e=rp_connect())) return e;
+  }
+  e = rp_do_cmd("reboot\r");
+  return e;
 }
 
 int rp_get_status(rp_status_t *status) {

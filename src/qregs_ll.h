@@ -48,4 +48,9 @@ void qregs_clr_corr_status(void);
 void qregs_print_adc_status(void); // for dbg
 void qregs_print_hdr_det_status(void);
 
+
+int qregs_rp_shutdown(void);
+int qregs_rp_reboot(void);
+int qregs_rp_info(char *str, int len_byts);
+
 #endif

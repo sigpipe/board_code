@@ -91,6 +91,9 @@ void qregs_print_last_err(void) {
   printf("ERR: %s: %s\n", qregs_err2str(qregs_lasterr), qregs_errmsg);
 }
 
+
+
+
 int msk2bpos(unsigned int msk) {
   int p=0;
   while(!(msk&1)) {
@@ -521,6 +524,18 @@ int qregs_measure_frame_pwrs(qregs_frame_pwrs_t *pwrs) {
 }
 
 
+int qregs_rp_info(char *str, int strlen) {
+  return rp_info(str, strlen);
+}
+int qregs_rp_shutdown(void) {
+  return rp_shutdown();
+}
+
+int qregs_rp_reboot(void) {
+  return rp_reboot();
+}
+
+
 void qregs_set_iq_rebalance(qregs_rebalance_params_t *params) {
   int i;
   // printf("DBG: set iq rebal\n");
@@ -594,6 +609,9 @@ void qregs_get_settings(void) {
   st.body_len_asamps = (i+1)*4;
 
   st.frame_qty = h_r_fld(H_DAC_FR2_FRAME_QTY_MIN1)+1;
+
+  st.cdm_cfg.num_iter  =h_r_fld(H_ADC_FR2_FRAME_QTY_MIN1)+1; // aall num iter
+  st.cdm_cfg.num_passes=h_r_fld(H_ADC_FR1_NUM_PASS_MIN1)+1;
 
   st.init_pwr_thresh = h_r_fld(H_ADC_SYNC_INIT_THRESH_D16)*16;
   st.hdr_pwr_thresh  = h_r_fld(H_ADC_HDR_PWR_THRESH);
@@ -711,7 +729,8 @@ void qregs_print_settings(void) {
 	 st.osamp);
 
   //  printf("mem_raddr_lim_min1 %d\n", h_r_fld(H_DAC_DMA_MEM_RADDR_LIM_MIN1));
-
+  printf("CDM: num_passes %d  num_iter %d\n",
+	 st.cdm_cfg.num_passes, st.cdm_cfg.num_iter);
   
   printf("QSDC: data_pos %d asamps = %.3f ns\n",
 	 st.qsdc_data_cfg.pos_asamps,
@@ -976,16 +995,12 @@ void qregs_set_qsdc_data_cfg(qregs_qsdc_data_cfg_t *data_cfg) {
   //  printf("  code reps per bit = %d\n", i+1);
 
   
-
-  
   *data_cfg = *c;
 }
 
 
 void qregs_set_alice_syncing(int en) {
   int i = !!en;
-  h_w_fld(H_ADC_ACTL_SAVE_AFTER_INIT, 0);
-  h_w_fld(H_ADC_ACTL_SAVE_AFTER_PWR, i);
   h_w_fld(H_ADC_DBG_HOLD, 0);
   //- alice_syncing wont matter if isbob, but
   // id like to get rid of alice_syncing.
@@ -998,7 +1013,6 @@ void qregs_set_frame_qty(int qty) {
   int i;
   i = qty-1;
   i = h_w_fld(H_DAC_FR2_FRAME_QTY_MIN1, i);
-  h_w_fld(H_ADC_FR2_FRAME_QTY_MIN1, i);
   st.frame_qty = (i+1);
 }
 
@@ -1024,6 +1038,47 @@ void qregs_set_hdr_len_bits(int hdr_len_bits) {
 }
 
 
+
+void qregs_set_cdm_en(int en) {
+  int i = h_w_fld(H_ADC_ACTL_CORRSTART, !!en);
+}
+
+void qregs_set_cdm_cfg(qregs_cdm_cfg_t *cdm_cfg) {
+  int i, probes_per_frame;
+  qregs_cdm_cfg_t *p=&st.cdm_cfg;
+
+  qregs_set_hdr_len_bits(cdm_cfg->probe_len_asamps/st.osamp);
+  p->probe_len_asamps = st.hdr_len_asamps;
+
+  // how many passes to complete one contribution
+  i = (p->probe_len_asamps/4+1)/H_MAX_SLICES-1;
+  i = h_w_fld(H_ADC_FR1_NUM_PASS_MIN1, i);
+  p->num_passes=i+1;
+
+
+  i = cdm_cfg->num_iter-1;
+  i = h_w_fld(H_ADC_FR2_FRAME_QTY_MIN1, i); // actuall num iter
+  p->num_iter=i+1;
+  
+  // how many probes to tx
+  i = p->num_passes * p->num_iter;
+  qregs_set_frame_qty(i);
+  p->probe_qty_to_tx = st.frame_qty;
+  // only matters in one-shot, not streaming, mode.
+
+  *cdm_cfg = *p;
+}
+
+void qregs_set_cdm_frame_pd_asamps(int frame_pd_asamps) {
+  int i = frame_pd_asamps/4-1;
+  // These two regs always set the same.
+  // actually write num cycs-1 (at fsamp/4=308MHz)
+  i = h_w_fld(H_DAC_FR1_FRAME_PD_MIN1, i);
+  i = h_w_fld(H_ADC_FR1_FRAME_PD_MIN1, i);
+  st.frame_pd_asamps = (i+1)*4;
+  st.setflags |= 2;
+}
+
 void qregs_set_frame_pd_asamps(int frame_pd_asamps) {
 // inputs:
 //       frame_pd_asamps: requested frame period in units of ADC/DAC samples.
@@ -1047,9 +1102,11 @@ void qregs_set_frame_pd_asamps(int frame_pd_asamps) {
   // by increasing the complexity of the HDL, but lets not go
   // there now.
   i=(int)((i+5)/10)*10-1;
+
+  // These two regs always set the same.
   // actually write num cycs-1 (at fsamp/4=308MHz)
+  i = h_w_fld(H_DAC_FR1_FRAME_PD_MIN1, i);
   i = h_w_fld(H_ADC_FR1_FRAME_PD_MIN1, i);
-  h_w_fld(H_DAC_FR1_FRAME_PD_MIN1, i);
   st.frame_pd_asamps = (i+1)*4;
   st.setflags |= 2;
 
@@ -1136,6 +1193,7 @@ void qregs_print_hdr_det_status(void) {
   // This is momentary and unlikely to be caught:
   //  printf("   pwr_searching %d\n", ext(r0, AREG2_PS0_PWR_SEARCHING));
   printf("    framer_going %d\n", ext(r0, AREG2_PS0_FRAMER_GOING));
+  printf("    corr_en %d\n", h_r_fld(H_ADC_ACTL_CORRSTART));
 
 
   h_w_fld(H_ADC_CSTAT_PROC_SEL, 4);

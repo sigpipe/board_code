@@ -18,7 +18,13 @@ typedef struct rp_status_st {
   double body_rat_dB;
 } rp_status_t;
 
+// These return 0 on success,
+// or typically QREGS_ERR_FAIL on error
+
 int rp_get_status(rp_status_t *stat);
 int rp_cfg_frames(int frame_pd_asamps, int pilot_dur_asamps);
-  
+int rp_shutdown(void);
+int rp_reboot(void);
+int rp_info(char *str, int strlen);
+
 #endif

@@ -39,6 +39,13 @@ typedef struct iq_rebalance_struct {
 } qregs_rebalance_params_t;
 
 
+// CDM(reflection tomography) configuration
+typedef struct qregs_cdm_cfg_struct {
+  int probe_len_asamps;
+  int num_iter;
+  int probe_qty_to_tx;
+  int num_passes;
+} qregs_cdm_cfg_t;
 
 // QSDC pilot configuration
 typedef struct qregs_pilot_cfg_struct {
@@ -87,9 +94,10 @@ typedef struct lcl_iio_struct {
   struct iio_buffer *dac_buf, *adc_buf;
   void *adc_buf_p;
 
-  ssize_t adc_buf_sz;
-  int num_bufs;
-  int cap_len_asamps;
+  ssize_t dac_buf_sz_bytes;
+  ssize_t rx_buf_sz_asamps;
+  int rx_num_bufs;
+  //  int cap_len_asamps;
 
   
 } lcl_iio_t;
@@ -163,6 +171,8 @@ typedef struct qregs_struct {
   qregs_pilot_cfg_t     pilot_cfg;
   qregs_qsdc_data_cfg_t qsdc_data_cfg;
 
+  qregs_cdm_cfg_t cdm_cfg;
+  
   int round_trip_asamps;
   int rx_samp_dly_asamps;
   
@@ -180,7 +190,7 @@ int  qregs_done();
 
 void qregs_set_meas_noise(int en);
 
-
+void qregs_set_cdm_en(int en);
 
 
 void qregs_set_lfsr_rst_st(int lfsr_rst_st);
@@ -243,6 +253,8 @@ void qregs_set_save_after_hdr(int en);
 
 void qregs_set_qsdc_data_cfg(qregs_qsdc_data_cfg_t *data_cfg);
 
+void qregs_set_cdm_cfg(qregs_cdm_cfg_t *cdm_cfg);
+
 void qregs_set_alice_txing(int en);
 void qregs_set_alice_syncing(int en);
   
@@ -250,6 +262,8 @@ void qregs_set_alice_syncing(int en);
 void qregs_set_osamp(int osamp);
 // osamp: 1,2 or 4
 
+
+void qregs_set_cdm_frame_pd_asamps(int frame_pd_asamps);
 void qregs_set_frame_pd_asamps(int frame_pd_asamps);
 // inputs:
 //       frame_pd_asamps: requested frame period in units of ADC/DAC samples.
@@ -263,6 +277,8 @@ void qregs_set_frame_pd_asamps(int frame_pd_asamps);
 //       Calling code can check st.frame_pd_asamps to see what
 //       the new effective frame period is.
 
+
+// TODO: change to qregs_set_pilot/probe_len_asamps
 void qregs_set_hdr_len_bits(int hdr_len_bits);
 // call this after qregs_set_frame_pd_asamps
 

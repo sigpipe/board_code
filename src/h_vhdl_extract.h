@@ -1,7 +1,7 @@
 // h_vhdl_extract.h
 // hardware access constants
 // This file was automatically generated
-// by Register Extractor (ver 4.14) on Mon Aug 25 18:36:18 2025
+// by Register Extractor (ver 4.14) on Fri Aug 29 12:06:24 2025
 // compile version Mon Jun 16 10:25:20 2025
 // current dir:  C:\reilly\proj\quanet\quanet_hdl\projects\daq3\zcu106
 // DO NOT MODIFY THIS FILE!
@@ -18,7 +18,7 @@
 // version constants
 #define H_VHDL_EXTRACT_VER (4)
 #define H_VHDL_EXTRACT_SUBVER (14)
-#define H_VHDL_EXTRACT_DATE "Mon Aug 25 18:36:18 2025"
+#define H_VHDL_EXTRACT_DATE "Fri Aug 29 12:06:24 2025"
 #define H_VHDL_EXTRACT_DIR "C:\reilly\proj\quanet\quanet_hdl\projects\daq3\zcu106"
 
 
@@ -65,7 +65,7 @@
 #define H_QSDC_FRAME_CYCS_W (10)
 #define H_UFRAME_PD_CYCS_W (17)
 #define H_FRAME_PD_CYCS_W (24)
-#define H_OPT_GEN_CDM_CORR (0)
+#define H_OPT_GEN_CDM_CORR (1)
 #define H_OPT_GEN_DECIPHER_LFSR (1)
 #define H_OPT_GEN_CIPHER_FIFO (0)
 #define H_OPT_GEN_PH_EST (1)
@@ -206,15 +206,14 @@
 #define H_DAC_DBG_SER_SAW_XOFF_TIMO     0x0000a022  /* 0x00000004  r  */
 #define H_DAC_DBG_SER_TX_OVF            0x0000a023  /* 0x00000008  r  */
 #define H_DAC_DBG_SER_RX_OVF            0x0000a024  /* 0x00000010  r  */
-#define H_DAC_DBG_TX_EVENT_CNT          0x0000a146  /* 0x0000ffc0  r  */
-#define H_DAC_DBG_FOO_CNT               0x0000a0f0  /* 0x007f0000  r  */
+#define H_DAC_DBG_TX_EVENT_CNT          0x0000a206  /* 0x003fffc0  r  */
 #define H_DAC_DBG_TX_COMMENCE_ACLK      0x0000a037  /* 0x00800000  r  */
 #define H_DAC_DBG_TX_EVENT_CNT_SEL      0x0000a058  /* 0x03000000  rw */
 #define H_DAC_DBG_TX_FORCE              0x0000a03a  /* 0x04000000  rw */
 #define H_DAC_DBG_SER_CLR_CTRS          0x0000a03b  /* 0x08000000  rw */
 #define H_DAC_DBG_SER_CTR_SEL           0x0000a05c  /* 0x30000000  rw */
 #define H_DAC_DBG_SER_CLR_ERRS          0x0000a03e  /* 0x40000000  rw */
-                                       // r 0xffffffdf
+                                       // r 0xffbfffdf
                                        // w 0xff000000
 
 #define H_DAC_CIPHER                    0x0000b000  /* 11 */
@@ -262,18 +261,20 @@
 #define H_ADC_ACTL_PHASE_EST_EN            0x10000037  /* 0x00800000   w */
 #define H_ADC_ACTL_RESYNC                  0x10000038  /* 0x01000000   w */
 #define H_ADC_ACTL_DECIPHER_EN             0x10000039  /* 0x02000000   w */
+#define H_ADC_ACTL_DO_STREAM_CDC           0x1000003a  /* 0x04000000   w */
                                        // r 0xffffffff
-                                       // w 0x03fffffe
+                                       // w 0x07fffffe
 
 #define H_ADC_STAT                         0x10001000  /* 1 */
 #define H_ADC_STAT_DMA_XFER_REQ_RC         0x10001020  /* 0x00000001  r  -- for dbg */
 #define H_ADC_STAT_ADC_RST_AXI             0x10001021  /* 0x00000002  r  */
 #define H_ADC_STAT_EVENT_CNT               0x10001088  /* 0x00000f00  r  */
 #define H_ADC_STAT_SFP_RCLK_VLD            0x10001034  /* 0x00100000  r  */
+#define H_ADC_STAT_HAS_FULL_CORRELATOR     0x10001037  /* 0x00800000  r  -- whether hdl has it */
 #define H_ADC_STAT_FWVER                   0x10001098  /* 0x0f000000  r  */
 #define H_ADC_STAT_SYNC_LOCK               0x1000103c  /* 0x10000000  r  */
 #define H_ADC_STAT_SAW_SYNC_OOL            0x1000103d  /* 0x20000000  r  */
-                                       // r 0x3f100f03
+                                       // r 0x3f900f03
                                        // w 0x00000000
 
 #define H_ADC_CSTAT                        0x10002000  /* 2 */
@@ -291,8 +292,8 @@
 
 #define H_ADC_FR2                          0x10004000  /* 4 */
 #define H_ADC_FR2_AREG_W                   0x10004400  /* 0xffffffff  r  */
-#define H_ADC_FR2_HDR_LEN_MIN1_CYCS        0x10004100  /* 0x000000ff   w */
-#define H_ADC_FR2_FRAME_QTY_MIN1           0x10004210  /* 0xffff0000   w */
+#define H_ADC_FR2_HDR_LEN_MIN1_CYCS        0x10004100  /* 0x000000ff   w -- for corr */
+#define H_ADC_FR2_FRAME_QTY_MIN1           0x10004210  /* 0xffff0000   w -- for cdc */
                                        // r 0xffffffff
                                        // w 0xffff00ff
 
@@ -359,7 +360,7 @@
 #define H_ADC_DBG_REF_FRAME_DUR            0x1000c300  /* 0x00ffffff  r  -- for dbg */
 #define H_ADC_DBG_RXBUF_EXISTS_ACLK        0x1000c039  /* 0x02000000  r  */
 #define H_ADC_DBG_AREG_W                   0x1000c0bb  /* 0xf8000000  r  */
-#define H_ADC_DBG_DMA_FLUSH                0x1000c03c  /* 0x10000000   w */
+#define H_ADC_DBG_DMA_FLUSH                0x1000c03c  /* 0x10000000   w -- flush dma xfer to host, sending junk */
 #define H_ADC_DBG_CLK_SEL                  0x1000c03d  /* 0x20000000   w */
 #define H_ADC_DBG_HOLD                     0x1000c03e  /* 0x40000000   w */
 #define H_ADC_DBG_SAVE_AFTER_HDR           0x1000c03f  /* 0x80000000   w */
@@ -377,7 +378,7 @@
 #define H_ADC_QSDC_AREG_W                  0x1000e400  /* 0xffffffff  r  */
 #define H_ADC_QSDC_RND_TRIP_DLY_MIN1_CYCS  0x1000e300  /* 0x00ffffff   w */
 #define H_ADC_QSDC_RX                      0x1000e039  /* 0x02000000   w */
-#define H_ADC_QSDC_TRACK_PILOTS            0x1000e03a  /* 0x04000000   w */
+#define H_ADC_QSDC_TRACK_PILOTS            0x1000e03a  /* 0x04000000   w -- bob only.  for qsdc */
                                        // r 0xffffffff
                                        // w 0x06ffffff
 // initializer for h_baseaddr array
