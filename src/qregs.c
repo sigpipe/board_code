@@ -519,7 +519,8 @@ int qregs_measure_frame_pwrs(qregs_frame_pwrs_t *pwrs) {
   e1=rp_get_status(&status);
   pwrs->ext_rat_dB  = status.ext_rat_dB;
   pwrs->body_rat_dB = status.body_rat_dB;
-  pwrs->body_pwr_mV = status.body_pwr_mV;  
+  pwrs->body_pwr_V  = status.body_pwr_mV;  
+  pwrs->dark_pwr_V  = status.dark_pwr_mV;  
   return e || e1;
 }
 
@@ -610,7 +611,7 @@ void qregs_get_settings(void) {
 
   st.frame_qty = h_r_fld(H_DAC_FR2_FRAME_QTY_MIN1)+1;
 
-  st.cdm_cfg.num_iter  =h_r_fld(H_ADC_FR2_FRAME_QTY_MIN1)+1; // aall num iter
+  st.cdm_cfg.num_iter  =h_r_fld(H_ADC_FR2_CORR_NUM_ITER_MIN1)+1;
   st.cdm_cfg.num_passes=h_r_fld(H_ADC_FR1_NUM_PASS_MIN1)+1;
 
   st.init_pwr_thresh = h_r_fld(H_ADC_SYNC_INIT_THRESH_D16)*16;
@@ -1057,7 +1058,7 @@ void qregs_set_cdm_cfg(qregs_cdm_cfg_t *cdm_cfg) {
 
 
   i = cdm_cfg->num_iter-1;
-  i = h_w_fld(H_ADC_FR2_FRAME_QTY_MIN1, i); // actuall num iter
+  i = h_w_fld(H_ADC_FR2_CORR_NUM_ITER_MIN1, i); // actuall num iter
   p->num_iter=i+1;
   
   // how many probes to tx
@@ -1257,8 +1258,10 @@ void qregs_print_hdr_det_status(void) {
 void qregs_set_round_trip_asamps(int dly) {
   int i;
   i=dly/4-1;
+  //printf("set rndtrip %d cycs = %d asamps\n", i+1, (i+1)*4);
   i=h_w_fld(H_ADC_QSDC_RND_TRIP_DLY_MIN1_CYCS, i);
   st.round_trip_asamps = (i+1)*4;
+  /// printf("  %d\n", st.round_trip_asamps);
 }
 
 void qregs_dbg_print_tx_status(void) {

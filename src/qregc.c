@@ -139,6 +139,7 @@ int qregc_get_fwver(int *fwver){
   return rd_int(fwver);
 }
 
+
 int qregc_connect(char *hostname, qregc_err_fn_t *err_fn) {
 // err_fn: function to use to report errors.
   int e, l;
@@ -200,6 +201,10 @@ int qregc_connect(char *hostname, qregc_err_fn_t *err_fn) {
 }
 
 
+int qregc_alice_txrx(int frame_qty) {
+  sprintf(buf, "alice txrx");
+  return 0;
+}
   
 int qregc_bob_sync_go(int en) {
   sprintf(buf, "bob_sync %d", en);

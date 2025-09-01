@@ -90,6 +90,16 @@ int rp_info(char *str, int strlen) {
   return e;
 }
 
+int rp_measdark(void) {
+  int e;
+  if (!rp_connected) {
+    if ((e=rp_connect())) return e;
+  }
+  e = rp_do_cmd("measdark\r");
+  printf("%s\n", rp_rsp);
+  return e;
+}
+
 int rp_reboot(void) {
   int e;
   if (!rp_connected) {

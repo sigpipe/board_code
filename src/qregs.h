@@ -369,7 +369,8 @@ int qregs_get_laser_settings(qregs_laser_settings_t *set);
 
 
 typedef struct qregs_frame_pwrs_st {
-  double body_pwr_mV;
+  double dark_pwr_V;
+  double body_pwr_V;
   double ext_rat_dB;
   double body_rat_dB;
 } qregs_frame_pwrs_t;

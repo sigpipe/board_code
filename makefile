@@ -7,6 +7,9 @@ TSRCS = h util corr qregs ini mx parse qna rp qregc
 TOBJS = obj/tst.o $(TSRCS:%=obj/%.o)
 THDRS = $(TSRCS:%=src/%.h)
 
+TSOBJS = obj/ts.o $(TSRCS:%=obj/%.o)
+
+
 USRCS = h util corr mx ini parse h_vhdl_extract cmd qregs qregc qna rp i2c
 UOBJS = $(USRCS:%=obj/%.o)
 
@@ -14,7 +17,7 @@ VARSRCS = ini mx parse
 VAROBJS = $(VARSRCS:%=obj/%.o)
 
 
-all: obj tst u qregd
+all: obj tst u qregd ts
 
 
 #libvars.a: $(VAROBJS)
@@ -34,7 +37,11 @@ obj/tst.o: src/tst.c ../qnicll/qnicll.h
 	gcc -D'OPT_QNICLL=1' -I../qnicll $< -c -o $@
 
 tst: $(TOBJS)
-	gcc $(TOBJS) -L../qnicll -lm -liio  -lqnicll -o $@ 
+	gcc $(TOBJS) -L../qnicll -lm -liio  -o $@ 
+
+ts: $(TSOBJS)
+	gcc $(TSOBJS) -L../qnicll -lm -liio -o $@ 
+
 
 # utilities
 obj/u.o: src/qregs.h

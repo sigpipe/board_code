@@ -16,14 +16,16 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include "corr.h"
+#include "qregc.h"
 #include <time.h>
 #include "ini.h"
 #include "util.h"
 #include "h_vhdl_extract.h"
 #include "h.h"
 
+
+#define QREGC_LINKED (1)
 #define QNICLL_LINKED (0)
-#define QREGC_LINKED (0)
 
 #if QNICLL_LINKED
 #include <qnicll.h>
@@ -90,7 +92,9 @@ void set_blocking_mode(struct iio_buffer *buf, int en) {
 //  #define ADC_N (1024*16*32)
 
 
-ini_val_t *tvars, *vars_cfg_all;
+ini_val_t *tvars, *hvars, *vars_cfg_all;
+
+
 
 int opt_dflt=0;
 int opt_sync=0;
@@ -123,7 +127,31 @@ double ask_nnum(char *var_name, double dflt) {
 
 
 
+void read_ini_files(void) {
+  int e;
+  char fname[64];
+  e = ini_read("tvars.txt", &tvars);
+  if (e)
+    printf("ini err %d\n",e);
+  e =  ini_read("cfg/ini_all.txt", &vars_cfg_all);
+  if (e)
+    printf("ini err %d\n",e);
 
+
+  // hots specific
+  strcpy(fname,"cfg/ini_");
+  gethostname(fname+strlen(fname), sizeof(fname)-strlen(fname));
+  fname[63]=0;
+  strcat(fname, ".txt");
+  printf("reading file %s\n", fname);
+  e = ini_read(fname, &hvars);
+  if (e) {
+    printf("ERR: cant read ini file: code %d\n", e);
+    printf("%s\n", ini_err_msg());
+    //    return CMD_ERR_FAIL;
+  }
+  
+}
 
 
 
@@ -180,7 +208,7 @@ static int remote_err_handler(char *str, int err) {
 
 
 
-int opt_save=1, opt_corr=0;
+int opt_save=1, opt_corr=0, opt_srv=0;
 int save_fd;
 int alice_syncing=0, alice_txing=0;
 
@@ -350,26 +378,8 @@ int first_action(void) {
     qregs_set_save_after_pwr(1);
 
       
-#if QNICLL_LINKED
-    use_qnicll=ini_ask_yn(tvars, "use qnicll", "use_qnicll",0);
-    if (use_qnicll) {
-      char *h = ask_str("remote host", "remote_host", "");
-      qnicll_init_info_libiio_t libiio_init;
-      //	strcpy(libiio_init.ipaddr,"10.0.0.5");
-      strcpy(libiio_init.ipaddr, h);
-      C(qnicll_init(&libiio_init));
-      C(qnicll_set_mode(QNICLL_MODE_QSDC));
-    }
-#endif
 
 
-#if QREGC_LINKED
-    use_qregc=ini_ask_yn(tvars, "use qregc","use_qregc",0);
-    if (use_qregc) {
-      qregc_connect("10.0.0.5", &remote_err_handler);
-      qregc_iioopen();
-    }
-#endif
     qregs_set_alice_syncing(alice_syncing);
       
   }else { // not alice
@@ -603,15 +613,24 @@ int second_action(void) {
       // creating ADC buffer commences DMA in hdl
 
 
-    if (!is_alice) {
-      qregs_print_settings();
-      qregs_print_adc_status();	      
 
+    if (!is_alice) {
+
+#if QREGC_LINKED
+      // If we are bob, tell alice to transmit a file to me
+      if (alice_txing && use_qregc) {
+	printf("calling alice_txrx\n");
+        e = qregc_alice_txrx(frame_qty);
+        if (e) return 1;
+      }
+#endif
+      
       // can go after createbuffer.
       // could it go before?
       qregs_search_en(search);
       qregs_txrx(1);
     }
+    
     for(b_i=0; b_i<lcl_iio.rx_num_bufs; ++b_i) {
       void *p;
 	
@@ -751,7 +770,7 @@ int second_action(void) {
     fprintf(fp,"lfsr_rst_st = '%x';\n", st.lfsr_rst_st);
     fprintf(fp,"meas_noise = %d;\n",   opt_meas_noise);
     fprintf(fp,"cdm_en = %d;\n",       cdm_en);
-    fprintf(fp,"cdm_num_iter = %d;\n",  st.cdm_cfg.num_iter);
+    fprintf(fp,"cdm_num_iter = %d\n",  st.cdm_cfg.num_iter);
     fprintf(fp,"noise_dith = %d;\n",   noise_dith);
     fprintf(fp,"tx_always = %d;\n",    st.tx_always);
     fprintf(fp,"tx_hdr_twopi = %d;\n", st.tx_hdr_twopi);
@@ -849,7 +868,6 @@ int second_action(void) {
 
 
 
-
   // TODO: make a "cap" option that uses tx_0.
   // could be used for IQ imbal calib.
 
@@ -865,7 +883,7 @@ int main(int argc, char *argv[]) {
       else if (c=='s') {opt_dflt=1; mode='s';}
       else if (c=='q') {opt_dflt=1; mode='q';}
       else if (c=='c') {opt_dflt=1; mode='c';}
-      else if (c=='n') opt_meas_noise=1;
+      else if (c=='S') opt_srv=1;
       else if (c=='v') opt_save=0;
       else if (c=='i') { opt_ask_iter=1; opt_periter=1;}
       else if (c=='a') opt_periter=0;
@@ -877,17 +895,33 @@ int main(int argc, char *argv[]) {
   ini_opt_dflt = opt_dflt;
 
 
-  e = ini_read("tvars.txt", &tvars);
-  if (e)
-    printf("ini err %d\n",e);
-  e =  ini_read("cfg/ini_all.txt", &vars_cfg_all);
-  if (e)
-    printf("ini err %d\n",e);
+  read_ini_files();
+  
 
+  
   if (qregs_init()) err("qregs fail");
   // printf("just called qregs init\n");
   //  qregs_print_adc_status();   printf("\n");
 
+
+  if (opt_srv) {
+    printf("running server\n");
+    return 0;
+  }
+#if QREGC_LINKED
+  use_qregc=ini_ask_yn(tvars, "use qregc","use_qregc",0);
+  if (use_qregc) {
+    char *ia;
+    if (ini_get_string(hvars,"remote_ipaddr", &ia)) {
+      printf("ERR: ini_<host>.txt lacks remote_ipaddr value\n");
+      return;
+    }
+    e=qregc_connect(ia, &remote_err_handler);
+    if (e) return 0;
+    //  qregc_iioopen();
+  }
+#endif
+    
 
 
   if (st.tx_mem_circ) {

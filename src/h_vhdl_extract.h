@@ -1,7 +1,7 @@
 // h_vhdl_extract.h
 // hardware access constants
 // This file was automatically generated
-// by Register Extractor (ver 4.14) on Fri Aug 29 12:06:24 2025
+// by Register Extractor (ver 4.14) on Sun Aug 31 20:51:53 2025
 // compile version Mon Jun 16 10:25:20 2025
 // current dir:  C:\reilly\proj\quanet\quanet_hdl\projects\daq3\zcu106
 // DO NOT MODIFY THIS FILE!
@@ -18,7 +18,7 @@
 // version constants
 #define H_VHDL_EXTRACT_VER (4)
 #define H_VHDL_EXTRACT_SUBVER (14)
-#define H_VHDL_EXTRACT_DATE "Fri Aug 29 12:06:24 2025"
+#define H_VHDL_EXTRACT_DATE "Sun Aug 31 20:51:53 2025"
 #define H_VHDL_EXTRACT_DIR "C:\reilly\proj\quanet\quanet_hdl\projects\daq3\zcu106"
 
 
@@ -262,8 +262,9 @@
 #define H_ADC_ACTL_RESYNC                  0x10000038  /* 0x01000000   w */
 #define H_ADC_ACTL_DECIPHER_EN             0x10000039  /* 0x02000000   w */
 #define H_ADC_ACTL_DO_STREAM_CDC           0x1000003a  /* 0x04000000   w */
+#define H_ADC_ACTL_CORR_MODE_CDM           0x1000003c  /* 0x10000000   w -- corr w same hdr */
                                        // r 0xffffffff
-                                       // w 0x07fffffe
+                                       // w 0x17fffffe
 
 #define H_ADC_STAT                         0x10001000  /* 1 */
 #define H_ADC_STAT_DMA_XFER_REQ_RC         0x10001020  /* 0x00000001  r  -- for dbg */
@@ -293,7 +294,7 @@
 #define H_ADC_FR2                          0x10004000  /* 4 */
 #define H_ADC_FR2_AREG_W                   0x10004400  /* 0xffffffff  r  */
 #define H_ADC_FR2_HDR_LEN_MIN1_CYCS        0x10004100  /* 0x000000ff   w -- for corr */
-#define H_ADC_FR2_FRAME_QTY_MIN1           0x10004210  /* 0xffff0000   w -- for cdc */
+#define H_ADC_FR2_CORR_NUM_ITER_MIN1       0x10004210  /* 0xffff0000   w */
                                        // r 0xffffffff
                                        // w 0xffff00ff
 

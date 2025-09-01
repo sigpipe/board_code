@@ -12,6 +12,10 @@
 #include "parse.h"
 #include "qregs.h"
 #include "qregs_ll.h"
+
+// maybe should not call rp directly
+#include "rp.h"
+
 #include <poll.h>
 #include <math.h>
 #include <sys/types.h>
@@ -77,14 +81,16 @@ int cmd_pwr(int arg) {
   if (c==0) {
     e= qregs_measure_frame_pwrs(&pwrs);
     if (e) {printf("err: no rsp from RP?\n");  return CMD_ERR_FAIL;}
-    printf("  hdr/body  %.1f dB\n", pwrs.ext_rat_dB);
-    printf("  body/mean %.1f dB\n", pwrs.body_rat_dB);
+    printf("  dark      %.3f V\n",  pwrs.dark_pwr_V);
+    printf("  body      %.3f V\n",  pwrs.body_pwr_V);
+    printf("  hdr/body  %5.1f dB\n", pwrs.ext_rat_dB);
+    printf("  body/mean %5.1f dB\n", pwrs.body_rat_dB);
   }else {
     while(1) {
       e= qregs_measure_frame_pwrs(&pwrs);
       if (e) {printf("err: no rsp from RP?\n");  break;}
-      printf("  ext  %4.1f dB    b/m %4.1f dB   body %7.5f mV\n",
-	     pwrs.ext_rat_dB, pwrs.body_rat_dB, pwrs.body_pwr_mV);
+      printf("  ext  %4.1f dB    b/m %4.1f dB   body %7.3f V\n",
+	     pwrs.ext_rat_dB, pwrs.body_rat_dB, pwrs.body_pwr_V);
       usleep(1000*500);
     }
   }
@@ -211,12 +217,20 @@ int cmd_dbg_rpinfo(int arg) {
     printf(str);
   return 0;
 }
+
+int cmd_cal_measdark(int arg) {
+  if (rp_measdark())
+    return CMD_ERR_FAIL;
+  return 0;
+}
+
 int cmd_dbg_rpreboot(int arg) {
   if (!u_ask_yn("really reboot Red Pitaya",-1)) return 0;
-  if (qregs_rp_reboot()) {
-    printf("ERR: cant reboot Red Pitaya");
+  if (rp_reboot()) {
+    printf("ERR: reboot Red Pitaya");
     return CMD_ERR_FAIL;
   }
+  return 0;
 }
 
 
@@ -948,6 +962,7 @@ int cmd_dbg_search(int arg) {
   }
 }
 
+
 int cmd_laser_set(int arg) {
   int e;
   qregs_laser_settings_t s;
@@ -1004,17 +1019,22 @@ cmd_info_t laser_cmds_info[]={
   {"wl",   cmd_laser_wl,   0, "set wavelength", "nm"},  
   {0}};  
   
+cmd_info_t cal_cmds_info[]={
+  {"measdark",  cmd_cal_measdark,   0, "set dark lvl on dets", ""},
+  {0}};
+
 cmd_info_t sync_cmds_info[]={
   {"ref",  cmd_sync_ref,   0, "h=hdr,p=pwr,r=rxclk", "h|r|p"},
   {"stat", cmd_sync_stat,  0, "view sync status", 0},
-  {"add",  cmd_sync_add,   0, "add to sync dly", 0},
-  {"dly",  cmd_sync_dly,   0, "set sync dly", 0},
+  {"add",  cmd_sync_add,   0, "add to sync dly", "<asamps>"},
+  {"dly",  cmd_sync_dly,   0, "set sync dly",  "<asamps>"},
   {"resync", cmd_sync_resync, 0, "resync", 0},
   {0}};  
 
 cmd_info_t cmds_info[]={
   //  {"calbpsk", cmd_cal,       0, 0},
   {"always",  cmd_always,   0, "0|1"},
+  {"cal",     cmd_subcmd, (int)cal_cmds_info, 0, 0},
   {"circ",    cmd_circ,   0,   "0|1"},
   {"ciph",    cmd_ciph,   0,      0},
   {"dbg",     cmd_subcmd, (int)dbg_cmds_info, 0, 0},

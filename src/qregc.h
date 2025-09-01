@@ -51,6 +51,8 @@ int qregc_tx(int *en);
 int qregc_search(int en);
 int qregc_disconnect(void);
 
+int qregc_alice_txrx(int frame_qty);
+
 int qregc_set_txc_voa_atten_dB(double *atten_dB);
 int qregc_set_txq_voa_atten_dB(double *atten_dB);
 int qregc_set_rx_voa_atten_dB(double *atten_dB);
