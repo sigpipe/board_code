@@ -348,8 +348,6 @@ int first_action(void) {
 
   if (is_alice) {
 
-    qregs_set_save_after_init(0);
-    qregs_set_save_after_pwr(0);
     qregs_set_save_after_hdr(1);
 
       
@@ -391,7 +389,7 @@ int first_action(void) {
     else
       cond='h';
   else
-  cond ='r'; // r=tx when rxbuf rdy
+    cond ='r'; // r=tx when rxbuf rdy
   qregs_set_tx_go_condition(cond);
   printf(" using tx_go condition %c\n", st.tx_go_condition);
 

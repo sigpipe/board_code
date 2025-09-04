@@ -129,7 +129,9 @@ int cmd_sweep(int arg) {
   th_sav = st.hdr_pwr_thresh;
   printf("pwr_th pwr_cnt\n");
   parse_int(&mx);
-  parse_int(&step);
+  
+  if (parse_int(&step))
+    step = mx/24;
   
   for(th=0;th<mx; th+=step) {
     qregs_set_hdr_det_thresh(th, st.hdr_corr_thresh);
