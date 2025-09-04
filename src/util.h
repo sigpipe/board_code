@@ -3,6 +3,7 @@
 
 void u_print_all(char *str);
 int u_max(int a, int b);
+int u_min(int a, int b);
 void u_pause(char *prompt);
 
 int u_ask_yn(char *prompt, int dflt);

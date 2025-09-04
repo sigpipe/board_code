@@ -8,6 +8,7 @@
 
 #include <ctype.h>
 #include "parse.h"
+#include "string.h"
 #include <stdio.h>
 
 //static char *parse_s;  __attribute__((section(".sbss")))
@@ -331,6 +332,17 @@ int parse_double(double *d_p) {
       for(;i<0;++i) d /= 10;
   }
   *d_p=d;
+  return 0;
+}
+
+
+int parse_search(char *key) {
+  char *p=strstr(p_st.s, key);
+  if (!p) {
+    p_st.i = strlen(p_st.s);
+    return -1;
+  }
+  p_st.i=(int)(p-p_st.s)+strlen(key);
   return 0;
 }
 

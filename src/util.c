@@ -25,6 +25,10 @@ int u_max(int a, int b) {
   return a>b?a:b;
 }
 
+int u_min(int a, int b) {
+  return a<b?a:b;
+}
+
 
 int u_ask_yn(char *prompt, int dflt) {
   char c;

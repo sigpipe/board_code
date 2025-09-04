@@ -199,7 +199,8 @@ lcl_iio_t lcl_iio={0};
 
 void lcl_iio_create_dac_bufs(int sz_bytes) {
   size_t sz, dac_buf_sz;
-  if (lcl_iio.dac_buf_sz_bytes)
+  
+  if (lcl_iio.tx_buf_sz_bytes)
     err("dac bufs already created");
   // prompt("will create dac buf");
   sz = iio_device_get_sample_size(lcl_iio.dac);
@@ -212,7 +213,7 @@ void lcl_iio_create_dac_bufs(int sz_bytes) {
     sprintf(errmsg, "cant create dac bufer  nsamp %zu", dac_buf_sz);
     err(errmsg);
   }
-  lcl_iio.dac_buf_sz_bytes = sz_bytes;
+  lcl_iio.tx_buf_sz_bytes = sz_bytes;
 }
 
 
@@ -390,7 +391,7 @@ int first_action(void) {
     else
       cond='h';
   else
-    cond='r'; // r=tx when rxbuf rdy
+  cond ='r'; // r=tx when rxbuf rdy
   qregs_set_tx_go_condition(cond);
   printf(" using tx_go condition %c\n", st.tx_go_condition);
 
@@ -551,6 +552,15 @@ int first_action(void) {
   qregs_set_alice_txing(is_alice && alice_txing);
 
 
+  if (!is_alice) {
+    qregs_set_sync_ref('t');
+    qregs_qsdc_track_pilots(0);
+    //    qregs_qsdc_track_pilots(1);  // not ready to do this yet.
+    printf("new thing, bob resync for syncref t\n");
+    qregs_sync_resync();
+  }
+   
+
   qregs_set_cdm_en(cdm_en);
   
 
@@ -570,8 +580,11 @@ int second_action(void) {
   // qregs_print_adc_status();	  
 
   t0_s = time(0);
-    
-  
+
+  //  if (!is_alice) {  
+  //    printf("BUG WORKAROUND\n");
+  //    h_w_fld(H_ADC_CTL2_EXT_FRAME_PD_MIN1_CYCS, 0);
+  //  }
   
   for (itr=0; !num_iio_itr || (itr<num_iio_itr); ++itr) {
 
@@ -587,9 +600,9 @@ int second_action(void) {
       qregs_search_and_txrx(1);
     }
     //    else { // IS BOB
-    //      qregs_search_en(search);
-    //      qregs_txrx(1);
-    //    }
+    //          qregs_search_en(search);
+    //          qregs_txrx(1);
+    //       }
 
     // This allocs ADC bufs and starts RX DMA
     sz = iio_device_get_sample_size(lcl_iio.adc);  // sz=4;
@@ -606,24 +619,27 @@ int second_action(void) {
 
 
     if (!is_alice) {
-      qregs_print_settings();
-      qregs_print_adc_status();	      
 
       // can go after createbuffer.
       // could it go before?
       qregs_search_en(search);
       qregs_txrx(1);
+
+      // prompt("READY? ");
+      // printf("after txrx then create\n");	
+      // qregs_print_settings();
+      //qregs_print_adc_status();	      
     }
     for(b_i=0; b_i<lcl_iio.rx_num_bufs; ++b_i) {
       void *p;
 	
       sz = iio_buffer_refill(lcl_iio.adc_buf);
-      printf("refilled %zd\n", sz);
+      // printf("refilled %zd\n", sz);
       
       //      qregs_print_adc_status();
       if (sz<0) {
 	iio_strerror(-sz, errmsg, 512);
-	printf("\nREFILL ERR: %s\n", errmsg);
+	printf("\nIIO_BUFFER_REFILL ERR: %s\n", errmsg);
 	qregs_print_hdr_det_status(); // this prints it all
 	sprintf(errmsg, "cant refill rx bufer %d", b_i);
 	refill_err=1;
@@ -965,6 +981,8 @@ int main(int argc, char *argv[]) {
       frame_qty_to_tx = 2;
     else if (mode=='q')
       frame_qty_to_tx = is_alice?10:1862;
+    else if (mode=='s')
+      frame_qty_to_tx = 2;
     //     frame_qty_req = is_alice?10:200;
     else
       frame_qty_to_tx = ask_num("frames per itr", "frames_per_itr", 10);
