@@ -895,7 +895,17 @@ int cmd_sync_dly(int arg) {
   if (parse_int(&dly)) return CMD_ERR_NO_INT;
   qregs_set_sync_dly_asamps(dly);
   printf("%d\n", st.sync_dly_asamps);
+  return 0;
 }
+int cmd_dly_rx2tx(int arg) {
+  int dly;
+  if (parse_int(&dly)) return CMD_ERR_NO_INT;
+  qregs_set_rx2tx_dly_asamps(dly);
+  printf("%d\n", st.sync_dly_asamps);
+  return 0;
+}
+
+
 int cmd_sync_add(int arg) {
   int add, i;
   if (parse_int(&add)) return CMD_ERR_NO_INT;
@@ -1023,6 +1033,10 @@ cmd_info_t cal_cmds_info[]={
   {"measdark",  cmd_cal_measdark,   0, "set dark lvl on dets", ""},
   {0}};
 
+cmd_info_t dly_cmds_info[]={
+  {"rx2tx", cmd_dly_rx2tx,   0, "set rx2tx dly", ""},
+  {0}};
+
 cmd_info_t sync_cmds_info[]={
   {"ref",  cmd_sync_ref,   0, "h=hdr,p=pwr,r=rxclk", "h|r|p"},
   {"stat", cmd_sync_stat,  0, "view sync status", 0},
@@ -1038,6 +1052,7 @@ cmd_info_t cmds_info[]={
   {"circ",    cmd_circ,   0,   "0|1"},
   {"ciph",    cmd_ciph,   0,      0},
   {"dbg",     cmd_subcmd, (int)dbg_cmds_info, 0, 0},
+  {"dly",     cmd_subcmd, (int)dly_cmds_info, 0, 0},
   {"laser",   cmd_subcmd, (int)laser_cmds_info, 0, 0},
   {"help",    help,       0, 0},
   {"pm_dly",  cmd_pm_dly, 0, 0}, 

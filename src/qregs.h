@@ -146,6 +146,7 @@ typedef struct qregs_struct {
 
   char sync_ref; // r=rxclk, p=power, or h=headers
   int sync_dly_asamps; // header sync to DAC ouput delay
+  int tx2rx_dly_asamps; // for alice, rx to tx dly
   
   int frame_qty;
   int meas_noise_en;
@@ -208,6 +209,10 @@ void qregs_set_use_lfsr(int use_lfsr);
 void qregs_set_sync_dly_asamps(int sync_dly_asamps);
 //   sync_dly_asamps: sync delay in units of 1.23GHz ADC samples.
 //                    may be positive or negative.
+
+void qregs_set_rx2tx_dly_asamps(int dly_asamps);
+// used for alice.  should be fixed based on HW
+
 void qregs_sync_resync(void);
 
 

@@ -842,6 +842,20 @@ void qregs_set_sync_dly_asamps(int dly_asamps) {
   //  printf("DBG: alice sync dly %d\n", (h_r_fld(H_DAC_ALICE_FRAME_DLY_CYCS_MIN1)+1)*4);
 }
 
+void qregs_set_rx2tx_dly_asamps(int dly_asamps) {
+//   dly_asamps: delay in units of 1.23GHz ADC samples.
+//                    may be positive or negative.  
+  int dly, i;
+  if (st.setflags&3 != 3)
+    printf("WARN: call set_osamp and set_frame_pd before set_sync_dly\n");
+  i = (dly_asamps + 10*st.frame_pd_asamps) % st.frame_pd_asamps;
+  i = i/4-1;
+  //  i=h_w_fld(H_ADC_CTL3_TX_DLY_MIN1_CYCS, i);
+  st.tx2rx_dly_asamps = (i+1)*4;
+  //  printf("DBG: tx2rx dly %d\n", st.tx2rx_dly_asamps);
+}
+
+
 
 void qregs_dbg_get_info(int *info) {
   *info = h_r_fld(H_DAC_ALICE_WADDR_LIM_MIN1);
