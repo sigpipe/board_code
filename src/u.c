@@ -820,49 +820,56 @@ int help(int arg) {
 
 char qna_rsp[1024];
 
-int cmd_laser_en(int arg) {
+int cmd_lo_en(int arg) {
   int e, en;
   if (parse_int(&en)) return CMD_ERR_SYNTAX;
-  e = qregs_set_laser_en(en);
+  e = qregs_set_lo_en(en);
   if (e) err("timeout from QNA");
   // this is sort of a lie
   printf("%d\n", en);
   return 0;
 }
-
-int cmd_laser_mode(int arg) {
+int cmd_lo_offset(int arg) {
+  int off, e;
+  if (parse_int(&off)) return CMD_ERR_SYNTAX;
+  e = qregs_set_lo_offset_MHz(off);
+  if (e) return e;
+  printf("%d\n", off);
+  return 0;
+}
+int cmd_lo_mode(int arg) {
   int e;
   char c;
   if (!(c=parse_nonspace())) return CMD_ERR_SYNTAX;
-  e = qregs_set_laser_mode(c);
+  e = qregs_set_lo_mode(c);
   if (e) return e;
   printf("%c\n", c);
   return 0;
 }
 
-int cmd_laser_pwr(int arg) {
+int cmd_lo_pwr(int arg) {
   int e;
   double dBm;
   if (parse_double(&dBm)) return CMD_ERR_SYNTAX;
-  e = qregs_set_laser_pwr_dBm(&dBm);
+  e = qregs_set_lo_pwr_dBm(&dBm);
   if (e) err("timeout from QNA");
   printf("%g\n", dBm);
   return 0;
 }
 
-int cmd_laser_stat(int arg) {
+int cmd_lo_stat(int arg) {
   int e;
-  qregs_laser_status_t s;
-  e = qna_get_laser_status(&s);
+  qregs_lo_status_t s;
+  e = qna_get_lo_status(&s);
   if (e) {
     qregs_print_last_err();
     return CMD_ERR_FAIL;
   }
-  printf("  pwr          %.2f dBm\n", s.pwr_dBm);
-  printf("  init_err     %d\n", s.init_err);
-  printf("  gas_lock     %d\n", s.gas_lock);
-  printf("  gas_lock_dur %d s\n", s.gas_lock_dur_s);
-  printf("  gas_err_rms  %.1f MHz\n", s.gas_err_rms_MHz);
+  printf("  pwr             %.2f dBm\n", s.pwr_dBm);
+  printf("  init_err        %d\n", s.init_err);
+  printf("  gas_lock        %d\n", s.gas_lock);
+  printf("  gas_lock_dur    %d s\n", s.gas_lock_dur_s);
+  printf("  gas_err_rms     %.1f MHz\n", s.gas_err_rms_MHz);
   return 0;
 }
 
@@ -976,23 +983,25 @@ int cmd_dbg_search(int arg) {
 }
 
 
-int cmd_laser_set(int arg) {
+int cmd_lo_set(int arg) {
   int e;
-  qregs_laser_settings_t s;
-  e = qna_get_laser_settings(&s);
+  qregs_lo_settings_t s;
+  e = qna_get_lo_settings(&s);
   if (e) qregs_print_last_err();
   printf("  en %d\n", s.en);
   printf("  pwr_dBm %.2f\n", s.pwr_dBm);
   printf("  wl_nm %.3f\n", s.wl_nm);
   printf("  mode %c\n", s.mode);
+  printf("  gas_fdbk_en     %d\n", s.gas_fdbk_en);
+  printf("  gas_goal_offset %d MHz\n", s.gas_goal_offset_MHz);
   return 0;
 }
 
-int cmd_laser_wl(int arg) {
+int cmd_lo_wl(int arg) {
   int e;
   double wl_nm;
   if (parse_double(&wl_nm)) return CMD_ERR_SYNTAX;  
-  e = qna_set_laser_wl_nm(&wl_nm);
+  e = qna_set_lo_wl_nm(&wl_nm);
   if (e) err("timeout from QNA");
   printf("%.3f\n", wl_nm);
   return 0;
@@ -1023,13 +1032,14 @@ cmd_info_t sfp_cmds_info[]={
   {0}};
 
 
-cmd_info_t laser_cmds_info[]={
-  {"en",   cmd_laser_en,   0, "enable LO laser", "0|1"},  
-  {"mode", cmd_laser_mode, 0, "set laser mode", "w|d"},
-  {"pwr",  cmd_laser_pwr,  0, "set laser pwr", "dBm"},  
-  {"set",  cmd_laser_set,  0, "view settings", 0},  
-  {"stat", cmd_laser_stat, 0, "view status", 0},  
-  {"wl",   cmd_laser_wl,   0, "set wavelength", "nm"},  
+cmd_info_t lo_cmds_info[]={
+  {"en",   cmd_lo_en,   0, "enable LO laser", "0|1"},
+  {"offset", cmd_lo_offset,  0, "set LO offset frequency", "<MHz>"},
+  {"mode", cmd_lo_mode, 0, "set laser mode", "w|d"},
+  {"pwr",  cmd_lo_pwr,  0, "set laser pwr", "dBm"},  
+  {"set",  cmd_lo_set,  0, "view settings", 0},  
+  {"stat", cmd_lo_stat, 0, "view status", 0},  
+  {"wl",   cmd_lo_wl,   0, "set wavelength", "nm"},  
   {0}};  
   
 cmd_info_t cal_cmds_info[]={
@@ -1051,7 +1061,7 @@ cmd_info_t cmds_info[]={
   {"circ",    cmd_circ,   0,   "0|1"},
   {"ciph",    cmd_ciph,   0,      0},
   {"dbg",     cmd_subcmd, (int)dbg_cmds_info, 0, 0},
-  {"laser",   cmd_subcmd, (int)laser_cmds_info, 0, 0},
+  {"lo",      cmd_subcmd, (int)lo_cmds_info, 0, 0},
   {"help",    help,       0, 0},
   {"pm_dly",  cmd_pm_dly, 0, 0},
   {"phest",  cmd_phest,  0, "set auto phase est0", "0|1"}, 

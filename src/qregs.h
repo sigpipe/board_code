@@ -348,27 +348,30 @@ void qregs_get_avgpwr(int *avg, int *mx, int *cnt);
 void qregs_dbg_new_go(int en);
 
 // pertaining to laser used as the local oscillator (LO):
-int qregs_set_laser_mode(char m);
-int qregs_set_laser_en(int en);
-int qregs_set_laser_pwr_dBm(double *dBm);
-int qregs_set_laser_wl_nm(double *wl_nm);
+int qregs_set_lo_mode(char m);
+int qregs_set_lo_en(int en);
+int qregs_set_lo_pwr_dBm(double *dBm);
+int qregs_set_lo_wl_nm(double *wl_nm);
+int qregs_set_lo_offset_MHz(int offset_MHz);
 
-typedef struct qregs_laser_status_st {
+typedef struct qregs_lo_status_st {
   int    init_err; // should be zero
   int    gas_lock; 
   int    gas_lock_dur_s;
   double gas_err_rms_MHz; 
   double pwr_dBm;  // laser measures its own output power
-} qregs_laser_status_t;
-int qregs_get_laser_status(qregs_laser_status_t *status);
+} qregs_lo_status_t;
+int qregs_get_lo_status(qregs_lo_status_t *status);
 
-typedef struct qregs_laser_settings_st {
+typedef struct qregs_lo_settings_st {
   int    en;      // 1=enabled
   double pwr_dBm; // setpoint power
   double wl_nm;   // wavelength
   char   mode;    // 'w'=whisper, 'd'=dither
-} qregs_laser_settings_t;
-int qregs_get_laser_settings(qregs_laser_settings_t *set);
+  int    gas_fdbk_en;
+  int    gas_goal_offset_MHz; // offset from gasline edge midpoint
+} qregs_lo_settings_t;
+int qregs_get_lo_settings(qregs_lo_settings_t *set);
 
 
 

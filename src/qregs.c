@@ -492,27 +492,29 @@ static double mclip(double m) {
   return m;
 }
 
-int qregs_set_laser_mode(char m) {
-  return qna_set_laser_mode(m);
+int qregs_set_lo_mode(char m) {
+  return qna_set_lo_mode(m);
 }
 
-int qregs_set_laser_en(int en) {
-  return qna_set_laser_en(en);
+int qregs_set_lo_en(int en) {
+  return qna_set_lo_en(en);
+}
+int qregs_set_lo_pwr_dBm(double *dBm) {
+  return qna_set_lo_pwr_dBm(dBm);
+}
+int qregs_set_lo_wl_nm(double *wl_nm) {
+  return qna_set_lo_wl_nm(wl_nm);
+}
+int qregs_get_lo_status(qregs_lo_status_t *status) {
+  return qna_get_lo_status(status);
+}
+int qregs_get_lo_settings(qregs_lo_settings_t *set) {
+  return qna_get_lo_settings(set);
+}
+int qregs_set_lo_offset_MHz(int offset_MHz) {
+  return qna_set_lo_offset_MHz(offset_MHz);
 }
 
-int qregs_set_laser_pwr_dBm(double *dBm) {
-  return qna_set_laser_pwr_dBm(dBm);
-}
-
-int qregs_set_laser_wl_nm(double *wl_nm) {
-  return qna_set_laser_wl_nm(wl_nm);
-}
-int qregs_get_laser_status(qregs_laser_status_t *status) {
-  return qna_get_laser_status(status);
-}
-int qregs_get_laser_settings(qregs_laser_settings_t *set) {
-  return qna_get_laser_settings(set);
-}
 
 int qregs_measure_frame_pwrs(qregs_frame_pwrs_t *pwrs) {
   int e, e1;

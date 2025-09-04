@@ -33,11 +33,13 @@ int qna_do_cmd(void) {
   if (qna_dbg) {
     printf("QNA tx:");
     u_print_all(qna_cmd);
+    printf("\n");
   }
   e=qregs_ser_do_cmd(qna_cmd, qna_rsp, CMD_LEN, 1);
   if (qna_dbg) {
     printf("QNA rx:");
     u_print_all(qna_rsp);
+    printf("\n");
   }
   p=strstr(qna_rsp,"ERR:");
   if (p) {
@@ -75,7 +77,7 @@ int qna_set_timo_ms(int timo_ms) {
 
 
 
-int qna_get_laser_status(qregs_laser_status_t *status) {
+int qna_get_lo_status(qregs_lo_status_t *status) {
   int e, e1, i=0, j;
   strcpy(qna_cmd, "stat\r");
   e = qna_do_cmd();
@@ -101,26 +103,48 @@ int qna_get_laser_status(qregs_laser_status_t *status) {
   return e;
 }
 
-int qna_get_laser_settings(qregs_laser_settings_t *set) {
-  int e, e1, i=0;
+int qna_get_lo_settings(qregs_lo_settings_t *set) {
+  int e, e1=0, i=0;
   char tmp[64];
+  strcpy(qna_cmd, "set\r");
+  e = qna_do_cmd();
+  if (e) e1=e;
+  else {
+    e = qregs_findkey_int(qna_rsp, "gas goal", &set->gas_goal_offset_MHz);
+    if (e) e1=e;
+    e = qregs_findkey_int(qna_rsp, "gas en", &set->gas_fdbk_en);
+    if (e) e1=e;
+  }
+  
   strcpy(qna_cmd, "cfg it set\r");
   e = qna_do_cmd();
-  if (e) return e;
-  e = qregs_findkey_int(qna_rsp, "en", &set->en);
-  e1 = qregs_findkey(qna_rsp, "mode", tmp, 64);
+  if (e) e1=e;
+  else {
+    e = qregs_findkey_int(qna_rsp, "en", &set->en);
+    if (e) e1=e;
+    e = qregs_findkey(qna_rsp, "mode", tmp, 64);
+    if (e) e1=e;
+    else set->mode=tmp[0];
   // printf("tmp: "); u_print_all(tmp);
-  if (e1) e=e1;
-  set->mode=tmp[0];
-  e1 = qregs_findkey_int(qna_rsp, "pwr", &i);
-  if (e1) e=e1;  
-  set->pwr_dBm = (double)i/100;
-  e1 = qregs_findkey_dbl(qna_rsp, "wl_nm", &set->wl_nm);
-  if (e1) e=e1;  
+    e = qregs_findkey_int(qna_rsp, "pwr", &i);
+    if (e) e1=e;
+    else set->pwr_dBm = (double)i/100;
+    e = qregs_findkey_dbl(qna_rsp, "wl_nm", &set->wl_nm);
+    if (e) e1=e;
+  }
+  return e1;
+}
+
+int qna_set_lo_offset_MHz(int offset_MHz) {
+// If attempt to set offset out of range, returns err
+  int e;
+  qna_set_timo_ms(1000);
+  sprintf(qna_cmd, "gas goal %d\r", offset_MHz);
+  e = qna_do_cmd();
   return e;
 }
 
-int qna_set_laser_mode(char mode) {
+int qna_set_lo_mode(char mode) {
 // mode: 'd'=dither 'w'=whisper  
   int e;
   qna_set_timo_ms(60000);
@@ -131,31 +155,33 @@ int qna_set_laser_mode(char mode) {
 }
 
 
-int qna_set_laser_wl_nm(double *wl_nm) {
+int qna_set_lo_wl_nm(double *wl_nm) {
   int e;
   qna_set_timo_ms(60000);
-  e = qna_set_laser_mode('d');
+  e = qna_set_lo_mode('d');
   if (e) return qregs_err(e,"set to dither mode failed");
   // after this, we try to go on after an error
   sprintf(qna_cmd, "wavelen %.3f\r", *wl_nm);
   e = qna_do_cmd_get_num(wl_nm);
   if (e) qregs_err(e,"set wavelength failed");  
-  e= qna_set_laser_mode('w');
+  e= qna_set_lo_mode('w');
   if (e) qregs_err(e,"set to whisper mode failed");
   qna_set_timo_ms(1000);
   return e;
 }
 
-int qna_set_laser_en(int en) {
+int qna_set_lo_en(int en) {
   int e;
+  qna_set_timo_ms(60000);  
   sprintf(qna_cmd, "cfg it en %d\r", en);
   e = qna_do_cmd();
+  qna_set_timo_ms(1000);
   return e;
 }
 
-int qna_set_laser_pwr_dBm(double *dBm) {
+int qna_set_lo_pwr_dBm(double *dBm) {
   int e, i;
-  qna_set_timo_ms(30000);
+  qna_set_timo_ms(60000);
   sprintf(qna_cmd, "cfg it pwr %d\r", (int)round(*dBm*100));
   e = qna_do_cmd_get_int(&i);
   if (e) return e;
