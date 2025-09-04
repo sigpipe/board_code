@@ -129,7 +129,9 @@ int cmd_sweep(int arg) {
   th_sav = st.hdr_pwr_thresh;
   printf("pwr_th pwr_cnt\n");
   parse_int(&mx);
-  parse_int(&step);
+  
+  if (parse_int(&step))
+    step = mx/24;
   
   for(th=0;th<mx; th+=step) {
     qregs_set_hdr_det_thresh(th, st.hdr_corr_thresh);
@@ -604,20 +606,21 @@ int cmd_init(int arg) {
   e = ini_get_int(ivars,"pm_delay_cycs", &i);
   if (!e) qregs_set_pm_dly_cycs(i);
 
-  
-  /*   not an init thing
-  e = ini_get_string(ivars,"tx_go_condition", &str_p);
-  if (!e) {
-    printf("DBG: set sync ref %s\n", str_p); 
-    e=qregs_set_tx_go_conditionf(str_p[0]);
-    if (e) err("cant set tx go condition");
-  }
-  */
-  
-
-  
   ini_free(ivars);
 
+
+  
+  // For convenience, restore prior round trip dly setting
+  e = ini_get_int(tvars,"round_trip_dly", &i);
+  if (!e) qregs_set_round_trip_asamps(i);
+  // For convenience, restore prior thresholds
+  {  int init_th=0, pwr_th=0, corr_th=0, e;
+     ini_get_int(tvars, "hdr_pwr_thresh", &pwr_th);
+     ini_get_int(tvars, "hdr_corr_thresh", &corr_th);
+     qregs_set_hdr_det_thresh(pwr_th, corr_th);
+     e=ini_get_int(tvars, "init_pwr_thresh", &init_th);
+     if (!e) qregs_dbg_set_init_pwr(init_th);
+  }
 
 
 
@@ -772,6 +775,14 @@ int cmd_pm_sin(int arg) {
   return 0;  
 }
 
+int cmd_phest(int arg) {
+  int i;
+  double d;
+  if (parse_int(&i)) return CMD_ERR_NO_INT;
+  if (parse_double(&d)) return CMD_ERR_SYNTAX;
+  qregs_set_phase_est_en(i, d);
+  return 0;
+}
 
 int cmd_pm_dly(int arg) {
   int dly;
@@ -888,6 +899,8 @@ int cmd_sync_stat(int arg) {
 }
 int cmd_sync_resync(int arg) {
   qregs_sync_resync();
+  printf("resynced\n\n");
+  qregs_print_sync_status();  
   return 0;
 }  
 int cmd_sync_dly(int arg) {
@@ -1055,7 +1068,8 @@ cmd_info_t cmds_info[]={
   {"dly",     cmd_subcmd, (int)dly_cmds_info, 0, 0},
   {"laser",   cmd_subcmd, (int)laser_cmds_info, 0, 0},
   {"help",    help,       0, 0},
-  {"pm_dly",  cmd_pm_dly, 0, 0}, 
+  {"pm_dly",  cmd_pm_dly, 0, 0},
+  {"phest",  cmd_phest,  0, "set auto phase est0", "0|1"}, 
   {"im_dly",  cmd_im_dly, 0, 0}, 
   {"pm_sin",  cmd_pm_sin, 0, 0}, 
   {"init",    cmd_init,   0, "initializes HDL"}, 

@@ -53,6 +53,6 @@ int parse_hex_int(int *n_p, int len);
 // len: required number of hex digits.  if 0, means unlimited.
 // returns: ~0 on err
 
-
+int parse_search(char *key);
 
 #endif

@@ -94,11 +94,12 @@ typedef struct lcl_iio_struct {
   struct iio_buffer *dac_buf, *adc_buf;
   void *adc_buf_p;
 
-  ssize_t dac_buf_sz_bytes;
+  ssize_t tx_buf_sz_bytes;
   ssize_t rx_buf_sz_asamps;
+  ssize_t rx_buf_sz_bytes;
   int rx_num_bufs;
   //  int cap_len_asamps;
-
+  int num_iter;
   
 } lcl_iio_t;
 
@@ -121,6 +122,7 @@ typedef struct qregs_struct {
   int cipher_symlen_asamps;  // cipher symbol length in asamps
   int cipher_w;  // HDL detail
 
+  int phase_est_en; // HDL does phase est and derotation
 
   int tx_always;
   int tx_indefinite;
@@ -171,6 +173,7 @@ typedef struct qregs_struct {
 
   qregs_pilot_cfg_t     pilot_cfg;
   qregs_qsdc_data_cfg_t qsdc_data_cfg;
+  int qsdc_track_pilots;
 
   qregs_cdm_cfg_t cdm_cfg;
   
@@ -322,6 +325,7 @@ void qregs_print_settings(void);
 
 typedef struct qregs_sync_status_struct {
   int locked;
+  int lor; // loss of reference
   int errsum;
   int qty;
   double mean_ref_err_asamps;
@@ -382,11 +386,11 @@ typedef struct qregs_frame_pwrs_st {
 int qregs_measure_frame_pwrs(qregs_frame_pwrs_t *pwr);
 
 void qregs_dbg_print_regs(void);
-
+void qregs_set_phase_est_en(int en, double offset_deg);
 // calibration functions
 
 //void qregs_calibrate_bpsk(int en);
-
+void qregs_qsdc_track_pilots(int en);
 void qregs_set_memtx_to_pm(int en);
 
 #endif

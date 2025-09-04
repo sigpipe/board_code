@@ -456,7 +456,7 @@ int qregs_set_tx_go_condition(char r) {
     case 'r' : i=H_TXGOREASON_RXRDY ; break;
     default  : r='p'; i=H_TXGOREASON_RXPWR ; break;
   }
-  h_w_fld(H_ADC_CTL2_TX_GO_COND, i);
+  h_w_fld(H_ADC_ACTL_TX_GO_COND, i);
   st.tx_go_condition = r;
   return 0;
 }
@@ -465,11 +465,13 @@ int qregs_set_sync_ref(char s) {
   // s: 'r'=sync using SFP rxclk
   //    'p'=sync using optical power-above-thresh events
   //    'h'=sync to arrival of headers
+  //    't'=sync to fixed dly after tx (used by bob)
   int i;
   switch(s) {
     case 'r': i=H_SYNC_REF_RXCLK; break;  // 0
     case 'p': i=H_SYNC_REF_PWR;   break; // 1
-    case 'h': i=H_SYNC_REF_CORR; break; // 2
+    case 'h': i=H_SYNC_REF_CORR;  break; // 2
+    case 't': i=H_SYNC_REF_TXDLY; break; // 3
     return qregs_err_fail("bad value");
   }
   h_w_fld(H_ADC_HDR_SYNC_REF_SEL, i);
@@ -592,6 +594,11 @@ void qregs_get_settings(void) {
   st.alice_syncing = h_r_fld(H_DAC_CTL_ALICE_SYNCING);
   st.osamp         = h_r_fld(H_DAC_CTL_OSAMP_MIN1) + 1;
   st.cipher_en     = h_r_fld(H_DAC_CTL_CIPHER_EN);
+  st.qsdc_track_pilots = h_r_fld(H_ADC_QSDC_TRACK_PILOTS);
+  
+  st.phase_est_en  = h_r_fld(H_ADC_ACTL_PHASE_EST_EN);
+
+  
   st.decipher_en   = h_r_fld(H_ADC_ACTL_DECIPHER_EN);
   st.is_bob        = h_r_fld(H_DAC_CTL_IS_BOB);
 
@@ -618,7 +625,7 @@ void qregs_get_settings(void) {
   st.hdr_pwr_thresh  = h_r_fld(H_ADC_HDR_PWR_THRESH);
   st.hdr_corr_thresh = h_r_fld(H_ADC_HDR_THRESH);
   
-  st.sync_dly_asamps = (h_r_fld(H_DAC_ALICE_FRAME_DLY_CYCS_MIN1)+1)*4;
+  st.sync_dly_asamps = (h_r_fld(H_ADC_CTL2_FRAME_DLY_MIN1_CYCS)+1)*4;
 
   st.pm_dly_cycs = h_r_fld(H_DAC_FR2_PM_DLY_CYCS);
 
@@ -632,11 +639,12 @@ void qregs_get_settings(void) {
     case H_SYNC_REF_RXCLK : c='r'; break;
     case H_SYNC_REF_PWR   : c='p'; break;
     case H_SYNC_REF_CORR  : c='h'; break;
+    case H_SYNC_REF_TXDLY : c='t'; break;
     default: c='?'; break;
   }
   st.sync_ref = c;
   
-  i=h_r_fld(H_ADC_CTL2_TX_GO_COND);
+  i=h_r_fld(H_ADC_ACTL_TX_GO_COND);
   switch(i) {
     case H_TXGOREASON_ALWAYS: c='i'; break; //3
     case H_TXGOREASON_RXHDR:  c='h'; break; //2
@@ -681,6 +689,29 @@ void qregs_get_settings(void) {
   st.ser_state.term = '>';
 }
 
+void qregs_set_phase_est_en(int en, double offset_deg) {
+  int i=!!en;
+  double c, s;
+  c = cos(offset_deg*M_PI/180);
+  // printf("c %g -> %g\n", c, c*(1<<7));
+  i = round(c*(1<<7));
+  i = h_w_signed_fld(H_ADC_REBALO_XPH_COS, i);
+  c = (double)i/(1<<7);
+  
+
+  s=sin(offset_deg*M_PI/180);
+  i = round(s*(1<<7));
+  i = h_w_signed_fld(H_ADC_REBALO_XPH_SIN, i);
+  //  printf("1 %d  x%x\n", i, i);
+  s = (double)i/(1<<7);
+
+  offset_deg = atan2(s, c)*180/M_PI;
+  printf("offset %.1f\n", offset_deg);
+  
+  h_w_fld(H_ADC_ACTL_PHASE_EST_EN, i);
+  st.phase_est_en = i;
+}
+
 void qregs_set_dbg_clk_sel(int sel) {
   h_w_fld(H_ADC_DBG_CLK_SEL, sel);
 }
@@ -698,30 +729,44 @@ void qregs_dbg_print_regs(void) {
   }
 }
 
+char *qregs_go_cond_ctos(char c) {
+  switch(c) {
+    case 'r': return "RXRDY";
+    case 'h': return "HDRDET";
+    case 'i': return "IMMED";
+    case 'p': return "PWRDET";
+  }
+  return "?";
+}
+
 void qregs_print_settings(void) {
   printf("halfduplex_is_bob %d\n", st.is_bob);
   printf("DLYS:  pm_dly_cycs %d   \tim_dly_cycs %d\n", st.pm_dly_cycs, st.hdr_im_dly_cycs);
   printf("       round_trip_asamps %d\n", st.round_trip_asamps);
-  printf("tx_go_condition %c\n",st.tx_go_condition);
+  printf("tx_go_condition %c=%s\n",
+	 st.tx_go_condition,
+	 qregs_go_cond_ctos(st.tx_go_condition));
   printf("save afer hdr %d pwr %d init %d\n",
 	 h_r_fld(H_ADC_DBG_SAVE_AFTER_HDR),
 	 h_r_fld(H_ADC_ACTL_SAVE_AFTER_PWR),
 	 h_r_fld(H_ADC_ACTL_SAVE_AFTER_INIT));
-  printf("tx_always %d\n", st.tx_always);
-  printf("tx_mem_circ %d   \t", st.tx_mem_circ);
-  printf("tx_mem_to_pm %d\n", h_r_fld(H_DAC_CTL_MEMTX_TO_PM));
-  printf("tx_pilot_pm_en %d   \t", st.tx_pilot_pm_en);
-  printf("tx_same_hdrs %d\n", st.tx_same_hdrs);
-  printf("tx_hdr_twopi %d\n", st.tx_hdr_twopi);
-  printf("im_preemph %d \t\t", h_r_fld(H_DAC_HDR_IM_PREEMPH));
-  printf("pilot_im_from_mem %d (state)\n", st.pilot_cfg.im_from_mem);
+  printf("  tx_always %d\n", st.tx_always);
+  printf("  tx_mem_circ %d   \t", st.tx_mem_circ);
+  printf("  tx_mem_to_pm %d\n", h_r_fld(H_DAC_CTL_MEMTX_TO_PM));
+  printf("  tx_pilot_pm_en %d   \t", st.tx_pilot_pm_en);
+  printf("  tx_same_hdrs %d\n", st.tx_same_hdrs);
+  printf("  tx_hdr_twopi %d\n", st.tx_hdr_twopi);
+  //  printf("  im_preemph %d \t\t", h_r_fld(H_DAC_HDR_IM_PREEMPH));
+  printf("  pilot_im_from_mem %d\n", st.pilot_cfg.im_from_mem);
+  
+  printf("alice_syncing %d   \talice_txing %d\n", st.alice_syncing, st.alice_txing);
   printf("txrx %d\n", h_r_fld(H_ADC_ACTL_TXRX_EN));
   printf("search %d\n", h_r_fld(H_ADC_ACTL_SEARCH));
-  printf("alice_syncing %d   \talice_txing %d\n", st.alice_syncing, st.alice_txing);
+  printf("phase_est_en %d\n", st.phase_est_en);
   //  printf("alice_txing %d\n", h_r_fld(H_DAC_CTL_ALICE_TXING));
   printf("rx_samp_dly_asamps %d\n", h_r_fld(H_ADC_ACTL_SAMP_DLY_ASAMPS));
-  printf("use_lfsr %d    \tlfsr_rst_st=x%x\n", st.use_lfsr, st.lfsr_rst_st);
-  printf("frame_qty %d\n", st.frame_qty);
+  printf("  use_lfsr %d    \tlfsr_rst_st=x%x\n", st.use_lfsr, st.lfsr_rst_st);
+  printf("  tx_frame_qty %d\n", st.frame_qty);
   printf("PROTOCOL: frame_pd_asamps %d = %.3f us\n", st.frame_pd_asamps,
 	 qregs_dur_samps2us(st.frame_pd_asamps));
   printf("          body_len_asamps %d\n", st.body_len_asamps);
@@ -836,7 +881,7 @@ void qregs_set_sync_dly_asamps(int dly_asamps) {
     printf("WARN: call set_osamp and set_frame_pd before set_sync_dly\n");
   i = (dly_asamps + 10*st.frame_pd_asamps) % st.frame_pd_asamps;
   i = i/4-1;
-  i=h_w_fld(H_DAC_ALICE_FRAME_DLY_CYCS_MIN1, i);
+  i=h_w_fld(H_ADC_CTL2_FRAME_DLY_MIN1_CYCS, i);
   st.sync_dly_asamps = (i+1)*4;
   printf("DBG: alice sync dly %d\n", st.sync_dly_asamps);
   //  printf("DBG: alice sync dly %d\n", (h_r_fld(H_DAC_ALICE_FRAME_DLY_CYCS_MIN1)+1)*4);
@@ -1128,7 +1173,7 @@ void qregs_set_frame_pd_asamps(int frame_pd_asamps) {
   // sfp rxclk is 1/10th of dac clk
   j =  ((i+1)/10)-1;
   h_w_fld(H_ADC_CTL2_EXT_FRAME_PD_MIN1_CYCS, j);
-  // printf("DBG: ext_frame_pd_cycs %d\n", j+1);
+  printf("DBG: ext_frame_pd_cycs %d\n", j+1);
 }
 
 void qregs_get_avgpwr(int *avg, int *mx, int *cnt) {
@@ -1151,18 +1196,23 @@ void qregs_get_avgpwr(int *avg, int *mx, int *cnt) {
 
 void qregs_get_sync_status(qregs_sync_status_t *s) {
   int sum, qty, ovf;
+  printf("askdjas\n");
   sum=h_r_fld(H_ADC_SYNC_O_ERRSUM);
   qty=h_r_fld(H_ADC_SYNC_O_QTY);
   ovf=h_r_fld(H_ADC_SYNC_O_ERRSUM_OVF);
   s->errsum = sum;
-  if (ovf) {
+  if (!qty) {
+    s->qty = qty;
+    s->mean_ref_err_asamps = 0;
+  }else if (ovf) {
     s->qty    = INT_MAX;
     s->mean_ref_err_asamps = INT_MAX;
   }else {
     s->qty = qty;
     s->mean_ref_err_asamps = sum/qty;
   }
-  s->locked = h_r_fld(H_ADC_STAT_SYNC_LOCK);
+  s->locked = h_r_fld(H_ADC_STAT_SYNCHRO_LOCK);
+  s->lor    = h_r_fld(H_ADC_STAT_SYNCHRO_LOR);
 }
 
 void qregs_print_sync_status(void) {
@@ -1180,7 +1230,8 @@ void qregs_print_sync_status(void) {
     printf("    mean_ref_err %.1f asamps\n", (double)sum/qty);
   else
     printf("    reference absent\n");
-  printf("    locked %d\n", h_r_fld(H_ADC_STAT_SYNC_LOCK));
+  printf("    locked %d\n", h_r_fld(H_ADC_STAT_SYNCHRO_LOCK));
+  printf("    lor %d     (loss of ref)\n", h_r_fld(H_ADC_STAT_SYNCHRO_LOR));
   printf("\n");
 }
 
@@ -1367,7 +1418,8 @@ void qregs_print_adc_status(void) {
   printf(" dma_wready_cnt %d\n", h_r_fld(H_ADC_STAT_EVENT_CNT));
 
   h_w_fld(H_ADC_PCTL_EVENT_CNT_SEL, 5);
-  printf("tx_commence_cnt %d  (rbuf_is %d)\n", h_r_fld(H_ADC_STAT_EVENT_CNT),
+  printf("tx_commence_cnt %d  (rxbuf_exists %d)\n",
+	 h_r_fld(H_ADC_STAT_EVENT_CNT),
 	 h_r_fld(H_ADC_DBG_RXBUF_EXISTS_ACLK));
 
 
@@ -1512,16 +1564,15 @@ void qregs_txrx(int en) {
   int v=!!en;
 
   h_w_fld(H_ADC_ACTL_TXRX_EN, v);
-  if (!en)
-    h_pulse_fld(H_DAC_CTL_FRAMER_RST); // for dbg
+  //  if (!en)
+  //    h_pulse_fld(H_DAC_CTL_FRAMER_RST); // for dbg
 }
 
-void qregs_dbg_new_go(int en) {
-  printf("WARN: new_go deprecated\n");
-
+//void qregs_dbg_new_go(int en) {
+//  printf("WARN: new_go deprecated\n");
   //  qregs_reg_w(1, 0, AREG0_NEW_GO_EN, en);
   //  printf("qregs dbg new go %d\n", en);
-}
+//}
 
 
 int qregs_done() {
@@ -1536,4 +1587,10 @@ int qregs_done() {
     close(st.uio_fd);
   
   return 0;
+}
+
+void qregs_qsdc_track_pilots(int en) {
+  int i=!!en;
+  h_w_fld(H_ADC_QSDC_TRACK_PILOTS,i);
+  st.qsdc_track_pilots=i;
 }

@@ -7,7 +7,9 @@ TSRCS = h util corr qregs ini mx parse qna rp qregc
 TOBJS = obj/tst.o $(TSRCS:%=obj/%.o)
 THDRS = $(TSRCS:%=src/%.h)
 
-TSOBJS = obj/ts.o $(TSRCS:%=obj/%.o)
+
+TSSRCS = h util corr qregs ini mx parse qna rp tsd cmd
+TSOBJS = obj/ts.o $(TSSRCS:%=obj/%.o)
 
 
 USRCS = h util corr mx ini parse h_vhdl_extract cmd qregs qregc qna rp i2c
@@ -40,7 +42,7 @@ tst: $(TOBJS)
 	gcc $(TOBJS) -L../qnicll -lm -liio  -o $@ 
 
 ts: $(TSOBJS)
-	gcc $(TSOBJS) -L../qnicll -lm -liio -o $@ 
+	gcc $(TSOBJS) -L../qnicll -lm -liio -pthread -o $@ 
 
 
 # utilities
