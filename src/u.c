@@ -371,7 +371,7 @@ int cmd_rx(int arg) {
   return 0;
 }
 
-int cmd_roundtrip(int arg) {
+int cmd_dly_round(int arg) {
   int dly;
   if (parse_int(&dly)) {
     dly = ini_ask_num(tvars, "round_trip_dly (asamps)",
@@ -382,12 +382,12 @@ int cmd_roundtrip(int arg) {
   return 0;
 }
 
-int cmd_rxdly(int arg) {
+int cmd_dly_rxsc(int arg) {
   int dly;
   if (parse_int(&dly))
     return CMD_ERR_NO_INT;
-  qregs_set_rx_samp_dly_asamps(dly);
-  printf("rx_samp_dly %d\n", st.rx_samp_dly_asamps);
+  qregs_set_rx_subcyc_dly_asamps(dly);
+  printf("rx_subcyc_dly %d (asamps)\n", st.rx_subcyc_dly_asamps);
   return 0;
 }
  
@@ -1057,7 +1057,9 @@ cmd_info_t cal_cmds_info[]={
   {0}};
 
 cmd_info_t dly_cmds_info[]={
-  {"rx2tx", cmd_dly_rx2tx,   0, "set rx2tx dly", ""},
+  {"rx2tx",   cmd_dly_rx2tx,   0, "set alice's rx2tx dly", "<asamps>"},
+  {"rxsc",    cmd_dly_rxsc,    0, "set rx sub-cycle dly (asamps)", "0..3"},
+  {"round",   cmd_dly_round,   0, "set bob's tx2rx dly", "[<asamps>]"},
   {0}};
 
 cmd_info_t sync_cmds_info[]={
@@ -1086,8 +1088,6 @@ cmd_info_t cmds_info[]={
   {"sfp",     cmd_subcmd, (int)sfp_cmds_info, 0, 0}, 
   {"tx",      cmd_tx,     0, 0},
   {"rx",      cmd_rx,   0, 0},
-  {"rxdly",   cmd_rxdly,  0, "sub-cycle sample dly (asamps)", "0..3"},
-  {"roundtrip",  cmd_roundtrip,  0, "set bobs rx dly", "[<dly>]"},
 
   {"pwr",     cmd_pwr,     0, "querry RedPitaya for power"},
   {"proto",   cmd_proto,   0, "asks for protocol params", 0},

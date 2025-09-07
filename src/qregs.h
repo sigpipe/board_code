@@ -178,7 +178,7 @@ typedef struct qregs_struct {
   qregs_cdm_cfg_t cdm_cfg;
   
   int round_trip_asamps;
-  int rx_samp_dly_asamps;
+  int rx_subcyc_dly_asamps;
   
 } qregs_st_t;
 
@@ -187,7 +187,7 @@ extern int qregs_fwver;
 
 int qregs_dur_us2samps(double us);
 double qregs_dur_samps2us(int s);
-void qregs_set_rx_samp_dly_asamps(int dly);
+void qregs_set_rx_subcyc_dly_asamps(int dly);
 
 int  qregs_init();
 int  qregs_done();
@@ -259,7 +259,7 @@ void qregs_set_save_after_init(int en);
 void qregs_set_save_after_pwr(int en);
 void qregs_set_save_after_hdr(int en);
 
-void qregs_set_qsdc_data_cfg(qregs_qsdc_data_cfg_t *data_cfg);
+int  qregs_set_qsdc_data_cfg(qregs_qsdc_data_cfg_t *data_cfg);
 
 void qregs_set_cdm_cfg(qregs_cdm_cfg_t *cdm_cfg);
 

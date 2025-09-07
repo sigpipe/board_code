@@ -631,7 +631,7 @@ void qregs_get_settings(void) {
 
   st.pm_dly_cycs = h_r_fld(H_DAC_FR2_PM_DLY_CYCS);
 
-  st.rx_samp_dly_asamps  = h_r_fld(H_ADC_ACTL_SAMP_DLY_ASAMPS);
+  st.rx_subcyc_dly_asamps  = h_r_fld(H_ADC_ACTL_SAMP_DLY_ASAMPS);
 
   st.round_trip_asamps = (h_r_fld(H_ADC_QSDC_RND_TRIP_DLY_MIN1_CYCS)+1)*4;
   
@@ -718,8 +718,9 @@ void qregs_set_dbg_clk_sel(int sel) {
   h_w_fld(H_ADC_DBG_CLK_SEL, sel);
 }
 
-void qregs_set_rx_samp_dly_asamps(int dly) {
-  st.rx_samp_dly_asamps = h_w_fld(H_ADC_ACTL_SAMP_DLY_ASAMPS, dly);
+
+void qregs_set_rx_subcyc_dly_asamps(int dly) {
+  st.rx_subcyc_dly_asamps = h_w_fld(H_ADC_ACTL_SAMP_DLY_ASAMPS, dly);
 }
 
 void qregs_dbg_print_regs(void) {
@@ -745,6 +746,7 @@ void qregs_print_settings(void) {
   printf("halfduplex_is_bob %d\n", st.is_bob);
   printf("DLYS:  pm_dly_cycs %d   \tim_dly_cycs %d\n", st.pm_dly_cycs, st.hdr_im_dly_cycs);
   printf("       round_trip_asamps %d\n", st.round_trip_asamps);
+  printf("       rx_subcyc_dly_asamps %d\n", h_r_fld(H_ADC_ACTL_SAMP_DLY_ASAMPS));
   printf("tx_go_condition %c=%s\n",
 	 st.tx_go_condition,
 	 qregs_go_cond_ctos(st.tx_go_condition));
@@ -762,11 +764,10 @@ void qregs_print_settings(void) {
   printf("  pilot_im_from_mem %d\n", st.pilot_cfg.im_from_mem);
   
   printf("alice_syncing %d   \talice_txing %d\n", st.alice_syncing, st.alice_txing);
-  printf("txrx %d\n", h_r_fld(H_ADC_ACTL_TXRX_EN));
+  printf("tx %d rx %d\n", h_r_fld(H_ADC_ACTL_TX_EN), h_r_fld(H_ADC_ACTL_RX_EN));
   printf("search %d\n", h_r_fld(H_ADC_ACTL_SEARCH));
   printf("phase_est_en %d\n", st.phase_est_en);
   //  printf("alice_txing %d\n", h_r_fld(H_DAC_CTL_ALICE_TXING));
-  printf("rx_samp_dly_asamps %d\n", h_r_fld(H_ADC_ACTL_SAMP_DLY_ASAMPS));
   printf("  use_lfsr %d    \tlfsr_rst_st=x%x\n", st.use_lfsr, st.lfsr_rst_st);
   printf("  tx_frame_qty %d\n", st.frame_qty);
   printf("PROTOCOL: frame_pd_asamps %d = %.3f us\n", st.frame_pd_asamps,
@@ -1021,35 +1022,61 @@ void qregs_set_alice_txing(int en) {
   h_w_fld(H_DAC_CTL_ALICE_TXING, en);
 }
 
-void qregs_set_qsdc_data_cfg(qregs_qsdc_data_cfg_t *data_cfg) {
+int qregs_set_qsdc_data_cfg(qregs_qsdc_data_cfg_t *data_cfg) {
   int i,j;
   qregs_qsdc_data_cfg_t *c = &st.qsdc_data_cfg;
   i = !!data_cfg->is_qpsk;
   i = h_w_fld(H_DAC_QSDC_DATA_IS_QPSK, i);
   c->is_qpsk = i;
 
+#if 1
+  // NEW: pos is now guard in adc
+  i = (data_cfg->pos_asamps - st.hdr_len_asamps + 2)/4-1;
+  i = h_w_fld(H_ADC_QSDC2_QSDC_GUARD_LEN_MIN1_CYCS, i);
+  int guard_asamps = (i+1)*4;
+  i = (st.hdr_len_asamps + guard_asamps)/4-1;
+  i = h_w_fld(H_DAC_QSDC_POS_MIN1_CYCS, i);
+  c->pos_asamps = (i+1)*4;
+  // printf("DBG: qsdc pos %d\n",   c->pos_asamps);
+#else
   i = data_cfg->pos_asamps/4-1;
   i = h_w_fld(H_DAC_QSDC_POS_MIN1_CYCS, i);
   c->pos_asamps = (i+1)*4;
-  //  printf("DBG: qsdc pos %d\n",   c->pos_asamps);
+#endif
 
-  j = st.frame_pd_asamps - c->pos_asamps; // what fits
-  i = MIN(data_cfg->data_len_asamps, j);
-  if (!i) i=j;
-  i=(i/4)-1;
-  i = h_w_fld(H_DAC_QSDC_DATA_CYCS_MIN1, i);
-  i = h_w_fld(H_ADC_CTL2_DATA_LEN_MIN1_CYCS, i);
-  c->data_len_asamps = (i+1)*4;
-  //  printf("  data len per frame %d asamps = %d cycs\n", c->data_len_asamps, i+1);
-
-  
 
   if (data_cfg->symbol_len_asamps > 3)
     data_cfg->symbol_len_asamps &= ~0x3; 
   i = data_cfg->symbol_len_asamps/4-1;
   i = h_w_fld(H_DAC_QSDC_SYMLEN_MIN1_CYCS, i);
+  i = h_w_fld(H_ADC_QSDC2_QSDC_ALICE_SYMLEN_MIN1_CYCS, i);
   c->symbol_len_asamps = (i+1)*4;
   //  printf("   symbol len %d asamps\n", c->symbol_len_asamps);
+
+  j = st.frame_pd_asamps - c->pos_asamps; // what is left
+  i = MIN(data_cfg->data_len_asamps, j);  // what fits
+  if (!i) i=j; // caller did not specify data_len. we choose.
+  
+#if 1
+  // NEW: data len is in units of alice samps not cycles.
+  i=(i/c->symbol_len_asamps)-1;
+  i = h_w_fld(H_ADC_CTL2_QSDC_DATA_LEN_MIN1_SYMS, i);
+  c->data_len_asamps = (i+1)*c->symbol_len_asamps;
+
+  i = c->data_len_asamps/4-1;
+  i = h_w_fld(H_DAC_QSDC_DATA_CYCS_MIN1, i);
+  i = (i+1)*4;
+  if (i!=c->data_len_asamps)
+    return qregs_err_bug("reg field mismatch btw tx and rx");
+  printf("  data len per frame %d asamps = %d cycs\n", c->data_len_asamps, i/4);
+
+#else  
+  i=(i/4)-1;
+  i = h_w_fld(H_DAC_QSDC_DATA_CYCS_MIN1, i);
+  i = h_w_fld(H_ADC_CTL2_DATA_LEN_MIN1_CYCS, i);
+  c->data_len_asamps = (i+1)*4;
+#endif
+
 
   i = (data_cfg->bit_dur_syms / 10)-1;
   i = h_w_fld(H_DAC_QSDC_BITDUR_MIN1_CODES, i);
@@ -1555,7 +1582,8 @@ void qregs_set_memtx_to_pm(int en) {
 void qregs_search_and_txrx(int en) {
   int v = h_r(H_ADC_ACTL);
   v = h_ins(H_ADC_ACTL_SEARCH,  v, en);
-  v = h_ins(H_ADC_ACTL_TXRX_EN, v, en);
+  v = h_ins(H_ADC_ACTL_TX_EN, v, en);
+  v = h_ins(H_ADC_ACTL_RX_EN, v, en);
   h_w(H_ADC_ACTL, v);
 }
 
@@ -1563,9 +1591,11 @@ void qregs_search_and_txrx(int en) {
 void qregs_txrx(int en) {
   // desc: we only take ADC samples, and transmit DAC samps,
   //       while txrx is high.
-  int v=!!en;
-
-  h_w_fld(H_ADC_ACTL_TXRX_EN, v);
+  int v = h_r(H_ADC_ACTL);
+  en=!!en;
+  v = h_ins(H_ADC_ACTL_TX_EN, v, en);
+  v = h_ins(H_ADC_ACTL_RX_EN, v, en);
+  h_w(H_ADC_ACTL, v);
   //  if (!en)
   //    h_pulse_fld(H_DAC_CTL_FRAMER_RST); // for dbg
 }
