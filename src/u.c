@@ -220,6 +220,15 @@ int cmd_dbg_rpinfo(int arg) {
   return 0;
 }
 
+int cmd_cal_norebal(int arg) {
+  qregs_rebalance_params_t rebal={0};
+  rebal.m11=1;
+  rebal.m22=1;
+  qregs_set_iq_rebalance(&rebal);
+  printf("IQ imbalance correction turned off\n");
+  return 0;
+}
+
 int cmd_cal_measdark(int arg) {
   if (rp_measdark())
     return CMD_ERR_FAIL;
@@ -324,6 +333,9 @@ int cmd_proto(int arg) {
   i = st.qsdc_data_cfg.data_len_asamps;
   printf("  data len %d asamps = %.1f ns per frame\n", i, i/st.asamp_Hz*1.0e9);
   printf("  bit duration ACTUALLY %d symbols\n", st.qsdc_data_cfg.bit_dur_syms);
+
+  printf("  bits per frame %.3lf\n", (double)i/st.qsdc_data_cfg.bit_dur_syms/
+	 st.qsdc_data_cfg.symbol_len_asamps);
   
 }
 
@@ -1054,6 +1066,7 @@ cmd_info_t lo_cmds_info[]={
   
 cmd_info_t cal_cmds_info[]={
   {"measdark",  cmd_cal_measdark,   0, "set dark lvl on dets", ""},
+  {"norebal",   cmd_cal_norebal,    0, "turn off HDL IQ rebalance", ""},
   {0}};
 
 cmd_info_t dly_cmds_info[]={

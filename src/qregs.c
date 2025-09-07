@@ -1062,13 +1062,13 @@ int qregs_set_qsdc_data_cfg(qregs_qsdc_data_cfg_t *data_cfg) {
   i=(i/c->symbol_len_asamps)-1;
   i = h_w_fld(H_ADC_CTL2_QSDC_DATA_LEN_MIN1_SYMS, i);
   c->data_len_asamps = (i+1)*c->symbol_len_asamps;
-
+  // printf("i %d   dl_asamps %d\n", i, c->data_len_asamps);
   i = c->data_len_asamps/4-1;
   i = h_w_fld(H_DAC_QSDC_DATA_CYCS_MIN1, i);
   i = (i+1)*4;
   if (i!=c->data_len_asamps)
     return qregs_err_bug("reg field mismatch btw tx and rx");
-  printf("  data len per frame %d asamps = %d cycs\n", c->data_len_asamps, i/4);
+  // printf("  data len per frame %d asamps = %d cycs\n", c->data_len_asamps, i/4);
 
 #else  
   i=(i/4)-1;

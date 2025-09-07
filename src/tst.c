@@ -348,7 +348,7 @@ int first_action(void) {
 
   if (is_alice) {
 
-    qregs_set_save_after_hdr(1);
+    qregs_set_save_after_init(1);
 
       
 #if QNICLL_LINKED
