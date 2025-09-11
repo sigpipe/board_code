@@ -15,6 +15,7 @@
 #include "util.h"
 #include "h.h"
 #include "rp.h"
+#include "hdl.h"
 
 // constants for register fields (H_*) are defined in this file:
 #include "h_vhdl_extract.h"
@@ -55,6 +56,7 @@ int qregs_dur_us2samps(double us) {
   // here "samp" means 1.233GHz sample.  not an IQ "sample".  
   return (int)(floor(round(us*1e-6 * st.asamp_Hz)));
 }
+
 
 double qregs_dur_samps2us(int s) {
   // here "samp" means 1.233GHz sample.  not an IQ "sample".  
@@ -121,7 +123,6 @@ int clip_regval_u(int regconst, int v) {
     return H_2VMASK(regconst);
   return v;
 }
-
 
 
 
@@ -215,7 +216,7 @@ int qregs_ser_sel(int sel) {
   return 0;
 }
 
-static char ser_rx(void) {
+char ser_rx(void) {
   char c=0;
   int v;
   v = h_r(H_DAC_SER);
@@ -228,7 +229,7 @@ static char ser_rx(void) {
 }
 
 
-static void ser_tx(char c) {
+void ser_tx(char c) {
   int v;
   v = h_r(H_DAC_SER);
   if (h_ext(H_DAC_SER_TX_FULL, v)) return;
@@ -335,6 +336,7 @@ int qregs_ser_rx_buf_til_term(char *buf, int nchar, int *rxed) {
   }
   return 0;
 }
+
 
 
 int qregs_ser_do_cmd(char *cmd, char *rsp, int rsp_len, int skip_echo) {
@@ -486,12 +488,14 @@ void qregs_sync_resync(void) {
 
 #define REBAL_M_SCALE ((H_2VMASK(H_ADC_REBALM_M11)+1)/4)
 // (all matrix entries are the same size)
-static double mclip(double m) {
+double mclip(double m) {
   if (m >= 2.0) return  1.999;
   if (m <=-2.0) return -1.999;
   return m;
 }
-
+int qregs_set_lo_fdbk_en(int en) {
+  return qna_set_lo_fdbk_en(en);  
+}
 int qregs_set_lo_mode(char m) {
   return qna_set_lo_mode(m);
 }
@@ -507,9 +511,6 @@ int qregs_set_lo_wl_nm(double *wl_nm) {
 }
 int qregs_get_lo_status(qregs_lo_status_t *status) {
   return qna_get_lo_status(status);
-}
-int qregs_get_lo_settings(qregs_lo_settings_t *set) {
-  return qna_get_lo_settings(set);
 }
 int qregs_set_lo_offset_MHz(int offset_MHz) {
   return qna_set_lo_offset_MHz(offset_MHz);
@@ -581,7 +582,7 @@ void qregs_get_version(qregs_version_info_t *ver) {
   st.ver_info = *ver;
 }
 
-void qregs_get_settings(void) {
+void qregs_get_hdl_settings(void) {
   int i;
   char c;
 
@@ -713,6 +714,12 @@ void qregs_set_phase_est_en(int en, double offset_deg) {
   h_w_fld(H_ADC_ACTL_PHASE_EST_EN, i);
   st.phase_est_en = i;
 }
+
+int qregs_get_qna_settings(qregs_lo_settings_t *set) {
+  return qna_get_qna_settings(set);
+}
+
+
 
 void qregs_set_dbg_clk_sel(int sel) {
   h_w_fld(H_ADC_DBG_CLK_SEL, sel);
@@ -854,7 +861,7 @@ int qregs_init(void) {
   //  iq_rebalance=1.0;
   //  qregs_set_iq_rebalance(&iq_rebalance);
 
-  qregs_get_settings();
+  qregs_get_hdl_settings();
   if (e) return qregs_err_fail("close failed");
   return 0;  
 }
@@ -1128,21 +1135,31 @@ void qregs_set_hdr_len_bits(int hdr_len_bits) {
 
 
 
-void qregs_set_cdm_en(int en) {
-  int i = h_w_fld(H_ADC_ACTL_CORRSTART, !!en);
+void qregs_set_cdm_en(int en, int stream) {
+  int i;
+  en = !!en;
+  i = h_w_fld(H_ADC_ACTL_CORRSTART, en);
+  h_w_fld(H_ADC_ACTL_DO_STREAM_CDM, !!stream);
+  h_w_fld(H_DAC_HDR_SECOND_IM_IS_PROBE, en);
 }
 
-void qregs_set_cdm_cfg(qregs_cdm_cfg_t *cdm_cfg) {
+
+void qregs_set_cdm_cfg(hdl_cdm_cfg_t *cdm_cfg) {
+// caller need not set num_passes or qty to tx
   int i, probes_per_frame;
   qregs_cdm_cfg_t *p=&st.cdm_cfg;
 
+  qregs_set_osamp(cdm_cfg->sym_len_asamps);
+
+  qregs_set_frame_pd_asamps(cdm_cfg->frame_pd_asamps);
+  
   qregs_set_hdr_len_bits(cdm_cfg->probe_len_asamps/st.osamp);
   p->probe_len_asamps = st.hdr_len_asamps;
 
   // how many passes to complete one contribution
   i = (p->probe_len_asamps/4+1)/H_MAX_SLICES-1;
   i = h_w_fld(H_ADC_FR1_NUM_PASS_MIN1, i);
-  p->num_passes=i+1;
+  st.cdm_num_passes=i+1;
 
 
   i = cdm_cfg->num_iter-1;
@@ -1152,7 +1169,7 @@ void qregs_set_cdm_cfg(qregs_cdm_cfg_t *cdm_cfg) {
   // how many probes to tx
   i = p->num_passes * p->num_iter;
   qregs_set_frame_qty(i);
-  p->probe_qty_to_tx = st.frame_qty;
+  st.probe_qty_to_tx = st.frame_qty;
   // only matters in one-shot, not streaming, mode.
 
   *cdm_cfg = *p;
@@ -1415,6 +1432,7 @@ void qregs_clr_corr_status(void) {
 }
 
 
+
 void qregs_print_adc_status(void) {
 // for dbg  
   int v, i;
@@ -1519,13 +1537,15 @@ void qregs_set_meas_noise(int en) {
   st.meas_noise_en = en;
 }
 
+
+
 void qregs_set_osamp(int osamp) {
   // osamp: vversampling rate in units of samples. 1,2 or 4
   if ((osamp!=1)&&(osamp!=2)) osamp=4;
-  if (qregs_fwver >= 2) {
-    h_w_fld(H_DAC_CTL_OSAMP_MIN1,  osamp-1);
-    h_w_fld(H_ADC_ACTL_OSAMP_MIN1, osamp-1);
-  }
+
+  h_w_fld(H_DAC_CTL_OSAMP_MIN1,  osamp-1);
+  h_w_fld(H_ADC_ACTL_OSAMP_MIN1, osamp-1);
+
   st.osamp = osamp;
   st.setflags |= 1;
 }
@@ -1621,8 +1641,24 @@ int qregs_done() {
   return 0;
 }
 
+int qregs_set_voa_attn_dB(int voa_i, double *attn_dB) {
+  // voa_i: one of QRGES_VOA_* 
+  return qna_set_voa_attn_dB(voa_i, attn_dB);
+}
+
 void qregs_qsdc_track_pilots(int en) {
   int i=!!en;
   h_w_fld(H_ADC_QSDC_TRACK_PILOTS,i);
   st.qsdc_track_pilots=i;
 }
+
+
+
+
+
+
+
+
+
+
+

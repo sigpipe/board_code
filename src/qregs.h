@@ -3,16 +3,28 @@
 
 
 #include <iio.h>
-
+#include "hdl.h"
 
 // error codes returned by qregs_ functions:
-#define QREGS_ERR_FAIL 1
-#define QREGS_ERR_TIMO 2
-#define QREGS_ERR_BUG  3
-#define QREGS_MAX_ERR  3
+#define QREGS_ERR_FAIL  1
+#define QREGS_ERR_TIMO  2
+#define QREGS_ERR_BUG   3
+#define QREGS_ERR_PARAM 4
+#define QREGS_MAX_ERR   4
 
 char *qregs_last_err(void);
 void qregs_print_last_err(void);
+
+
+// in qna1:
+#define QREGS_VOA_QUANT_TX (0)
+#define QREGS_VOA_HYB_RX   (1)
+// in qna2:
+#define QREGS_VOA_DATA_TX  (2)
+#define QREGS_VOA_DATA_RX  (3)
+#define QREGS_VOA_QUANT_RX (4)
+#define QREGS_NUM_VOA (5)
+
 
 
 // indexed by error code
@@ -41,8 +53,11 @@ typedef struct iq_rebalance_struct {
 
 // CDM(reflection tomography) configuration
 typedef struct qregs_cdm_cfg_struct {
+  int sym_len_asamps;
+  int frame_pd_asamps;
   int probe_len_asamps;
   int num_iter;
+  
   int probe_qty_to_tx;
   int num_passes;
 } qregs_cdm_cfg_t;
@@ -64,6 +79,9 @@ typedef struct qsdc_data_cfg_st {
 } qregs_qsdc_data_cfg_t;
 
 
+
+
+
 // communication links with QNA and RedPitaya boards
 typedef struct ser_state_struct {
   int sel;
@@ -74,6 +92,15 @@ typedef struct ser_state_struct {
   char term;
 } qregs_ser_state_t;
 
+
+typedef struct qregs_lo_settings_st {
+  int    en;      // 1=enabled
+  double pwr_dBm; // setpoint power
+  double wl_nm;   // wavelength
+  char   mode;    // 'w'=whisper, 'd'=dither
+  int    gas_fdbk_en;
+  int    gas_goal_offset_MHz; // offset from gasline edge midpoint
+} qregs_lo_settings_t;
 
 
 
@@ -175,10 +202,15 @@ typedef struct qregs_struct {
   qregs_qsdc_data_cfg_t qsdc_data_cfg;
   int qsdc_track_pilots;
 
-  qregs_cdm_cfg_t cdm_cfg;
+  hdl_cdm_cfg_t cdm_cfg;
+  int cdm_num_passes;
+  int cdm_probe_qty_to_tx;
+  
   
   int round_trip_asamps;
   int rx_subcyc_dly_asamps;
+
+  double voa_attn_dB[QREGS_NUM_VOA];
   
 } qregs_st_t;
 
@@ -194,7 +226,7 @@ int  qregs_done();
 
 void qregs_set_meas_noise(int en);
 
-void qregs_set_cdm_en(int en);
+void qregs_set_cdm_en(int en, int do_stream);
 
 
 void qregs_set_lfsr_rst_st(int lfsr_rst_st);
@@ -261,7 +293,7 @@ void qregs_set_save_after_hdr(int en);
 
 int  qregs_set_qsdc_data_cfg(qregs_qsdc_data_cfg_t *data_cfg);
 
-void qregs_set_cdm_cfg(qregs_cdm_cfg_t *cdm_cfg);
+void qregs_set_cdm_cfg(hdl_cdm_cfg_t *cdm_cfg);
 
 void qregs_set_alice_txing(int en);
 void qregs_set_alice_syncing(int en);
@@ -320,7 +352,16 @@ int qregs_set_sync_ref(char s);
 
 void qregs_alice_sync_en(int en);
 
-void qregs_get_settings(void);
+
+
+// This gets settings of HDL registers.
+void qregs_get_hdl_settings(void);
+// This gets settings of Aux boards qna1 and qna2,
+// and consist of voa settings, optical switches, polarization, laser
+int qregs_get_qna_settings(qregs_lo_settings_t *set);
+
+
+
 void qregs_print_settings(void);
 
 typedef struct qregs_sync_status_struct {
@@ -358,7 +399,8 @@ int qregs_set_lo_en(int en);
 int qregs_set_lo_pwr_dBm(double *dBm);
 int qregs_set_lo_wl_nm(double *wl_nm);
 int qregs_set_lo_offset_MHz(int offset_MHz);
-
+int qregs_set_lo_fdbk_en(int en);
+  
 typedef struct qregs_lo_status_st {
   int    init_err; // should be zero
   int    gas_lock; 
@@ -368,15 +410,6 @@ typedef struct qregs_lo_status_st {
 } qregs_lo_status_t;
 int qregs_get_lo_status(qregs_lo_status_t *status);
 
-typedef struct qregs_lo_settings_st {
-  int    en;      // 1=enabled
-  double pwr_dBm; // setpoint power
-  double wl_nm;   // wavelength
-  char   mode;    // 'w'=whisper, 'd'=dither
-  int    gas_fdbk_en;
-  int    gas_goal_offset_MHz; // offset from gasline edge midpoint
-} qregs_lo_settings_t;
-int qregs_get_lo_settings(qregs_lo_settings_t *set);
 
 
 
@@ -395,5 +428,8 @@ void qregs_set_phase_est_en(int en, double offset_deg);
 //void qregs_calibrate_bpsk(int en);
 void qregs_qsdc_track_pilots(int en);
 void qregs_set_memtx_to_pm(int en);
+
+int qregs_set_voa_attn_dB(int voa_i, double *attn_dB);
+// voa_i: one of QRGES_VOA_*
 
 #endif

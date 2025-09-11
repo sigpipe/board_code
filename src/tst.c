@@ -97,6 +97,7 @@ int opt_sync=0;
 int opt_qsdc=0;
 char mode=0;
 int opt_meas_noise=0, noise_dith=0;
+int stream=0;
 
 void lookup_int(char *var_name, int *i_p) {
   int e=ini_get_int(tvars, var_name, i_p);
@@ -559,7 +560,7 @@ int first_action(void) {
   }
    
 
-  qregs_set_cdm_en(cdm_en);
+  qregs_set_cdm_en(cdm_en, stream);
   
 
   qregs_clr_adc_status();
@@ -642,8 +643,8 @@ int second_action(void) {
 	sprintf(errmsg, "cant refill rx bufer %d", b_i);
 	refill_err=1;
 	err(errmsg);
-      }
-      //      prompt("refilled buf");
+      }else
+        printf("refilled buf\n");
       
       if (sz != rx_buf_sz)
 	printf("tried to rx %ld but got %ld bytes\n", rx_buf_sz, sz);
@@ -658,7 +659,7 @@ int second_action(void) {
       // printf(" size %zd\n", p - adc_buf_p);
 
       
-      if (opt_corr) {  // If correlating in C
+      if (opt_corr && !cdm_en) {  // If correlating in C
 	for(p_i=0; p_i<frames_per_iiobuf; ++p_i) {
 	  //	  printf("p %d\n",p_i);
 	  p = adc_buf_p + sizeof(short int)*2*p_i*st.frame_pd_asamps;
@@ -708,7 +709,7 @@ int second_action(void) {
     }
 #endif    
     
-    if (opt_corr) {
+    if (opt_corr && !cdm_en) {
       corr_find_peaks(corr, frame_qty);
     }
     
@@ -740,7 +741,7 @@ int second_action(void) {
 
 
   usleep(1); // AD fifo funny thing workaround
-  qregs_set_cdm_en(0);
+  qregs_set_cdm_en(0,0);
 
 
 
@@ -781,6 +782,7 @@ int second_action(void) {
     fprintf(fp,"alice_syncing = %d;\n", alice_syncing);
     fprintf(fp,"alice_txing = %d;\n", alice_txing);
     fprintf(fp,"search = %d;\n",       search);
+    fprintf(fp,"stream = %d;\n",       stream);
     fprintf(fp,"osamp = %d;\n",        st.osamp);
     fprintf(fp,"cipher_m = %d;\n",     st.cipher_m);
     fprintf(fp,"cipher_en = %d;\n",    cipher_en);
@@ -986,20 +988,26 @@ int main(int argc, char *argv[]) {
       frame_qty_to_tx = ask_num("frames per itr", "frames_per_itr", 10);
 
     if (cdm_en) {
-      qregs_cdm_cfg_t cdm_cfg;
+      hdl_cdm_cfg_t cdm_cfg;
       cdm_cfg.num_iter  = ask_num("num CDM iterations", "num_cdm_iter", 4);
-      cdm_cfg.probe_len_asamps = st.hdr_len_bits * st.osamp;
+      i = ask_num("probe len (bits)", "cdm_probe_len_bits", 4);
+      cdm_cfg.probe_len_asamps = i*st.osamp;
+
+      stream = ask_yn("stream", "cdm_stream", 4);
+      
+      
       qregs_set_cdm_cfg(&cdm_cfg);
-      printf("  num cdm passes %d\n", cdm_cfg.num_passes);
-      printf("  txing %d probes\n", cdm_cfg.probe_qty_to_tx);
-      frame_qty_to_tx = cdm_cfg.probe_qty_to_tx;
+      printf("  num cdm passes %d\n", st.cdm_num_passes);
+      printf("  txing %d probes\n",   st.cdm_probe_qty_to_tx);
+      frame_qty_to_tx = st.cdm_probe_qty_to_tx * (stream?4:1);
+      // TODO: for stream use INDFEFINITE
 
       frame_qty = 1;
       // should get st.frame_pd_asamps/2
       // BUG only getting half what I expect
-      lcl_iio.rx_buf_sz_asamps = st.frame_pd_asamps/2/2;
+      lcl_iio.rx_buf_sz_asamps = st.frame_pd_asamps/2;
       num_iio_itr=1;
-      lcl_iio.rx_num_bufs=1;
+      lcl_iio.rx_num_bufs=stream?2:1;
       if (lcl_iio.rx_buf_sz_asamps > ADC_N)
 	err("BUG: use multiple rx iio bufs for cdm");
       

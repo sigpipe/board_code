@@ -859,6 +859,15 @@ int cmd_lo_mode(int arg) {
   return 0;
 }
 
+int cmd_lo_fdbken(int arg) {
+  int e, en;
+  if (parse_int(&en)) return CMD_ERR_SYNTAX;
+  e = qregs_set_lo_fdbk_en(en);
+  if (e) return e;
+  printf("%c\n", en);
+  return 0;
+}
+
 int cmd_lo_pwr(int arg) {
   int e;
   double dBm;
@@ -1008,7 +1017,7 @@ int cmd_dbg_search(int arg) {
 int cmd_lo_set(int arg) {
   int e;
   qregs_lo_settings_t s;
-  e = qna_get_lo_settings(&s);
+  e = qna_get_qna_settings(&s);
   if (e) qregs_print_last_err();
   printf("  en %d\n", s.en);
   printf("  pwr_dBm %.2f\n", s.pwr_dBm);
@@ -1055,13 +1064,14 @@ cmd_info_t sfp_cmds_info[]={
 
 
 cmd_info_t lo_cmds_info[]={
-  {"en",   cmd_lo_en,   0, "enable LO laser", "0|1"},
-  {"offset", cmd_lo_offset,  0, "set LO offset frequency", "<MHz>"},
-  {"mode", cmd_lo_mode, 0, "set laser mode", "w|d"},
-  {"pwr",  cmd_lo_pwr,  0, "set laser pwr", "dBm"},  
-  {"set",  cmd_lo_set,  0, "view settings", 0},  
-  {"stat", cmd_lo_stat, 0, "view status", 0},  
-  {"wl",   cmd_lo_wl,   0, "set wavelength", "nm"},  
+  {"en",     cmd_lo_en,     0, "enable LO laser", "0|1"},
+  {"fdbken", cmd_lo_fdbken, 0, "enable gas feedback", "0|1"},
+  {"mode",   cmd_lo_mode,   0, "set laser mode", "w|d"},
+  {"offset", cmd_lo_offset, 0, "set LO offset frequency", "<MHz>"},
+  {"pwr",    cmd_lo_pwr,    0, "set laser pwr", "dBm"},  
+  {"set",    cmd_lo_set,    0, "view settings", 0},  
+  {"stat",   cmd_lo_stat,   0, "view status", 0},  
+  {"wl",     cmd_lo_wl,     0, "set wavelength", "nm"},  
   {0}};  
   
 cmd_info_t cal_cmds_info[]={

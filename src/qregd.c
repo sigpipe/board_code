@@ -144,7 +144,7 @@ void iio_cap(void) {
   if (fd<0) err("cant open d.raw");
 
   
-  for(b_i=0; b_i<p->num_bufs; ++b_i) {
+  for(b_i=0; b_i<p->rx_num_bufs; ++b_i) {
     
     sz = iio_buffer_refill(p->adc_buf);
     //      qregs_print_adc_status();
@@ -159,8 +159,8 @@ void iio_cap(void) {
       break;
     }
     //      prompt("refilled buf");
-    if (sz != p->adc_buf_sz)
-      printf("tried to refill %d but got %d\n", p->adc_buf_sz, sz);
+    if (sz != p->rx_buf_sz_bytes)
+      printf("tried to refill %d but got %d\n", p->rx_buf_sz_bytes, sz);
     // pushes double the dac_buf size.
     //qregs_print_adc_status();
 
@@ -480,6 +480,10 @@ int cmd_osamp(int arg) {
   return 0;
 }
 
+int cmd_protocol(int arg) {
+  
+}
+
 
 int cmd_frame_qty(int arg) {
   int qty;
@@ -578,9 +582,12 @@ int cmd_txrx(int arg) {
   printf("DBG: made adc buf size %zd samps\n", (ssize_t)buf_len_asamps);
   
 
-  p->num_bufs   = num_bufs;
-  p->adc_buf_sz = adc_buf_sz;
-  p->cap_len_asamps = cap_len_asamps;  
+  p->rx_num_bufs   = num_bufs;
+  
+  p->rx_buf_sz_bytes = adc_buf_sz;
+  p->rx_buf_sz_asamps = buf_len_asamps;
+  
+  //  p->cap_len_asamps = cap_len_asamps;  
   
 
   // Now HDL operates on its own.  After DMA rx buffer is ready,
@@ -666,7 +673,7 @@ int cmd_qna(int arg) {
 
 cmd_info_t cmds_info[]={
   {"bob_sync",  cmd_bob_sync,  0, 0},
-  {"iioopen",   cmd_iioopen,   0, 0},
+  //  {"iioopen",   cmd_iioopen,   0, 0},
   {"qna",       cmd_qna,       0, 0},
   {"qna_timo",  cmd_qna_timo,  0, 0},
   {"lfsr_en",   cmd_lfsr_en,   0, 0},
@@ -674,7 +681,7 @@ cmd_info_t cmds_info[]={
   {"txrx",      cmd_txrx,      0, 0},
   {"tx_always", cmd_tx_always, 0, 0},
   {"pilot_pm_en",  cmd_tx_pilot_pm_en,    0, 0},
-  {"frame_pd",  cmd_frame_pd,  0, 0},
+  {"protocol",  cmd_protocol,  0, 0},
   {"frame_qty", cmd_frame_qty, 0, 0},
   {"fwver",     cmd_fwver,     0, 0},
   {"osamp",     cmd_osamp,     0, 0},

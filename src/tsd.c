@@ -318,7 +318,7 @@ int tsd_first_action(tsd_setup_params_t *params) {
   qregs_set_alice_txing(params->is_alice && params->alice_txing);
 
 
-  qregs_set_cdm_en(params->mode=='c');
+  qregs_set_cdm_en(params->mode=='c',0);
   
 
   qregs_clr_adc_status();
@@ -504,7 +504,7 @@ int tsd_second_action(void) {
 
 
   usleep(1); // AD fifo funny thing workaround
-  qregs_set_cdm_en(0);
+  qregs_set_cdm_en(0,0);
 
 
   /*
@@ -1024,7 +1024,7 @@ int cmd_hdr_len(int arg) {
 }
 
 
-int parse_key_val(char *key, int *val) {
+int my_parse_kval(char *key, int *val) {
   if (parse_search(key)) {
     sprintf(tsd_errmsg, "missing keyword %s", key);
     return CMD_ERR_SYNTAX;
@@ -1038,12 +1038,15 @@ int parse_key_val(char *key, int *val) {
 }
 
 
+int cmd_qsdc_protocol(int arg) {
+}
+
 int cmd_setup(int arg) {
   int en, is_alice, sync;
   qregs_sync_status_t sstat;
   printf("setup\n");
-  DO(parse_key_val("is_alice=", &is_alice));
-  DO(parse_key_val("sync=", &sync));
+  DO(my_parse_kval("is_alice=", &is_alice));
+  DO(my_parse_kval("sync=", &sync));
   if (is_alice) {
     qregs_get_sync_status(&sstat);
     if (!sstat.locked)
@@ -1297,12 +1300,60 @@ int cmd_qna(int arg) {
 }
 
 
+hdl_cdm_cfg_t cdm_cfg;
+
+
+int tdm_lcl_cdm_cfg(tsd_cdm_cfg_t *cfg) {
+  qregs_cdm_cfg_t ll_cfg;
+  ll_cfg.sym_len_asamps = cfg.sym_len_asamps;
+  ll_cfg.frame_pd_asamps = cfg.frame_pd_asamps;
+  ll_cfg.probe_len_asamps = cfg.probe_len_asamps;
+  ll_cfg.num_iter = cfg.num_iter;
+  ll_cfg.probe_qty_to_tx = cfg.probe_qty_to_tx;
+  ll_cfg.num_passes = cfg.num_passes;
+  qregs_set_cdm_cfg(&cdm_cfg.qparams);  
+  return 0;
+}
+
+
+int cmd_cdm_cfg(int arg) {
+  DO(my_parse_kval("is_passive=", &cdm_cfg.is_passive));
+  DO(my_parse_kval("is_wdm=",     &cdm_cfg.is_wdm));
+  
+
+  DO(my_parse_kval("sym_len=",   &cdm_cfg.sym_len_asamps));
+  DO(my_parse_kval("probe_len=", &cdm_cfg.probe_len_asamps));
+  DO(my_parse_kval("frame_pd=",  &cdm_cfg.frame_pd_asamps));  
+  DO(my_parse_kval("num_iter=",  &cdm_cfg.num_iter));
+  tdm_lcl_cdm_cfg(&cdm_cfg);
+  
+  sprintf(rbuf, "0 is_passive=%d is_wdn=%d sym_len=%d probe_len=%d frame_pd=%d num_iter=%d", cdm_cfg.is_passive,  cdm_cfg.is_wdm,
+	  cdm_cfg.sym_len_asamps,  cdm_cfg.probe_len_asamps,
+	  cdm_cfg.frame_pd_asamps, cdm_cfg.num_iter);
+  return 0;
+}
+
+int cmd_cdm_go(int arg) {
+  
+}
+
+int cmd_cdm_stop(int arg) {
+  
+}
+
+
+cmd_info_t cdm_cmds_info[]={
+  {"cfg",    cmd_cdm_cfg,   0, 0},
+  {"go",     cmd_cdm_go,      0, 0},
+  {"stop",   cmd_cdm_stop,    0, 0},
+  {0}};  
+
 cmd_info_t cmds_info[]={
   {"bob_sync",  cmd_bob_sync,  0, 0},
   {"iioopen",   cmd_iioopen,   0, 0},
   //  {"qna",       cmd_qna,       0, 0},
   //  {"qna_timo",  cmd_qna_timo,  0, 0},
-  {"setup",     cmd_setup,   0, 0},
+  {"cdm",       cmd_subcmd,  (int)cdm_cmds_info, 0},
   {"tx",        cmd_tx,        0, 0},
   {"txrx",      cmd_txrx,      0, 0},
   {"tx_always", cmd_tx_always, 0, 0},
@@ -1497,3 +1548,7 @@ int tsd_serve(void) {
   
   return 0;
 }
+
+
+
+

@@ -9,6 +9,10 @@
 // and tells this module to use it to post errors.
 typedef int tsd_err_fn_t(char *msg, int errcode);
 
+
+
+
+
 int tsd_serve(void);
 int tsd_connect(char *hostname, tsd_err_fn_t *err_fn);
 
@@ -34,8 +38,7 @@ typedef struct tsd_setup_params_st {
 
 int tsd_remote_setup(tsd_setup_params_t *params);
 int tsd_first_action(tsd_setup_params_t *params);
-		     
-
 int tsd_second_action(void);
+
 
 #endif

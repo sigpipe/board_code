@@ -1,9 +1,9 @@
 // h_vhdl_extract.h
 // hardware access constants
 // This file was automatically generated
-// by Register Extractor (ver 4.14) on Sun Sep  7 12:29:15 2025
+// by Register Extractor (ver 4.14) on Wed Sep 10 15:35:43 2025
 // compile version Mon Jun 16 10:25:20 2025
-// current dir:  C:\reilly\proj\quanet\quanet_hdl\projects\daq3\zcu106
+// current dir:  C:\reilly\proj\quanet\quanet_hdl\projects\quanet_noco\zcu106
 // DO NOT MODIFY THIS FILE!
 
 // source files:
@@ -18,8 +18,8 @@
 // version constants
 #define H_VHDL_EXTRACT_VER (4)
 #define H_VHDL_EXTRACT_SUBVER (14)
-#define H_VHDL_EXTRACT_DATE "Sun Sep  7 12:29:15 2025"
-#define H_VHDL_EXTRACT_DIR "C:\reilly\proj\quanet\quanet_hdl\projects\daq3\zcu106"
+#define H_VHDL_EXTRACT_DATE "Wed Sep 10 15:35:43 2025"
+#define H_VHDL_EXTRACT_DIR "C:\reilly\proj\quanet\quanet_hdl\projects\quanet_noco\zcu106"
 
 
 // all extracted constants
@@ -265,7 +265,7 @@
 #define H_ADC_ACTL_PHASE_EST_EN                 0x10000037  /* 0x00800000   w */
 #define H_ADC_ACTL_RESYNC                       0x10000038  /* 0x01000000   w */
 #define H_ADC_ACTL_DECIPHER_EN                  0x10000039  /* 0x02000000   w */
-#define H_ADC_ACTL_DO_STREAM_CDC                0x1000003a  /* 0x04000000   w */
+#define H_ADC_ACTL_DO_STREAM_CDM                0x1000003a  /* 0x04000000   w */
 #define H_ADC_ACTL_RESYNC_CAUSES_FULLCORR       0x1000003b  /* 0x08000000   w */
 #define H_ADC_ACTL_CORR_MODE_CDM                0x1000003c  /* 0x10000000   w -- corr w same hdr */
 #define H_ADC_ACTL_TX_GO_COND                   0x1000005d  /* 0x60000000   w */

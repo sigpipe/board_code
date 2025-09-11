@@ -25,11 +25,12 @@ int qna_err(int e, char *msg) {
 }
 
 
-int qna_do_cmd(void) {
+int qna_do_cmd(int qna_sel) {
+  // qna_sel: 0=local, 1=box2
   int e;
   char *p;
   qregs_ser_flush();
-  qregs_ser_sel(QREGS_SER_QNA);
+  qregs_ser_sel(qna_sel?QREGS_SER_QNA2:QREGS_SER_QNA1);
   if (qna_dbg) {
     printf("QNA tx:");
     u_print_all(qna_cmd);
@@ -53,17 +54,17 @@ int qna_do_cmd(void) {
   return e;
 }
 
-int qna_do_cmd_get_num(double *d) {
+int qna_do_cmd_get_num(int qna_sel, double *d) {
   int e;
-  e = qna_do_cmd();
+  e = qna_do_cmd(qna_sel);
   if (e) return QREGS_ERR_TIMO;
   e = sscanf(qna_rsp,"%lg", d);
   return (e!=1);
 }
 
-int qna_do_cmd_get_int(int *d) {
+int qna_do_cmd_get_int(int qna_sel, int *d) {
   int e;
-  e = qna_do_cmd();
+  e = qna_do_cmd(qna_sel);
   if (e) return QREGS_ERR_TIMO;
   e = sscanf(qna_rsp,"%d", d);
   return (e!=1);
@@ -80,7 +81,7 @@ int qna_set_timo_ms(int timo_ms) {
 int qna_get_lo_status(qregs_lo_status_t *status) {
   int e, e1, i=0, j;
   strcpy(qna_cmd, "stat\r");
-  e = qna_do_cmd();
+  e = qna_do_cmd(0);
   if (e) return e;
   e1 = qregs_findkey_int(qna_rsp, "gas_lock", &status->gas_lock);
   if (e1) e=e1;
@@ -91,7 +92,7 @@ int qna_get_lo_status(qregs_lo_status_t *status) {
   status->gas_err_rms_MHz = sqrt((double)j);
 
   strcpy(qna_cmd, "cfg it stat\r");
-  e = qna_do_cmd();
+  e = qna_do_cmd(0);
   if (e) return e;
   e1 = qregs_findkey_int(qna_rsp, "init_err", &status->init_err);
   if (e1) e=e1;
@@ -103,21 +104,34 @@ int qna_get_lo_status(qregs_lo_status_t *status) {
   return e;
 }
 
-int qna_get_lo_settings(qregs_lo_settings_t *set) {
+
+  
+
+
+int qna_get_qna_settings(qregs_lo_settings_t *set) {
   int e, e1=0, i=0;
   char tmp[64];
+
+
+  // box1
   strcpy(qna_cmd, "set\r");
-  e = qna_do_cmd();
+  e = qna_do_cmd(0);
   if (e) e1=e;
   else {
     e = qregs_findkey_int(qna_rsp, "gas goal", &set->gas_goal_offset_MHz);
     if (e) e1=e;
     e = qregs_findkey_int(qna_rsp, "gas en", &set->gas_fdbk_en);
     if (e) e1=e;
+    e = qregs_findkey_dbl(qna_rsp, "voa 1",
+			  &st.voa_attn_dB[QREGS_VOA_QUANT_TX]);
+    if (e) e1=e;
+    e = qregs_findkey_dbl(qna_rsp, "voa 2",
+			  &st.voa_attn_dB[QREGS_VOA_HYB_RX]);
+    if (e) e1=e;
   }
   
   strcpy(qna_cmd, "cfg it set\r");
-  e = qna_do_cmd();
+  e = qna_do_cmd(0);
   if (e) e1=e;
   else {
     e = qregs_findkey_int(qna_rsp, "en", &set->en);
@@ -132,15 +146,33 @@ int qna_get_lo_settings(qregs_lo_settings_t *set) {
     e = qregs_findkey_dbl(qna_rsp, "wl_nm", &set->wl_nm);
     if (e) e1=e;
   }
+
+  // box2
+  strcpy(qna_cmd, "set\r");
+  e = qna_do_cmd(1);
+  if (e) e1=e;
+  else {
+    e = qregs_findkey_dbl(qna_rsp, "voa 1",
+			  &st.voa_attn_dB[QREGS_VOA_DATA_TX]);
+    if (e) e1=e;
+    e = qregs_findkey_dbl(qna_rsp, "voa 2",
+			  &st.voa_attn_dB[QREGS_VOA_DATA_RX]);
+    if (e) e1=e;
+    e = qregs_findkey_dbl(qna_rsp, "voa 3",
+			  &st.voa_attn_dB[QREGS_VOA_QUANT_RX]);
+    if (e) e1=e;
+  }
   return e1;
 }
+
+
 
 int qna_set_lo_offset_MHz(int offset_MHz) {
 // If attempt to set offset out of range, returns err
   int e;
   qna_set_timo_ms(1000);
   sprintf(qna_cmd, "gas goal %d\r", offset_MHz);
-  e = qna_do_cmd();
+  e = qna_do_cmd(0);
   return e;
 }
 
@@ -149,8 +181,17 @@ int qna_set_lo_mode(char mode) {
   int e;
   qna_set_timo_ms(60000);
   sprintf(qna_cmd, "cfg it mode %c\r", mode);
-  e = qna_do_cmd();
+  e = qna_do_cmd(0);
   qna_set_timo_ms(1000);
+  return e;
+}
+
+
+int qna_set_lo_fdbk_en(int en) {
+// mode: 'd'=dither 'w'=whisper  
+  int e;
+  sprintf(qna_cmd, "gas en %d\r", !!en);
+  e = qna_do_cmd(0);
   return e;
 }
 
@@ -162,7 +203,7 @@ int qna_set_lo_wl_nm(double *wl_nm) {
   if (e) return qregs_err(e,"set to dither mode failed");
   // after this, we try to go on after an error
   sprintf(qna_cmd, "wavelen %.3f\r", *wl_nm);
-  e = qna_do_cmd_get_num(wl_nm);
+  e = qna_do_cmd_get_num(0, wl_nm);
   if (e) qregs_err(e,"set wavelength failed");  
   e= qna_set_lo_mode('w');
   if (e) qregs_err(e,"set to whisper mode failed");
@@ -174,7 +215,7 @@ int qna_set_lo_en(int en) {
   int e;
   qna_set_timo_ms(60000);  
   sprintf(qna_cmd, "cfg it en %d\r", en);
-  e = qna_do_cmd();
+  e = qna_do_cmd(0);
   qna_set_timo_ms(1000);
   return e;
 }
@@ -183,10 +224,32 @@ int qna_set_lo_pwr_dBm(double *dBm) {
   int e, i;
   qna_set_timo_ms(60000);
   sprintf(qna_cmd, "cfg it pwr %d\r", (int)round(*dBm*100));
-  e = qna_do_cmd_get_int(&i);
+  e = qna_do_cmd_get_int(0, &i);
   if (e) return e;
   qna_st.pwr_dBm = (double)i/100;
   *dBm = qna_st.pwr_dBm;
   qna_set_timo_ms(500);
   return 0;  
+}
+
+int qna_voa_idx_to_board(int v_i, int *brd_i, int *bv_i) {
+  if ((v_i<0) || (v_i>=QREGS_NUM_VOA)) return QREGS_ERR_PARAM;
+  if (v_i<3) {
+    *brd_i=0;
+    *bv_i=v_i;
+  }else {
+    *brd_i=1;
+    *bv_i=v_i-3;
+  }
+}
+
+int qna_set_voa_attn_dB(int v_i, double *dBm) {
+  int e, brd_i, bv_i;
+  e=qna_voa_idx_to_board(v_i, &brd_i, &bv_i);
+  if (e) return e;
+  sprintf(qna_cmd, "voa %d %.2lf\r", bv_i, *dBm);
+  e = qna_do_cmd_get_num(brd_i, dBm);
+  if (e) return e;
+  st.voa_attn_dB[v_i]=*dBm;
+  return 0;
 }

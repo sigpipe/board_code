@@ -23,6 +23,7 @@
 #include "h_vhdl_extract.h"
 #include "h.h"
 #include "tsd.h"
+#include "hdl.h"
 
 
 int is_cli=0;
@@ -308,7 +309,7 @@ int opt_srv=0;
       else if (c=='i') { opt_ask_iter=1; opt_periter=1;}
       else if (c=='a') opt_periter=0;
       else if (c!='-') {
-	printf("USAGES:\n  tst c  = compute correlations\n  tst n  = dont save to file\n  tst a = auto buf size calc\n  tst i = ask num iters\n tst d =use all defaults");
+	printf("USAGES:\n  tst d  = run as demon\n  tst n  = dont save to file\n  tst a = auto buf size calc\n  tst i = ask num iters\n tst d =use all defaults");
 	return 1;}
     }
   }
@@ -386,32 +387,28 @@ int opt_srv=0;
     }
   }
 
+  hdl_cdm_cfg_t cdm_cfg;
+  hdl_cdm_cfg_t r_cdm_cfg;
 
   if (cdm_en) {
     mode='c';
+    cdm_cfg.is_passive = is_alice;
+    cdm_cfg.is_wdm = 0;
+    
     //    d = ini_ask_num(tvars, "CDM frame pd (us)", "cdm_frame_pd_aus", 1);
     // i = qregs_dur_us2samps(d);
     ini_get_int(tvars, "cdm_frame_pd_asamps", &i);
     double us = qregs_dur_samps2us(i);
     printf("  prior frame pd %d asamps = %.3f us\n", i, us);
     i = ini_ask_num(tvars, "CDM frame pd (asamps)", "cdm_frame_pd_asamps", i);
-    qregs_set_cdm_frame_pd_asamps(i);
-    if (i!=st.frame_pd_asamps)
-      printf("    frame pd ACTUALY %d asamps\n", st.frame_pd_asamps);
 
-
-
-  }else {
-    ini_get_double(tvars, "frame_pd_us", &d);
-    i = qregs_dur_us2samps(d);
-
-    // could put into setup params, but keep simple 4now
-    qregs_set_frame_pd_asamps(i);
-    
-    qregs_cdm_cfg_t cdm_cfg;
-    cdm_cfg.num_iter  = ask_num("num CDM iterations", "num_cdm_iter", 4);
+    cdm_cfg.sym_len_asamps = st.osamp;
+    cdm_cfg.frame_pd_asamps = i;
     cdm_cfg.probe_len_asamps = st.hdr_len_bits * st.osamp;
-    qregs_set_cdm_cfg(&cdm_cfg);
+    cdm_cfg.num_iter = ask_num("num CDM iterations", "num_cdm_iter", 4);
+    
+    tsd_lcl_cdm_cfg(&cdm_cfg);
+    
     printf("  num cdm passes %d\n", cdm_cfg.num_passes);
     printf("  txing %d probes\n", cdm_cfg.probe_qty_to_tx);
     frame_qty_to_tx = cdm_cfg.probe_qty_to_tx;
@@ -574,13 +571,21 @@ int opt_srv=0;
   
   e=tsd_first_action(&params);
   
-  if (is_cli && (mode!='c')) {
-    params.is_alice = !is_alice;
-    e=tsd_remote_setup(&params);
-    if (e) {
-      printf("ERR: remote setup failed\n");
-      prompt("READY? ");
-    }
+  if (is_cli)
+    switch (mode) {
+      case 'c':
+	r_cdm_cfg = cdm_cfg;
+	r_cdm_cfg.is_passive=!cdm_cfg.is_passive;
+	
+	
+      default:
+	params.is_alice = !is_alice;
+	e=tsd_remote_setup(&params);
+	if (e) {
+	  printf("ERR: remote setup failed\n");
+	  prompt("READY? ");
+	}
+      break;
     
   }else {
     prompt("READY? ");
