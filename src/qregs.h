@@ -104,31 +104,6 @@ typedef struct qregs_lo_settings_st {
 
 
 
-// IIO state
-// This is not always used.  The qregd does not always do
-// local IIO accesses.  But it can.
-
-typedef struct lcl_iio_struct {
-  int    open; // 0 or 1
-  pthread_t thread;
-  pthread_mutex_t lock;
-  pthread_cond_t cond;
-  int iio_thread_cmd;
-
-  struct iio_context *ctx;
-  struct iio_device *dac, *adc;
-  struct iio_channel *dac_ch0, *dac_ch1, *adc_ch0, *adc_ch1;
-  struct iio_buffer *dac_buf, *adc_buf;
-  void *adc_buf_p;
-
-  ssize_t tx_buf_sz_bytes;
-  ssize_t rx_buf_sz_asamps;
-  ssize_t rx_buf_sz_bytes;
-  int rx_num_bufs;
-  //  int cap_len_asamps;
-  int num_iter;
-  
-} lcl_iio_t;
 
 
 // Notation:
@@ -189,7 +164,7 @@ typedef struct qregs_struct {
   int is_bob;
   char tx_go_condition; // 'p'=power,'h'=header','r'=ready,'i'=immediate
 
-  lcl_iio_t lcl_iio;
+  //  lcl_iio_t lcl_iio;
   int setflags;
 
   int uio_fd;
@@ -226,7 +201,7 @@ int  qregs_done();
 
 void qregs_set_meas_noise(int en);
 
-void qregs_set_cdm_en(int en, int do_stream);
+void qregs_set_cdm_en(int en);
 
 
 void qregs_set_lfsr_rst_st(int lfsr_rst_st);
@@ -293,7 +268,8 @@ void qregs_set_save_after_hdr(int en);
 
 int  qregs_set_qsdc_data_cfg(qregs_qsdc_data_cfg_t *data_cfg);
 
-void qregs_set_cdm_cfg(hdl_cdm_cfg_t *cdm_cfg);
+void qregs_set_cdm_cfg(hdl_cdm_cfg_t *cdm_cfg, ssize_t *rx_buf_sz_bytes);
+// sets rx_buf_sz_bytes according to requested params in cdm_cfg.
 
 void qregs_set_alice_txing(int en);
 void qregs_set_alice_syncing(int en);

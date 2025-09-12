@@ -101,7 +101,32 @@ double *corr=0;
 
 
 tsd_setup_params_t tsd_params={0};
-  
+
+
+
+
+int tsd_iio_create_rxbuf(lcl_iio_t *iio) {
+  ssize_t rx_buf_sz_asamps, sz;
+  // This allocs ADC bufs and starts RX DMA
+  sz = iio_device_get_sample_size(iio->adc);  // sz=4;
+  rx_buf_sz_asamps = iio->rx_buf_sz_bytes / sz;
+  printf("create rx bufs sz %zd bytes\n", iio->rx_buf_sz_bytes);
+  iio->adc_buf = iio_device_create_buffer(iio->adc,
+					  rx_buf_sz_asamps,
+					  false);
+  if (!iio->adc_buf)
+    return err_fail("cant make adc buffer");
+  // printf("made adc buf size %zd asamps\n", (ssize_t)buf_len_asamps);
+  // creating ADC buffer commences DMA in hdl
+  return 0;
+}
+
+void tsd_iio_destroy_rxbuf(lcl_iio_t *iio) {
+  iio_buffer_destroy(iio->adc_buf);
+}
+
+
+
 // This might run on local or remote.
 int tsd_first_action(tsd_setup_params_t *params) {
   int num_dev, i, j, k, n, e;
@@ -336,18 +361,8 @@ int tsd_first_action(tsd_setup_params_t *params) {
 
   
   if (params->opt_save) {
-    ssize_t rx_buf_sz;
-    // This allocs ADC bufs and starts RX DMA
-    sz = iio_device_get_sample_size(iio->adc);  // sz=4;
-    rx_buf_sz = sz * iio->rx_buf_sz_asamps;
-    printf("create rx bufs sz %zd bytes\n", rx_buf_sz);
-    iio->adc_buf = iio_device_create_buffer(iio->adc,
-					    iio->rx_buf_sz_asamps,
-					    false);
-    if (!iio->adc_buf)
-      return err_fail("cant make adc buffer");
-      // printf("made adc buf size %zd asamps\n", (ssize_t)buf_len_asamps);
-      // creating ADC buffer commences DMA in hdl
+    e=tsd_iio_create_rxbuf(iio);
+    if (e) return e;
   }
 
   if (params->is_alice) {
@@ -365,14 +380,14 @@ int tsd_first_action(tsd_setup_params_t *params) {
 
 
 
-int tsd_second_action(void) {
+int tsd_iio_read(lcl_iio_t *iio) {
   int itr, b_i, p_i, e, i;
   int t0_s;
   void *adc_buf_p;
   ssize_t rx_buf_sz, sz;
   ssize_t left_sz;    
   int refill_err=0;
-  lcl_iio_t *iio=&st.lcl_iio;  
+  //  lcl_iio_t *iio=&st.lcl_iio;  
   // qregs_print_adc_status();	  
 
   t0_s = time(0);
@@ -419,7 +434,7 @@ int tsd_second_action(void) {
 
       
       if (tsd_params.opt_corr) {  // If correlating in C
-	int frames_per_iiobuf = iio->rx_buf_sz_asamps/st.frame_pd_asamps;
+	int frames_per_iiobuf = iio->rx_buf_sz_bytes / (st.frame_pd_asamps*4);
 	for(p_i=0; p_i<frames_per_iiobuf; ++p_i) {
 	  //	  printf("p %d\n",p_i);
 	  p = adc_buf_p + sizeof(short int)*2*p_i*st.frame_pd_asamps;
@@ -481,7 +496,7 @@ int tsd_second_action(void) {
 
     
   //    printf("out of itr loop %d\n",  use_qnicll);
-  qregs_set_alice_txing(0);
+  //  qregs_set_alice_txing(0);
 
 
   int tx_always = st.tx_always;
@@ -500,8 +515,8 @@ int tsd_second_action(void) {
   }
 
 
-  usleep(1); // AD fifo funny thing workaround
-  qregs_set_cdm_en(0,0);
+  //  usleep(1); // AD fifo funny thing workaround
+  //  qregs_set_cdm_en(0,0);
 
 
   /*
@@ -1105,18 +1120,14 @@ int cmd_iioopen(int arg) {
   return 0;
 }
 
-
+// TODO: delete this
 int cmd_txrx(int arg) {
   int en, err;
   ssize_t sz, adc_buf_sz;
   lcl_iio_t *p=&st.lcl_iio;
   int frame_qty_req, buf_len_asamps, num_bufs, frames_per_buf, frame_qty;
-  int max_frames_per_buf, cap_len_asamps;
+  int max_frames_per_buf;
   
-  if (!p->open) {
-    err = lcl_iio_open();
-    if (err) return err;
-  }
 
   if (parse_int(&frame_qty_req)) return CMD_ERR_NO_INT;
   printf("txrx %d\n", frame_qty_req);
@@ -1136,15 +1147,6 @@ int cmd_txrx(int arg) {
       p->rx_buf_sz_asamps *= 2;
   printf("DBG: buf_sz_asamps %d\n", p->rx_buf_sz_asamps);
 
-  // THIS might not be used
-  //  cap_len_asamps = frame_qty * st.frame_pd_asamps;
-  cap_len_asamps = num_bufs * p->rx_buf_sz_asamps;
-  printf("DBG: cap_len_asamps %d\n", cap_len_asamps);
-
-  
-  
-  //  if (parse_int(&en)) return CMD_ERR_NO_INT;
-  //  printf("tx %d\n", en);
 
 
 
@@ -1302,9 +1304,6 @@ hdl_cdm_cfg_t cdm_cfg;
 int tsd_lcl_cdm_cfg(hdl_cdm_cfg_t *cfg_p) {
   lcl_iio_t *iio=&st.lcl_iio;  
   qregs_set_cdm_cfg(cfg_p);
-
-
-
   return 0;
 }
 
@@ -1317,8 +1316,13 @@ int tsd_lcl_cdm_go(void) {
   }
 }
 
+int tsd_lcl_cdm_stop(void) {
+  qregs_txrx(0);
+}
+
 
 int cmd_cdm_cfg(int arg) {
+  printf("\nCMD: cdm cfg\n");
   DO(tsd_parse_kval("is_passive=", &cdm_cfg.is_passive));
   DO(tsd_parse_kval("is_wdm=",     &cdm_cfg.is_wdm));
   
@@ -1336,11 +1340,13 @@ int cmd_cdm_cfg(int arg) {
 }
 
 int cmd_cdm_go(int arg) {
+  printf("\nCMD: cdm go\n");
   tsd_lcl_cdm_go();
   return 0;
 }
 
 int cmd_cdm_stop(int arg) {
+  printf("\nCDM: cdm stop\n");
   
 }
 

@@ -201,15 +201,14 @@ int qregs_block_until_tx_rdy(void) {
 int qregs_ser_sel(int sel) {
   int e;
   if (sel!=st.ser_state.sel) {
-    sel = !!sel;
     // kludgey... need to add HDL support for this.
     e=qregs_block_until_tx_rdy();
     if (e) return e;
     while (1) {
       if (h_r_fld(H_DAC_STATUS_SER_TX_MT)) break;
-      usleep(1000);
+      usleep(500);
     }
-    usleep(1000);
+    usleep(500);
     h_w_fld(H_DAC_PCTL_SER_SEL, sel);
     st.ser_state.sel=sel;
   }
@@ -810,7 +809,8 @@ void qregs_print_settings(void) {
   printf("sync_ref %c\n", st.sync_ref);
 
 
-  printf("SER: baud %d  parity %d  xonxoff %d\n",
+  printf("SER: sel %d  baud %d  parity %d  xonxoff %d\n",
+	 ser_state.sel,
 	 st.ser_state.baud_Hz, st.ser_state.parity, st.ser_state.xon_xoff_en);
   printf("REBAL: i_off %d q_off %d\n", st.rebal.i_off, st.rebal.q_off);
   printf("        m  [ %.6f %.6f\n",   st.rebal.m11, st.rebal.m12);
@@ -1135,29 +1135,39 @@ void qregs_set_hdr_len_bits(int hdr_len_bits) {
 
 
 
-void qregs_set_cdm_en(int en, int stream) {
+void qregs_set_cdm_en(int en) {
   int i;
   en = !!en;
   i = h_w_fld(H_ADC_ACTL_CORRSTART, en);
-  h_w_fld(H_ADC_ACTL_DO_STREAM_CDM, !!stream);
+  //  h_w_fld(H_ADC_ACTL_DO_STREAM_CDM, !!stream);
   h_w_fld(H_DAC_HDR_SECOND_IM_IS_PROBE, en);
 }
 
 
-void qregs_set_cdm_cfg(hdl_cdm_cfg_t *cdm_cfg) {
+void qregs_set_cdm_cfg(hdl_cdm_cfg_t *cdm_cfg, ssize_t *rx_buf_sz_bytes) {
 // caller need not set num_passes or qty to tx
   int i, probes_per_frame;
   hdl_cdm_cfg_t *p=&st.cdm_cfg;
 
   qregs_set_osamp(cdm_cfg->sym_len_asamps);
 
-  qregs_set_frame_pd_asamps(cdm_cfg->frame_pd_asamps);
-  
+  i = cdm_cfg->frame_pd_asamps/4-1;
+  // These two regs always set the same.
+  // actually write num cycs-1 (at fsamp/4=308MHz)
+  i = h_w_fld(H_DAC_FR1_FRAME_PD_MIN1, i);
+  i = h_w_fld(H_ADC_FR1_FRAME_PD_MIN1, i);
+  st.frame_pd_asamps = p->frame_pd_asamps = (i+1)*4;
+
+
+  i=h_w_fld(H_ADC_ACTL_DO_STREAM_CDM, cdm_cfg->stream);
+  p->stream = i;
+
   qregs_set_hdr_len_bits(cdm_cfg->probe_len_asamps/st.osamp);
   p->probe_len_asamps = st.hdr_len_asamps;
 
   // how many passes to complete one contribution
-  i = (p->probe_len_asamps/4+1)/H_MAX_SLICES-1;
+
+  i = (p->probe_len_asamps/4+1) / H_MAX_SLICES-1;
   i = h_w_fld(H_ADC_FR1_NUM_PASS_MIN1, i);
   st.cdm_num_passes=i+1;
 
@@ -1172,18 +1182,24 @@ void qregs_set_cdm_cfg(hdl_cdm_cfg_t *cdm_cfg) {
   st.cdm_probe_qty_to_tx = st.frame_qty;
   // only matters in one-shot, not streaming, mode.
 
+  h_w_fld(H_DAC_HDR_SECOND_IM_IS_PROBE, 1);
+  h_w_fld(H_ADC_ACTL_CORRSTART, 1);
+  
+  *rx_buf_sz_bytes = p->frame_pd_asamps * sizeof(short);
+
   *cdm_cfg = *p;
 }
 
-void qregs_set_cdm_frame_pd_asamps(int frame_pd_asamps) {
-  int i = frame_pd_asamps/4-1;
-  // These two regs always set the same.
-  // actually write num cycs-1 (at fsamp/4=308MHz)
-  i = h_w_fld(H_DAC_FR1_FRAME_PD_MIN1, i);
-  i = h_w_fld(H_ADC_FR1_FRAME_PD_MIN1, i);
-  st.frame_pd_asamps = (i+1)*4;
-  st.setflags |= 2;
-}
+
+//void qregs_set_cdm_frame_pd_asamps(int frame_pd_asamps) {
+//  int i = frame_pd_asamps/4-1;
+//  // These two regs always set the same.
+//  // actually write num cycs-1 (at fsamp/4=308MHz)
+//  i = h_w_fld(H_DAC_FR1_FRAME_PD_MIN1, i);
+//  i = h_w_fld(H_ADC_FR1_FRAME_PD_MIN1, i);
+//  st.frame_pd_asamps = (i+1)*4;
+//  st.setflags |= 2;
+//}
 
 void qregs_set_frame_pd_asamps(int frame_pd_asamps) {
 // inputs:
@@ -1651,11 +1667,6 @@ void qregs_qsdc_track_pilots(int en) {
   h_w_fld(H_ADC_QSDC_TRACK_PILOTS,i);
   st.qsdc_track_pilots=i;
 }
-
-
-
-
-
 
 
 

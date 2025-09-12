@@ -21,6 +21,7 @@
 #include "util.h"
 #include "h_vhdl_extract.h"
 #include "h.h"
+#include "tsd.h"
 
 #define QNICLL_LINKED (0)
 #define QREGC_LINKED (0)
@@ -85,7 +86,9 @@ void set_blocking_mode(struct iio_buffer *buf, int en) {
 // #define ADC_N (1024*16*16*8*4)
 //#define ADC_N (1024*16*16*8*4)
 // #define ADC_N 4144000
+
 #define ADC_N (2<<18)
+#define MAX_RXBUF_SZ_BYTES (ADC_N * 4)
 
 //  #define ADC_N (1024*16*32)
 
@@ -188,8 +191,8 @@ int alice_syncing=0, alice_txing=0;
 
 int num_iio_itr=1, iio_dly_ms=0;
 int frames_per_iiobuf;
-int frame_qty;
-int frame_qty_to_tx;
+int rx_frame_qty;
+int tx_frame_qty;
 int search=0;
 int is_alice=0;
 int cipher_en=0;
@@ -410,9 +413,9 @@ int first_action(void) {
 
   
    
-  qregs_set_frame_qty(frame_qty_to_tx);
-  if (st.frame_qty !=frame_qty_to_tx) {
-    printf("ERR: actually frame qty %d not %d\n", st.frame_qty, frame_qty_to_tx);
+  qregs_set_frame_qty(tx_frame_qty);
+  if (st.frame_qty !=tx_frame_qty) {
+    printf("ERR: actually frame qty %d not %d\n", st.frame_qty, tx_frame_qty);
   }
 
 
@@ -560,7 +563,7 @@ int first_action(void) {
   }
    
 
-  qregs_set_cdm_en(cdm_en, stream);
+  //  qregs_set_cdm_en(cdm_en); // now done in qregs_cfg_cdm.
   
 
   qregs_clr_adc_status();
@@ -573,7 +576,7 @@ int second_action(void) {
   int itr, b_i, p_i, e, i;
   int t0_s;
   void *adc_buf_p;
-  ssize_t rx_buf_sz, sz;
+  ssize_t rx_buf_sz_asamps, sz;
   ssize_t left_sz;    
   int refill_err=0;
   // qregs_print_adc_status();	  
@@ -605,10 +608,10 @@ int second_action(void) {
 
     // This allocs ADC bufs and starts RX DMA
     sz = iio_device_get_sample_size(lcl_iio.adc);  // sz=4;
-    rx_buf_sz = sz * lcl_iio.rx_buf_sz_asamps;
-    printf("create rx bufs sz %zd bytes\n", rx_buf_sz);
+    rx_buf_sz_asamps = lcl_iio.rx_buf_sz_bytes / sz;
+    printf("create rx bufs sz %zd bytes\n", lcl_iio.rx_buf_sz_bytes);
     lcl_iio.adc_buf = iio_device_create_buffer(lcl_iio.adc,
-					       lcl_iio.rx_buf_sz_asamps,
+					       rx_buf_sz_asamps,
 					       false);
 
     if (!lcl_iio.adc_buf)
@@ -646,8 +649,10 @@ int second_action(void) {
       }else
         printf("refilled buf\n");
       
-      if (sz != rx_buf_sz)
-	printf("tried to rx %ld but got %ld bytes\n", rx_buf_sz, sz);
+      if (sz != lcl_iio.rx_buf_sz_bytes)
+	printf("tried to rx %ld but got %ld bytes\n",
+	       lcl_iio.rx_buf_sz_bytes, sz);
+
       // pushes double the dac_buf size.
       //qregs_print_adc_status();
 
@@ -710,7 +715,7 @@ int second_action(void) {
 #endif    
     
     if (opt_corr && !cdm_en) {
-      corr_find_peaks(corr, frame_qty);
+      corr_find_peaks(corr, rx_frame_qty);
     }
     
     iio_buffer_destroy(lcl_iio.adc_buf);
@@ -741,7 +746,7 @@ int second_action(void) {
 
 
   usleep(1); // AD fifo funny thing workaround
-  qregs_set_cdm_en(0,0);
+  qregs_set_cdm_en(0);
 
 
 
@@ -950,17 +955,7 @@ int main(int argc, char *argv[]) {
   }
 
 
-  if (cdm_en) {
-    //    d = ini_ask_num(tvars, "CDM frame pd (us)", "cdm_frame_pd_aus", 1);
-    // i = qregs_dur_us2samps(d);
-    ini_get_int(tvars, "cdm_frame_pd_asamps", &i);
-    double us = qregs_dur_samps2us(i);
-    printf("  prior frame pd %d asamps = %.3f us\n", i, us);
-    i = ini_ask_num(tvars, "CDM frame pd (asamps)", "cdm_frame_pd_asamps", i);
-    qregs_set_cdm_frame_pd_asamps(i);
-    if (i!=st.frame_pd_asamps)
-      printf("    frame pd ACTUALY %d asamps\n", st.frame_pd_asamps);
-  }else {
+  if (!cdm_en) {
     ini_get_double(tvars, "frame_pd_us", &d);
     i = qregs_dur_us2samps(d);
     qregs_set_frame_pd_asamps(i);
@@ -978,62 +973,87 @@ int main(int argc, char *argv[]) {
     if (opt_ask_iter)
       num_iio_itr = ask_nnum("num_iio_itr", num_iio_itr);
     if (cdm_en)
-      frame_qty_to_tx = 2;
+      tx_frame_qty = 2;
     else if (mode=='q')
-      frame_qty_to_tx = is_alice?10:1862;
+      tx_frame_qty = is_alice?10:1862;
     else if (mode=='s')
-      frame_qty_to_tx = 2;
+      tx_frame_qty = 2;
     //     frame_qty_req = is_alice?10:200;
     else
-      frame_qty_to_tx = ask_num("frames per itr", "frames_per_itr", 10);
+      tx_frame_qty = ask_num("frames per itr", "frames_per_itr", 10);
 
+
+
+    // MOVE ALL CDM CONFIG HERE
     if (cdm_en) {
+      int req_frame_pd_asamps;
       hdl_cdm_cfg_t cdm_cfg;
-      cdm_cfg.num_iter  = ask_num("num CDM iterations", "num_cdm_iter", 4);
-      i = ask_num("probe len (bits)", "cdm_probe_len_bits", 4);
-      cdm_cfg.probe_len_asamps = i*st.osamp;
 
-      stream = ask_yn("stream", "cdm_stream", 4);
+      //    d = ini_ask_num(tvars, "CDM frame pd (us)", "cdm_frame_pd_aus", 1);
+      // i = qregs_dur_us2samps(d);
+      ini_get_int(tvars, "cdm_frame_pd_asamps", &i);
+      double us = qregs_dur_samps2us(i);
+      printf("  prior cdm frame pd %d asamps = %.3f us\n", i, us);
+      i = ini_ask_num(tvars, "CDM frame pd (asamps)",
+		      "cdm_frame_pd_asamps", i);
+      req_frame_pd_asamps = i;
+      cdm_cfg.frame_pd_asamps = i;
+      printf("  osamp %d\n", st.osamp);
+      cdm_cfg.sym_len_asamps = st.osamp;
+      cdm_cfg.num_iter  = ask_num("num CDM iterations", "num_cdm_iter", 4);
+      i = ask_num("probe len (bits)", "cdm_probe_len_bits", 32);
+      cdm_cfg.probe_len_asamps = i*cdm_cfg.sym_len_asamps;
+      cdm_cfg.stream = ask_yn("stream", "cdm_stream", 4);
       
+      qregs_set_cdm_cfg(&cdm_cfg, &lcl_iio.rx_buf_sz_bytes);
+
+
+      if (req_frame_pd_asamps!=st.frame_pd_asamps)
+	printf("    frame pd ACTUALY %d asamps\n", st.frame_pd_asamps);
       
-      qregs_set_cdm_cfg(&cdm_cfg);
-      printf("  num cdm passes %d\n", st.cdm_num_passes);
-      printf("  txing %d probes\n",   st.cdm_probe_qty_to_tx);
-      frame_qty_to_tx = st.cdm_probe_qty_to_tx * (stream?4:1);
+      printf("  probe_len_asamps %d\n", st.cdm_cfg.probe_len_asamps);
+      printf("  num cdm passes %d\n",   st.cdm_num_passes);
+      printf("  num iter %d\n", st.cdm_cfg.num_iter);
+      printf("  txing %d probes, rxing %zd bytes per corrvector\n",
+	     st.cdm_probe_qty_to_tx, lcl_iio.rx_buf_sz_bytes);
+      tx_frame_qty = st.cdm_probe_qty_to_tx * (stream?4:1);
       // TODO: for stream use INDFEFINITE
 
-      frame_qty = 1;
+      rx_frame_qty=0; // todo: elim this global
+      
       // should get st.frame_pd_asamps/2
       // used to have bug where only getting half what I expect
-      lcl_iio.rx_buf_sz_asamps = st.frame_pd_asamps/2;
-      num_iio_itr=1;
+      
+      lcl_iio.num_iter=1;
       lcl_iio.rx_num_bufs=stream?2:1;
-      if (lcl_iio.rx_buf_sz_asamps > ADC_N)
+      if (lcl_iio.rx_buf_sz_bytes > MAX_RXBUF_SZ_BYTES)
 	err("BUG: use multiple rx iio bufs for cdm");
       
     } else {
+
       i = round(8e-6 * st.asamp_Hz); // est round trip
       //    printf("6us = %d asamps\n", i);
       i = ceil((double)i/st.frame_pd_asamps);
       // printf(" = %d frames\n", i);
       if (!is_alice && alice_syncing)
-        frame_qty = frame_qty_to_tx*2 + i + 8;
+        rx_frame_qty = tx_frame_qty*2 + i + 8;
       else
-        frame_qty = frame_qty_to_tx + i;
-      printf("  would like to save %d frames worth\n", frame_qty);
+        rx_frame_qty = tx_frame_qty + i;
+      printf("  would like to save %d frames worth\n", rx_frame_qty);
       // round up num frames to save, to fit into rx dma (adc) bufs.
       printf("  max frames per buf %d", max_frames_per_buf);
-      lcl_iio.rx_num_bufs = ceil((double)(frame_qty) / max_frames_per_buf);
+      lcl_iio.rx_num_bufs = ceil((double)(rx_frame_qty) / max_frames_per_buf);
       printf("  so num_bufs %d per itr\n", lcl_iio.rx_num_bufs);
-      frames_per_iiobuf = ceil((double)(frame_qty) / lcl_iio.rx_num_bufs);
-      frame_qty = lcl_iio.rx_num_bufs * frames_per_iiobuf;
-      if (frame_qty != frame_qty_to_tx)
-	printf("  actually SAVING %d frames per itr\n", frame_qty);
-      lcl_iio.rx_buf_sz_asamps = frames_per_iiobuf * st.frame_pd_asamps;
-      printf("  rxbuf_len_asamps %zd\n", lcl_iio.rx_buf_sz_asamps);
+      frames_per_iiobuf = ceil((double)(rx_frame_qty) / lcl_iio.rx_num_bufs);
+      rx_frame_qty = lcl_iio.rx_num_bufs * frames_per_iiobuf;
+      if (rx_frame_qty != tx_frame_qty)
+	printf("  actually SAVING %d frames per itr\n", rx_frame_qty);
+      lcl_iio.rx_buf_sz_bytes = frames_per_iiobuf * st.frame_pd_asamps*4;
+      printf("  rxbuf_len_bytes %zd\n", lcl_iio.rx_buf_sz_bytes);
     }
     
   } else {
+
     // AUTOCALC num iter, num bufs, ets.
     // TODO: cdm should use this option.
     // user specifies desired total number of frames to tx.
@@ -1041,20 +1061,20 @@ int main(int argc, char *argv[]) {
     // and code translates that to num iter, num buffers, and buf len
     // it always uses four buffers or less per iter.
 
-    frame_qty_to_tx = ask_nnum("frame_qty", max_frames_per_buf*4);
-    num_iio_itr = ceil((double)frame_qty_to_tx / (max_frames_per_buf*4));
+    tx_frame_qty = ask_nnum("frame_qty", max_frames_per_buf*4);
+    num_iio_itr = ceil((double)tx_frame_qty / (max_frames_per_buf*4));
     printf(" num itr %d\n", num_iio_itr);
-    frame_qty = ceil((double)frame_qty_to_tx / num_iio_itr); // per iter
+    rx_frame_qty = ceil((double)tx_frame_qty / num_iio_itr); // per iter
 
-    lcl_iio.rx_num_bufs = (int)ceil((double)frame_qty / max_frames_per_buf); // per iter
+    lcl_iio.rx_num_bufs = (int)ceil((double)rx_frame_qty / max_frames_per_buf); // per iter
     printf(" num bufs per iter %d\n", lcl_iio.rx_num_bufs);
-    frames_per_iiobuf = (int)(ceil((double)frame_qty / lcl_iio.rx_num_bufs));
+    frames_per_iiobuf = (int)(ceil((double)rx_frame_qty / lcl_iio.rx_num_bufs));
 
-    lcl_iio.rx_buf_sz_asamps = frames_per_iiobuf * st.frame_pd_asamps;
-    printf("  rxbuf_len_asamps %zd\n", lcl_iio.rx_buf_sz_asamps);
+    lcl_iio.rx_buf_sz_bytes = frames_per_iiobuf * st.frame_pd_asamps*4;
+    printf("  rxbuf_len_asamps %zd\n", lcl_iio.rx_buf_sz_bytes);
    
-    frame_qty = frames_per_iiobuf * lcl_iio.rx_num_bufs;
-    printf(" frame qty per itr %d\n", frame_qty);
+    rx_frame_qty = frames_per_iiobuf * lcl_iio.rx_num_bufs;
+    printf(" frame qty per itr %d\n", rx_frame_qty);
   }
   
   iio_dly_ms = 0;

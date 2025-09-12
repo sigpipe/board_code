@@ -582,7 +582,7 @@ int opt_srv=0;
 	r_cdm_cfg.is_passive=!cdm_cfg.is_passive;
 	e=hdl_cdm_cfg(&r_cdm_cfg);
 	if (e)
-	  printf("ERR: hdl_cdm_cfg failed\n");
+	  printf("ERR: hdl_cdm_cfg ret %d\n", e);
       }
 
       // if both decide to continue, set up passive first.
@@ -612,12 +612,30 @@ int opt_srv=0;
 	  err("BUG: use multiple rx iio bufs for cdm");
 	
 
-	// prep ADC buffer
+	e=tsd_iio_create_rxbuf(iio);
+	if (e) {
+	  printf("ERR: create rxbuf failed\n");
+	  return -1;
+	}
+	
 	printf("local go\n");	
-	tsd_lcl_cdm_go();
+	tsd_lcl_cdm_go();	tsd_iio_read(iio);
+	tsd_iio_destroy_rxbuf(iio);
 
-	printf("seconed action\n");	
-	e=tsd_second_action();
+	if (is_cli) {
+	  printf("tell cli to stop\n");
+	  e=hdl_cdm_stop();
+	  if (e)
+	    printf("ERR: remote start failed\n");
+	}
+
+
+	tsd_lcl_cdm_stop();
+	
+	//	printf("seconed action\n");	
+	//	e=tsd_second_action();
+
+	
 	
 
       }
