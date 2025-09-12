@@ -9,7 +9,9 @@
 // and tells this module to use it to post errors.
 typedef int tsd_err_fn_t(char *msg, int errcode);
 
+int tsd_cli_do_cmd(char *cmd, char *rsp, int rsp_len);
 
+int tsd_parse_kval(char *key, int *val);
 
 
 
@@ -20,7 +22,8 @@ int lcl_iio_open();
 int lcl_iio_chan_en(struct iio_channel *ch, char *name);
 void lcl_iio_create_dac_bufs(int sz_bytes);
 
-
+int tsd_lcl_cdm_cfg(hdl_cdm_cfg_t *cdm_cfg);
+int tsd_lcl_cdm_go(void);
 
 
 
@@ -39,6 +42,8 @@ typedef struct tsd_setup_params_st {
 int tsd_remote_setup(tsd_setup_params_t *params);
 int tsd_first_action(tsd_setup_params_t *params);
 int tsd_second_action(void);
+
+
 
 
 #endif

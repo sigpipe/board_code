@@ -8,7 +8,7 @@ TOBJS = obj/tst.o $(TSRCS:%=obj/%.o)
 THDRS = $(TSRCS:%=src/%.h)
 
 
-TSSRCS = h util corr qregs ini mx parse qna rp tsd cmd
+TSSRCS = h util corr qregs ini mx parse qna rp tsd cmd hdl
 TSOBJS = obj/ts.o $(TSSRCS:%=obj/%.o)
 
 

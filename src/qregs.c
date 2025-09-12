@@ -622,7 +622,7 @@ void qregs_get_hdl_settings(void) {
   st.frame_qty = h_r_fld(H_DAC_FR2_FRAME_QTY_MIN1)+1;
 
   st.cdm_cfg.num_iter  =h_r_fld(H_ADC_FR2_CORR_NUM_ITER_MIN1)+1;
-  st.cdm_cfg.num_passes=h_r_fld(H_ADC_FR1_NUM_PASS_MIN1)+1;
+  st.cdm_num_passes=h_r_fld(H_ADC_FR1_NUM_PASS_MIN1)+1;
 
   st.init_pwr_thresh = h_r_fld(H_ADC_SYNC_INIT_THRESH_D16)*16;
   st.hdr_pwr_thresh  = h_r_fld(H_ADC_HDR_PWR_THRESH);
@@ -786,7 +786,7 @@ void qregs_print_settings(void) {
 
   //  printf("mem_raddr_lim_min1 %d\n", h_r_fld(H_DAC_DMA_MEM_RADDR_LIM_MIN1));
   printf("CDM: num_passes %d  num_iter %d\n",
-	 st.cdm_cfg.num_passes, st.cdm_cfg.num_iter);
+	 st.cdm_num_passes, st.cdm_cfg.num_iter);
   
   printf("QSDC: data_pos %d asamps = %.3f ns\n",
 	 st.qsdc_data_cfg.pos_asamps,
@@ -1147,7 +1147,7 @@ void qregs_set_cdm_en(int en, int stream) {
 void qregs_set_cdm_cfg(hdl_cdm_cfg_t *cdm_cfg) {
 // caller need not set num_passes or qty to tx
   int i, probes_per_frame;
-  qregs_cdm_cfg_t *p=&st.cdm_cfg;
+  hdl_cdm_cfg_t *p=&st.cdm_cfg;
 
   qregs_set_osamp(cdm_cfg->sym_len_asamps);
 
@@ -1167,9 +1167,9 @@ void qregs_set_cdm_cfg(hdl_cdm_cfg_t *cdm_cfg) {
   p->num_iter=i+1;
   
   // how many probes to tx
-  i = p->num_passes * p->num_iter;
+  i = st.cdm_num_passes * p->num_iter;
   qregs_set_frame_qty(i);
-  st.probe_qty_to_tx = st.frame_qty;
+  st.cdm_probe_qty_to_tx = st.frame_qty;
   // only matters in one-shot, not streaming, mode.
 
   *cdm_cfg = *p;

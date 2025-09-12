@@ -407,21 +407,20 @@ int opt_srv=0;
     cdm_cfg.probe_len_asamps = st.hdr_len_bits * st.osamp;
     cdm_cfg.num_iter = ask_num("num CDM iterations", "num_cdm_iter", 4);
     
-    tsd_lcl_cdm_cfg(&cdm_cfg);
-    
-    printf("  num cdm passes %d\n", cdm_cfg.num_passes);
-    printf("  txing %d probes\n", cdm_cfg.probe_qty_to_tx);
-    frame_qty_to_tx = cdm_cfg.probe_qty_to_tx;
+    //    tsd_lcl_cdm_cfg(&cdm_cfg);
+    //    printf("  num cdm passes %d\n", st.cdm_num_passes);
+    //    printf("  txing %d probes\n",   st.cdm_probe_qty_to_tx);
+    //    frame_qty_to_tx = st.cdm_probe_qty_to_tx;
 
-    frame_qty = 1;
+    //    frame_qty = 1;
     // should get st.frame_pd_asamps/2
     // BUG only getting half what I expect
-    iio->rx_buf_sz_asamps = st.frame_pd_asamps/2/2;
-    iio->num_iter=1;
-    iio->rx_num_bufs=1;
-    if (iio->rx_buf_sz_asamps > ADC_N)
-      err("BUG: use multiple rx iio bufs for cdm");
-    frame_qty_to_tx = 2;
+    //    iio->rx_buf_sz_asamps = st.frame_pd_asamps/2/2;
+    //    iio->num_iter=1;
+    //    iio->rx_num_bufs=1;
+    //    if (iio->rx_buf_sz_asamps > ADC_N)
+    //      err("BUG: use multiple rx iio bufs for cdm");
+    //    frame_qty_to_tx = 2;
 
   }
   
@@ -464,29 +463,29 @@ int opt_srv=0;
       iio->rx_buf_sz_asamps = frames_per_iiobuf * st.frame_pd_asamps;
       printf("  rxbuf_len_asamps %zd\n", iio->rx_buf_sz_asamps);
     
-  } else {
-    // AUTOCALC num iter, num bufs, ets.
-    // TODO: cdm should use this option.
-    // user specifies desired total number of frames to tx.
-    // user wants to minimize the number of iterations.
-    // and code translates that to num iter, num buffers, and buf len
-    // it always uses four buffers or less per iter.
+    } else {
+      // AUTOCALC num iter, num bufs, ets.
+      // TODO: cdm should use this option.
+      // user specifies desired total number of frames to tx.
+      // user wants to minimize the number of iterations.
+      // and code translates that to num iter, num buffers, and buf len
+      // it always uses four buffers or less per iter.
 
-    frame_qty_to_tx = ask_nnum("frame_qty", max_frames_per_buf*4);
-    iio->num_iter = ceil((double)frame_qty_to_tx / (max_frames_per_buf*4));
-    printf(" num itr %d\n", iio->num_iter);
-    frame_qty = ceil((double)frame_qty_to_tx / iio->num_iter); // per iter
+      frame_qty_to_tx = ask_nnum("frame_qty", max_frames_per_buf*4);
+      iio->num_iter = ceil((double)frame_qty_to_tx / (max_frames_per_buf*4));
+      printf(" num itr %d\n", iio->num_iter);
+      frame_qty = ceil((double)frame_qty_to_tx / iio->num_iter); // per iter
 
-    iio->rx_num_bufs = (int)ceil((double)frame_qty / max_frames_per_buf); // per iter
-    printf(" num bufs per iter %d\n", iio->rx_num_bufs);
-    frames_per_iiobuf = (int)(ceil((double)frame_qty / iio->rx_num_bufs));
+      iio->rx_num_bufs = (int)ceil((double)frame_qty / max_frames_per_buf); // per iter
+      printf(" num bufs per iter %d\n", iio->rx_num_bufs);
+      frames_per_iiobuf = (int)(ceil((double)frame_qty / iio->rx_num_bufs));
 
-    iio->rx_buf_sz_asamps = frames_per_iiobuf * st.frame_pd_asamps;
-    printf("  rxbuf_len_asamps %zd\n", iio->rx_buf_sz_asamps);
+      iio->rx_buf_sz_asamps = frames_per_iiobuf * st.frame_pd_asamps;
+      printf("  rxbuf_len_asamps %zd\n", iio->rx_buf_sz_asamps);
    
-    frame_qty = frames_per_iiobuf * iio->rx_num_bufs;
-    printf(" frame qty per itr %d\n", frame_qty);
-  }
+      frame_qty = frames_per_iiobuf * iio->rx_num_bufs;
+      printf(" frame qty per itr %d\n", frame_qty);
+    }
   }
   
   // not a real param. can leave global.
@@ -566,32 +565,69 @@ int opt_srv=0;
   params.alice_syncing   = alice_syncing;
   params.decipher_en     = decipher_en;
 
-
   ini_save(tvars);
   
-  e=tsd_first_action(&params);
+  //  e=tsd_first_action(&params);
+
   
-  if (is_cli)
-    switch (mode) {
-      case 'c':
+  switch (mode) {
+    case 'c':  
+      printf("local cdm cfg\n");
+      tsd_lcl_cdm_cfg(&cdm_cfg);
+
+      if (is_cli) {
+	printf("rem cdm cfg\n");
+
 	r_cdm_cfg = cdm_cfg;
 	r_cdm_cfg.is_passive=!cdm_cfg.is_passive;
-	
-	
-      default:
-	params.is_alice = !is_alice;
-	e=tsd_remote_setup(&params);
-	if (e) {
-	  printf("ERR: remote setup failed\n");
-	  prompt("READY? ");
+	e=hdl_cdm_cfg(&r_cdm_cfg);
+	if (e)
+	  printf("ERR: hdl_cdm_cfg failed\n");
+      }
+
+      // if both decide to continue, set up passive first.
+
+      if (cdm_cfg.is_passive) {
+	tsd_lcl_cdm_go();
+	if (is_cli) {
+	  e=hdl_cdm_go();
+	  if (e)
+	    printf("ERR: remote start failed\n");
 	}
-      break;
-    
-  }else {
-    prompt("READY? ");
-  }
+      }else {
+
+	if (is_cli) {
+	  printf("tell cli to go\n");
+	  e=hdl_cdm_go();
+	  if (e)
+	    printf("ERR: remote start failed\n");
+	} else
+	  prompt("is remote READY?");
+	
+	
+	iio->num_iter=1;
+	iio->rx_buf_sz_asamps = st.frame_pd_asamps/2;
+	iio->rx_num_bufs=1;
+	if (iio->rx_buf_sz_asamps > ADC_N)
+	  err("BUG: use multiple rx iio bufs for cdm");
+	
+
+	// prep ADC buffer
+	printf("local go\n");	
+	tsd_lcl_cdm_go();
+
+	printf("seconed action\n");	
+	e=tsd_second_action();
+	
+
+      }
+
+      
+  } // switch
   
-  e=tsd_second_action();
+
+
+  
 
   if (qregs_done()) err("qregs_done fail");
 

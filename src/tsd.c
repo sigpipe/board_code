@@ -118,7 +118,6 @@ int tsd_first_action(tsd_setup_params_t *params) {
   //  short int rx_mem_i[ADC_N], rx_mem_q[ADC_N]; 
 
 
-
   int p_i;
   double d;
   long long int ll;
@@ -137,7 +136,7 @@ int tsd_first_action(tsd_setup_params_t *params) {
   tx_0 = (params->mode=='n');
   qregs_set_meas_noise(params->mode=='n');
 
-  use_lfsr = !tx_0 && (e||i);
+  use_lfsr = 1;
   qregs_set_use_lfsr(use_lfsr);
 
 
@@ -148,7 +147,9 @@ int tsd_first_action(tsd_setup_params_t *params) {
 
   //  qregs_set_tx_always(0); // set for real further down.
   qregs_search_en(0); // recover from prior crash if we need to.
-  qregs_txrx(0);  
+  qregs_txrx(0);
+
+  
   qregs_set_cipher_en(0, st.osamp, 2);
   qregs_set_tx_pilot_pm_en(!tx_0);
   qregs_set_alice_txing(0);
@@ -376,11 +377,6 @@ int tsd_second_action(void) {
 
   t0_s = time(0);
 
-  if (!tsd_params.is_alice) {
-    // can go after createbuffer.
-    // could it go before?
-    qregs_txrx(1);
-  }
   
   // This is the recieve data loop
   for (itr=0; !iio->num_iter || (itr<iio->num_iter); ++itr) {
@@ -392,7 +388,8 @@ int tsd_second_action(void) {
     
     for(b_i=0; b_i<iio->rx_num_bufs; ++b_i) {
       void *p;
-	
+
+      printf("will refill\n");
       sz = iio_buffer_refill(iio->adc_buf);
       printf("refilled %zd\n", sz);
       
@@ -1024,7 +1021,7 @@ int cmd_hdr_len(int arg) {
 }
 
 
-int my_parse_kval(char *key, int *val) {
+int tsd_parse_kval(char *key, int *val) {
   if (parse_search(key)) {
     sprintf(tsd_errmsg, "missing keyword %s", key);
     return CMD_ERR_SYNTAX;
@@ -1045,8 +1042,8 @@ int cmd_setup(int arg) {
   int en, is_alice, sync;
   qregs_sync_status_t sstat;
   printf("setup\n");
-  DO(my_parse_kval("is_alice=", &is_alice));
-  DO(my_parse_kval("sync=", &sync));
+  DO(tsd_parse_kval("is_alice=", &is_alice));
+  DO(tsd_parse_kval("sync=", &sync));
   if (is_alice) {
     qregs_get_sync_status(&sstat);
     if (!sstat.locked)
@@ -1302,30 +1299,35 @@ int cmd_qna(int arg) {
 
 hdl_cdm_cfg_t cdm_cfg;
 
+int tsd_lcl_cdm_cfg(hdl_cdm_cfg_t *cfg_p) {
+  lcl_iio_t *iio=&st.lcl_iio;  
+  qregs_set_cdm_cfg(cfg_p);
 
-int tdm_lcl_cdm_cfg(tsd_cdm_cfg_t *cfg) {
-  qregs_cdm_cfg_t ll_cfg;
-  ll_cfg.sym_len_asamps = cfg.sym_len_asamps;
-  ll_cfg.frame_pd_asamps = cfg.frame_pd_asamps;
-  ll_cfg.probe_len_asamps = cfg.probe_len_asamps;
-  ll_cfg.num_iter = cfg.num_iter;
-  ll_cfg.probe_qty_to_tx = cfg.probe_qty_to_tx;
-  ll_cfg.num_passes = cfg.num_passes;
-  qregs_set_cdm_cfg(&cdm_cfg.qparams);  
+
+
   return 0;
+}
+
+int tsd_lcl_cdm_go(void) {
+  qregs_set_tx_same_hdrs(1);
+  if (cdm_cfg.is_passive) {
+    // set switches in QNA2,1
+  }else {
+    qregs_txrx(1);
+  }
 }
 
 
 int cmd_cdm_cfg(int arg) {
-  DO(my_parse_kval("is_passive=", &cdm_cfg.is_passive));
-  DO(my_parse_kval("is_wdm=",     &cdm_cfg.is_wdm));
+  DO(tsd_parse_kval("is_passive=", &cdm_cfg.is_passive));
+  DO(tsd_parse_kval("is_wdm=",     &cdm_cfg.is_wdm));
   
 
-  DO(my_parse_kval("sym_len=",   &cdm_cfg.sym_len_asamps));
-  DO(my_parse_kval("probe_len=", &cdm_cfg.probe_len_asamps));
-  DO(my_parse_kval("frame_pd=",  &cdm_cfg.frame_pd_asamps));  
-  DO(my_parse_kval("num_iter=",  &cdm_cfg.num_iter));
-  tdm_lcl_cdm_cfg(&cdm_cfg);
+  DO(tsd_parse_kval("sym_len=",   &cdm_cfg.sym_len_asamps));
+  DO(tsd_parse_kval("probe_len=", &cdm_cfg.probe_len_asamps));
+  DO(tsd_parse_kval("frame_pd=",  &cdm_cfg.frame_pd_asamps));  
+  DO(tsd_parse_kval("num_iter=",  &cdm_cfg.num_iter));
+  tsd_lcl_cdm_cfg(&cdm_cfg);
   
   sprintf(rbuf, "0 is_passive=%d is_wdn=%d sym_len=%d probe_len=%d frame_pd=%d num_iter=%d", cdm_cfg.is_passive,  cdm_cfg.is_wdm,
 	  cdm_cfg.sym_len_asamps,  cdm_cfg.probe_len_asamps,
@@ -1334,7 +1336,8 @@ int cmd_cdm_cfg(int arg) {
 }
 
 int cmd_cdm_go(int arg) {
-  
+  tsd_lcl_cdm_go();
+  return 0;
 }
 
 int cmd_cdm_stop(int arg) {

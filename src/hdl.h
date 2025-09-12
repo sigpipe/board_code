@@ -11,5 +11,6 @@ typedef struct hdl_cdm_cfg_st {
 } hdl_cdm_cfg_t;
 
 int hdl_cdm_cfg(hdl_cdm_cfg_t *cfg);
+int hdl_cdm_go(void);
 
 #endif

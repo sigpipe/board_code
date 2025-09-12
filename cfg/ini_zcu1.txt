@@ -1,3 +1,6 @@
 rebal_fname='cfg/cal_zcu1_rebal_d250907_013.txt';
 pm_delay_cycs = 0;
 sync_dly_asamps = -793;
+remote_ipaddr = '10.0.0.12';
+
+

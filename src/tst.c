@@ -1004,7 +1004,7 @@ int main(int argc, char *argv[]) {
 
       frame_qty = 1;
       // should get st.frame_pd_asamps/2
-      // BUG only getting half what I expect
+      // used to have bug where only getting half what I expect
       lcl_iio.rx_buf_sz_asamps = st.frame_pd_asamps/2;
       num_iio_itr=1;
       lcl_iio.rx_num_bufs=stream?2:1;
