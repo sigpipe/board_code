@@ -23,7 +23,7 @@ int rp_do_cmd(char *cmd) {
   int e;
   char *p;
   qregs_ser_flush();
-  qregs_ser_sel(QREGS_SER_RP);
+  qregs_ser_sel(QREGS_SER_SEL_RP);
   if (rp_dbg) {
     printf("RP tx:");
     u_print_all(cmd);

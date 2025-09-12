@@ -810,7 +810,7 @@ void qregs_print_settings(void) {
 
 
   printf("SER: sel %d  baud %d  parity %d  xonxoff %d\n",
-	 ser_state.sel,
+	 st.ser_state.sel,
 	 st.ser_state.baud_Hz, st.ser_state.parity, st.ser_state.xon_xoff_en);
   printf("REBAL: i_off %d q_off %d\n", st.rebal.i_off, st.rebal.q_off);
   printf("        m  [ %.6f %.6f\n",   st.rebal.m11, st.rebal.m12);

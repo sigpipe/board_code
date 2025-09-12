@@ -1,7 +1,7 @@
 // h_vhdl_extract.h
 // hardware access constants
 // This file was automatically generated
-// by Register Extractor (ver 4.14) on Wed Sep 10 15:35:43 2025
+// by Register Extractor (ver 4.14) on Fri Sep 12 20:10:57 2025
 // compile version Mon Jun 16 10:25:20 2025
 // current dir:  C:\reilly\proj\quanet\quanet_hdl\projects\quanet_noco\zcu106
 // DO NOT MODIFY THIS FILE!
@@ -18,7 +18,7 @@
 // version constants
 #define H_VHDL_EXTRACT_VER (4)
 #define H_VHDL_EXTRACT_SUBVER (14)
-#define H_VHDL_EXTRACT_DATE "Wed Sep 10 15:35:43 2025"
+#define H_VHDL_EXTRACT_DATE "Fri Sep 12 20:10:57 2025"
 #define H_VHDL_EXTRACT_DIR "C:\reilly\proj\quanet\quanet_hdl\projects\quanet_noco\zcu106"
 
 
@@ -172,8 +172,8 @@
 #define H_DAC_PCTL                      0x00007000  /* 7 */
 #define H_DAC_PCTL_DBG_SYM_VLD          0x00007020  /* 0x00000001  r  */
 #define H_DAC_PCTL_DBG_SYM              0x00007181  /* 0x00001ffe  r  */
-#define H_DAC_PCTL_DBG_SYM_CLR          0x0000703c  /* 0x10000000  rw */
-#define H_DAC_PCTL_SER_SEL              0x0000703d  /* 0x20000000  rw */
+#define H_DAC_PCTL_DBG_SYM_CLR          0x0000703b  /* 0x08000000  rw */
+#define H_DAC_PCTL_SER_SEL              0x0000705c  /* 0x30000000  rw */
 #define H_DAC_PCTL_CLR_CNTS             0x0000703e  /* 0x40000000  rw */
 #define H_DAC_PCTL_GTH_RST              0x0000703f  /* 0x80000000  rw */
                                        // r 0xffff1fff

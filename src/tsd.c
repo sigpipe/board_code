@@ -62,6 +62,7 @@ static tsd_err_fn_t *tsd_err_fn;
 
 
 
+
 int cli_soc=0;
 int qna_connected=0;
 
@@ -69,7 +70,7 @@ char rbuf[1024]; // responses
 char rxbuf[1024]; // rx
 char txbuf[1024]; // rx
 
-
+tsd_state_t tsd_st={0};
 
 extern int iio_dly_ms; // can leave global
 
@@ -128,14 +129,13 @@ void tsd_iio_destroy_rxbuf(lcl_iio_t *iio) {
 
 
 // This might run on local or remote.
-int tsd_first_action(tsd_setup_params_t *params) {
+int tsd_first_action(tsd_setup_params_t *params, lcl_iio_t *iio) {
   int num_dev, i, j, k, n, e;
   char name[32], attr[32], c;
   ssize_t sz, tx_sz, sz_rx;
   const char *r;
   ssize_t left_sz, mem_sz;
   double x, y;
-  lcl_iio_t *iio=&st.lcl_iio;
   
   // cat iio:device3/scan_elements/out_voltage0_type contains
   // le:s15/16>>0 so I think it's short int.  By default 1233333333 Hz
@@ -344,7 +344,7 @@ int tsd_first_action(tsd_setup_params_t *params) {
   qregs_set_alice_txing(params->is_alice && params->alice_txing);
 
 
-  qregs_set_cdm_en(params->mode=='c',0);
+  //  qregs_set_cdm_en(params->mode=='c');
   
 
   qregs_clr_adc_status();
@@ -702,9 +702,8 @@ int check(char *buf, char *key, int *param) {
 #define IIO_THREAD_DBG (1)
 
 
-void iio_cap(void) {
+void iio_cap(lcl_iio_t *p) {
   int b_i;
-  lcl_iio_t *p=&st.lcl_iio;
   ssize_t left_sz, sz, sz_wr=0;
   void *adc_buf_p;
   int e=0;
@@ -837,28 +836,28 @@ void iio_cap(void) {
 
 void *iio_thread_func(void *arg) {
   int done=0;
-  lcl_iio_t *p=&st.lcl_iio;
+  //  lcl_iio_t *p=&st.lcl_iio;
 #if IIO_THREAD_DBG
   dbg("iio thread running");
 #endif
   while (!done) {
-    pthread_mutex_lock(&p->lock);
+    pthread_mutex_lock(&tsd_st.lock);
 #if IIO_THREAD_DBG
     dbg("iio thread waiting");
 #endif    
-    pthread_cond_wait(&p->cond, &p->lock);
+    pthread_cond_wait(&tsd_st.cond, &tsd_st.lock);
 #if IIO_THREAD_DBG
     dbg("iio thread out of wait");
 #endif    
-    switch(p->iio_thread_cmd) {
+    switch(tsd_st.thread_cmd) {
       case IIO_THREAD_CMD_EXIT:
 	done=1;
         break;
       case IIO_THREAD_CMD_CAP:
-	iio_cap();
+	//iio_cap();
 	break;
     }
-    pthread_mutex_unlock(&p->lock);
+    pthread_mutex_unlock(&tsd_st.lock);
   }
 #if IIO_THREAD_DBG
   dbg("iio thread ending");
@@ -886,9 +885,8 @@ int lcl_iio_chan_en(struct iio_channel *ch, char *name) {
 
 
 
-void lcl_iio_create_dac_bufs(int sz_bytes) {
+void lcl_iio_create_dac_bufs(lcl_iio_t *p, int sz_bytes) {
   size_t sz, dac_buf_sz;
-  lcl_iio_t *p=&st.lcl_iio;  
   if (p->tx_buf_sz_bytes)
     err("dac bufs already created");
   // prompt("will create dac buf");
@@ -907,8 +905,8 @@ void lcl_iio_create_dac_bufs(int sz_bytes) {
 
 
 // local IIO accesses
-int lcl_iio_open() {
-  lcl_iio_t *p=&st.lcl_iio;
+int lcl_iio_open(  lcl_iio_t *p) {
+
   ssize_t sz, buf_sz;
   void *rval;
   int e;
@@ -917,12 +915,12 @@ int lcl_iio_open() {
     err("BUG: iio already open");
 
 
-  pthread_mutex_init(&p->lock, NULL);
-  p->iio_thread_cmd = 0;
-  pthread_cond_init(&p->cond, NULL);
+  pthread_mutex_init(&tsd_st.lock, NULL);
+  tsd_st.thread_cmd = 0;
+  pthread_cond_init(&tsd_st.cond, NULL);
 
   
-  e = pthread_create(&p->thread, NULL, &iio_thread_func, NULL);
+  e = pthread_create(&tsd_st.thread, NULL, &iio_thread_func, NULL);
   if (e != 0)
     return err_and_msg(CMD_ERR_FAIL, "cant create IIO thread");
   
@@ -976,7 +974,7 @@ int lcl_iio_open() {
   // that sin wave for about 450us!
   // really cant do this yet because we dont know amt of data to xmit.
   // maybe I could tx data in chunks and pad it.
-  lcl_iio_create_dac_bufs(2048);
+  lcl_iio_create_dac_bufs(p, 2048);
 
   //  e=iio_buffer_set_blocking_mode(p->dac_buf, true); // default is blocking.
   //  if (e) return err_and_msg(CMD_ERR_FAIL, "cant set blocking");
@@ -989,27 +987,27 @@ int lcl_iio_open() {
 
 
 
-void lcl_iio_close() {
+void lcl_iio_close(lcl_iio_t *p) {
   int e;
   void *rval;
-  lcl_iio_t *p=&st.lcl_iio;
+
   
   if (p->open) {
     // Tell the iio thread to exit
-    pthread_mutex_lock(&p->lock);
-    p->iio_thread_cmd = IIO_THREAD_CMD_EXIT;
-    pthread_cond_signal(&p->cond);
-    pthread_mutex_unlock(&p->lock);
+    pthread_mutex_lock(&tsd_st.lock);
+    tsd_st.thread_cmd = IIO_THREAD_CMD_EXIT;
+    pthread_cond_signal(&tsd_st.cond);
+    pthread_mutex_unlock(&tsd_st.lock);
 
-    e = pthread_join(p->thread, &rval);
+    e = pthread_join(tsd_st.thread, &rval);
     if (e)
       printf("ERR: pthread join failed\n");
     
     iio_context_destroy(p->ctx);
     printf("DBG: closed iio context\n");
 
-    pthread_mutex_destroy(&p->lock);
-    pthread_cond_destroy(&p->cond);
+    pthread_mutex_destroy(&tsd_st.lock);
+    pthread_cond_destroy(&tsd_st.cond);
 
   }
 }
@@ -1110,10 +1108,9 @@ int cmd_tx(int arg) {
 
 int cmd_iioopen(int arg) {
   int err;
-  lcl_iio_t *iio_p=&st.lcl_iio;  
   printf("iioopen\n");
-  if (!iio_p->open) {
-    err = lcl_iio_open();
+  if (!tsd_st.iio.open) {
+    err = lcl_iio_open(&tsd_st.iio);
     if (err) return err;
   }
   sprintf(rbuf, "0");
@@ -1122,9 +1119,9 @@ int cmd_iioopen(int arg) {
 
 // TODO: delete this
 int cmd_txrx(int arg) {
-  int en, err;
+  int en;
   ssize_t sz, adc_buf_sz;
-  lcl_iio_t *p=&st.lcl_iio;
+  lcl_iio_t *p = &tsd_st.iio;
   int frame_qty_req, buf_len_asamps, num_bufs, frames_per_buf, frame_qty;
   int max_frames_per_buf;
   
@@ -1135,17 +1132,19 @@ int cmd_txrx(int arg) {
   max_frames_per_buf = (int)floor(MAX_ADC_TXBUF_LEN_ASAMPS
 				  /st.frame_pd_asamps);
   num_bufs = ceil((double)frame_qty_req / max_frames_per_buf);
-  printf("DBG: so num_bufs %d\n", num_bufs);
+  printf("dbg: so num_bufs %d\n", num_bufs);
   frames_per_buf = ceil((double)frame_qty_req / num_bufs);
   frame_qty = num_bufs * frames_per_buf;
   if (frame_qty != frame_qty_req)
-    printf("DBG: ACTUALLY frame qty %d\n", frame_qty);
-  p->rx_buf_sz_asamps = frames_per_buf * st.frame_pd_asamps;
+    printf("dbg: actually frame qty %d\n", frame_qty);
 
-  // for now I always do this:
+  // this may be wrong
+  p->rx_buf_sz_bytes = frames_per_buf * st.frame_pd_asamps*4;
+
+  // for now i always do this:
   if (1) // tst_sync)
-      p->rx_buf_sz_asamps *= 2;
-  printf("DBG: buf_sz_asamps %d\n", p->rx_buf_sz_asamps);
+      p->rx_buf_sz_bytes *= 2;
+  printf("DBG: buf_sz_bytes %d\n", p->rx_buf_sz_bytes);
 
 
 
@@ -1181,10 +1180,10 @@ int cmd_txrx(int arg) {
   // DAC generates its first frame and simultaneously the HDL
   // begins to save ADC samples.  The ADC fifo will fill on its own.
   
-  pthread_mutex_lock(&p->lock);
-  p->iio_thread_cmd = IIO_THREAD_CMD_CAP;
-  pthread_cond_signal(&p->cond);
-  pthread_mutex_unlock(&p->lock);
+  pthread_mutex_lock(&tsd_st.lock);
+  tsd_st.thread_cmd = IIO_THREAD_CMD_CAP;
+  pthread_cond_signal(&tsd_st.cond);
+  pthread_mutex_unlock(&tsd_st.lock);
 
   
   sprintf(rbuf, "0");
@@ -1301,9 +1300,8 @@ int cmd_qna(int arg) {
 
 hdl_cdm_cfg_t cdm_cfg;
 
-int tsd_lcl_cdm_cfg(hdl_cdm_cfg_t *cfg_p) {
-  lcl_iio_t *iio=&st.lcl_iio;  
-  qregs_set_cdm_cfg(cfg_p);
+int tsd_lcl_cdm_cfg(hdl_cdm_cfg_t *cfg_p, ssize_t *rx_buf_sz_bytes) {
+  qregs_set_cdm_cfg(cfg_p, rx_buf_sz_bytes);
   return 0;
 }
 
@@ -1322,6 +1320,7 @@ int tsd_lcl_cdm_stop(void) {
 
 
 int cmd_cdm_cfg(int arg) {
+  ssize_t rx_buf_sz_bytes;
   printf("\nCMD: cdm cfg\n");
   DO(tsd_parse_kval("is_passive=", &cdm_cfg.is_passive));
   DO(tsd_parse_kval("is_wdm=",     &cdm_cfg.is_wdm));
@@ -1331,11 +1330,12 @@ int cmd_cdm_cfg(int arg) {
   DO(tsd_parse_kval("probe_len=", &cdm_cfg.probe_len_asamps));
   DO(tsd_parse_kval("frame_pd=",  &cdm_cfg.frame_pd_asamps));  
   DO(tsd_parse_kval("num_iter=",  &cdm_cfg.num_iter));
-  tsd_lcl_cdm_cfg(&cdm_cfg);
+  tsd_lcl_cdm_cfg(&cdm_cfg, &rx_buf_sz_bytes);
   
-  sprintf(rbuf, "0 is_passive=%d is_wdn=%d sym_len=%d probe_len=%d frame_pd=%d num_iter=%d", cdm_cfg.is_passive,  cdm_cfg.is_wdm,
+  sprintf(rbuf, "0 is_passive=%d is_wdn=%d sym_len=%d probe_len=%d frame_pd=%d num_iter=%d  rx_bytes=%zd", cdm_cfg.is_passive,  cdm_cfg.is_wdm,
 	  cdm_cfg.sym_len_asamps,  cdm_cfg.probe_len_asamps,
-	  cdm_cfg.frame_pd_asamps, cdm_cfg.num_iter);
+	  cdm_cfg.frame_pd_asamps, cdm_cfg.num_iter,
+	  rx_buf_sz_bytes);
   return 0;
 }
 
@@ -1550,7 +1550,7 @@ int tsd_serve(void) {
     handle(c_soc);
   }
 
-  lcl_iio_close();
+  lcl_iio_close(&tsd_st.iio);
 
   
   if (qregs_done()) err("qregs_done fail");

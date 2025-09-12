@@ -28,6 +28,9 @@
 
 int is_cli=0;
 
+lcl_iio_t lcl_iio;
+
+
 #define QREGC_LINKED (0)
 #define QNICLL_LINKED (0)
 
@@ -92,6 +95,7 @@ void set_blocking_mode(struct iio_buffer *buf, int en) {
 //#define ADC_N (1024*16*16*8*4)
 // #define ADC_N 4144000
 #define ADC_N (2<<18)
+#define MAX_RXBUF_SZ_BYTES (ADC_N * 4)
 
 //  #define ADC_N (1024*16*32)
 
@@ -350,7 +354,7 @@ int opt_srv=0;
   int cipher_en=0;
   int decipher_en=0;
   int alice_syncing=0, alice_txing=0;
-  lcl_iio_t *iio=&st.lcl_iio;
+  lcl_iio_t *iio=&lcl_iio;
   
   if (st.tx_mem_circ) {
     printf("NOTE: tx_mem_circ = 1\n");
@@ -460,8 +464,8 @@ int opt_srv=0;
       frame_qty = iio->rx_num_bufs * frames_per_iiobuf;
       if (frame_qty != frame_qty_to_tx)
 	printf("  actually SAVING %d frames per itr\n", frame_qty);
-      iio->rx_buf_sz_asamps = frames_per_iiobuf * st.frame_pd_asamps;
-      printf("  rxbuf_len_asamps %zd\n", iio->rx_buf_sz_asamps);
+      iio->rx_buf_sz_bytes = frames_per_iiobuf * st.frame_pd_asamps*4;
+      printf("  rxbuf_len_bytes %zd\n", iio->rx_buf_sz_bytes);
     
     } else {
       // AUTOCALC num iter, num bufs, ets.
@@ -480,8 +484,8 @@ int opt_srv=0;
       printf(" num bufs per iter %d\n", iio->rx_num_bufs);
       frames_per_iiobuf = (int)(ceil((double)frame_qty / iio->rx_num_bufs));
 
-      iio->rx_buf_sz_asamps = frames_per_iiobuf * st.frame_pd_asamps;
-      printf("  rxbuf_len_asamps %zd\n", iio->rx_buf_sz_asamps);
+      iio->rx_buf_sz_bytes = frames_per_iiobuf * st.frame_pd_asamps*4;
+      printf("  rxbuf_len_bytes %zd\n", iio->rx_buf_sz_bytes);
    
       frame_qty = frames_per_iiobuf * iio->rx_num_bufs;
       printf(" frame qty per itr %d\n", frame_qty);
@@ -571,9 +575,10 @@ int opt_srv=0;
 
   
   switch (mode) {
+    ssize_t rx_buf_sz_bytes;
     case 'c':  
       printf("local cdm cfg\n");
-      tsd_lcl_cdm_cfg(&cdm_cfg);
+      tsd_lcl_cdm_cfg(&cdm_cfg, &rx_buf_sz_bytes);
 
       if (is_cli) {
 	printf("rem cdm cfg\n");
@@ -606,9 +611,9 @@ int opt_srv=0;
 	
 	
 	iio->num_iter=1;
-	iio->rx_buf_sz_asamps = st.frame_pd_asamps/2;
+	iio->rx_buf_sz_bytes = rx_buf_sz_bytes;
 	iio->rx_num_bufs=1;
-	if (iio->rx_buf_sz_asamps > ADC_N)
+	if (iio->rx_buf_sz_bytes > MAX_RXBUF_SZ_BYTES)
 	  err("BUG: use multiple rx iio bufs for cdm");
 	
 
