@@ -15,7 +15,7 @@ static char qna_cmd[CMD_LEN];
 static char qna_rsp[CMD_LEN];
 char qna_errmsg[CMD_LEN];
 
-int qna_dbg=0;
+int qna_dbg=1;
 
 
 int qna_err(int e, char *msg) {
@@ -25,12 +25,12 @@ int qna_err(int e, char *msg) {
 }
 
 
-int qna_do_cmd(int qna_sel) {
-  // qna_sel: 0=local, 1=box2
+int qna_do_cmd(int ser_sel) {
+// ser_sel: one of QREGS_SER_SEL*
   int e;
   char *p;
   qregs_ser_flush();
-  qregs_ser_sel(qna_sel?QREGS_SER_QNA2:QREGS_SER_QNA1);
+  qregs_ser_sel(ser_sel);
   if (qna_dbg) {
     printf("QNA tx:");
     u_print_all(qna_cmd);
@@ -54,17 +54,17 @@ int qna_do_cmd(int qna_sel) {
   return e;
 }
 
-int qna_do_cmd_get_num(int qna_sel, double *d) {
+int qna_do_cmd_get_num(int ser_sel, double *d) {
   int e;
-  e = qna_do_cmd(qna_sel);
+  e = qna_do_cmd(ser_sel);
   if (e) return QREGS_ERR_TIMO;
   e = sscanf(qna_rsp,"%lg", d);
   return (e!=1);
 }
 
-int qna_do_cmd_get_int(int qna_sel, int *d) {
+int qna_do_cmd_get_int(int ser_sel, int *d) {
   int e;
-  e = qna_do_cmd(qna_sel);
+  e = qna_do_cmd(ser_sel);
   if (e) return QREGS_ERR_TIMO;
   e = sscanf(qna_rsp,"%d", d);
   return (e!=1);
@@ -81,7 +81,9 @@ int qna_set_timo_ms(int timo_ms) {
 int qna_get_lo_status(qregs_lo_status_t *status) {
   int e, e1, i=0, j;
   strcpy(qna_cmd, "stat\r");
-  e = qna_do_cmd(0);
+  e = qna_do_cmd(QREGS_SER_SEL_QNA1);
+  printf("qna rsp: %s\n", qna_rsp);
+  
   if (e) return e;
   e1 = qregs_findkey_int(qna_rsp, "gas_lock", &status->gas_lock);
   if (e1) e=e1;
@@ -92,7 +94,7 @@ int qna_get_lo_status(qregs_lo_status_t *status) {
   status->gas_err_rms_MHz = sqrt((double)j);
 
   strcpy(qna_cmd, "cfg it stat\r");
-  e = qna_do_cmd(0);
+  e = qna_do_cmd(QREGS_SER_SEL_QNA1);
   if (e) return e;
   e1 = qregs_findkey_int(qna_rsp, "init_err", &status->init_err);
   if (e1) e=e1;
@@ -115,7 +117,7 @@ int qna_get_qna_settings(qregs_lo_settings_t *set) {
 
   // box1
   strcpy(qna_cmd, "set\r");
-  e = qna_do_cmd(0);
+  e = qna_do_cmd(QREGS_SER_SEL_QNA1);
   if (e) e1=e;
   else {
     e = qregs_findkey_int(qna_rsp, "gas goal", &set->gas_goal_offset_MHz);
@@ -131,7 +133,7 @@ int qna_get_qna_settings(qregs_lo_settings_t *set) {
   }
   
   strcpy(qna_cmd, "cfg it set\r");
-  e = qna_do_cmd(0);
+  e = qna_do_cmd(QREGS_SER_SEL_QNA1);
   if (e) e1=e;
   else {
     e = qregs_findkey_int(qna_rsp, "en", &set->en);
@@ -149,7 +151,7 @@ int qna_get_qna_settings(qregs_lo_settings_t *set) {
 
   // box2
   strcpy(qna_cmd, "set\r");
-  e = qna_do_cmd(1);
+  e = qna_do_cmd(QREGS_SER_SEL_QNA2);
   if (e) e1=e;
   else {
     e = qregs_findkey_dbl(qna_rsp, "voa 1",
@@ -172,7 +174,7 @@ int qna_set_lo_offset_MHz(int offset_MHz) {
   int e;
   qna_set_timo_ms(1000);
   sprintf(qna_cmd, "gas goal %d\r", offset_MHz);
-  e = qna_do_cmd(0);
+  e = qna_do_cmd(QREGS_SER_SEL_QNA1);
   return e;
 }
 
@@ -181,7 +183,7 @@ int qna_set_lo_mode(char mode) {
   int e;
   qna_set_timo_ms(60000);
   sprintf(qna_cmd, "cfg it mode %c\r", mode);
-  e = qna_do_cmd(0);
+  e = qna_do_cmd(QREGS_SER_SEL_QNA1);
   qna_set_timo_ms(1000);
   return e;
 }
@@ -191,7 +193,7 @@ int qna_set_lo_fdbk_en(int en) {
 // mode: 'd'=dither 'w'=whisper  
   int e;
   sprintf(qna_cmd, "gas en %d\r", !!en);
-  e = qna_do_cmd(0);
+  e = qna_do_cmd(QREGS_SER_SEL_QNA1);
   return e;
 }
 
@@ -215,7 +217,7 @@ int qna_set_lo_en(int en) {
   int e;
   qna_set_timo_ms(60000);  
   sprintf(qna_cmd, "cfg it en %d\r", en);
-  e = qna_do_cmd(0);
+  e = qna_do_cmd(QREGS_SER_SEL_QNA1);
   qna_set_timo_ms(1000);
   return e;
 }

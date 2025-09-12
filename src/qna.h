@@ -9,6 +9,7 @@ typedef struct qna_st {
 extern qna_st_t qna_st;
 
 
+
 int qna_set_timo_ms(int timo_ms);
 
 

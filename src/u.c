@@ -112,6 +112,15 @@ int cmd_dbg_clksel(int arg) {
   return 0;
 }
 
+int cmd_dbg_ser(int arg) {
+  int i;
+  printf("dbg ser\n");
+  if (parse_int(&i)) return CMD_ERR_SYNTAX;
+  qregs_ser_sel(i);
+  qregs_ser_tx('A');
+  return 0;
+}
+
 int cmd_dbg_pwr(int arg) {
   int pwr_avg, pwr_max, pwr_cnt;
   printf("pwr_avg pwr_max pwr_cnt\n");
@@ -406,7 +415,7 @@ int cmd_dly_rxsc(int arg) {
 int cmd_tx(int arg) {
   char c;
   parse_char();
-  qregs_ser_sel(QREGS_SER_RP);
+  qregs_ser_sel(QREGS_SER_SEL_RP);
   while((c=parse_char()))
     if (qregs_ser_tx(c))
       printf("ERR: tx would block\n");
@@ -421,7 +430,7 @@ int cmd_rp(int arg) {
   char c;
   parse_char();
   qregs_ser_flush();
-  qregs_ser_sel(QREGS_SER_RP);
+  qregs_ser_sel(QREGS_SER_SEL_RP);
   while((c=parse_char()))
     if (qregs_ser_tx(c))
       printf("ERR: tx would block\n");
@@ -1046,8 +1055,9 @@ cmd_info_t dbg_cmds_info[]={
   {"rpinfo",   cmd_dbg_rpinfo,  0, 0}, 
   {"search", cmd_dbg_search, 0, 0}, 
   {"info",   cmd_dbg_info,  0, 0},  
-  {"regs",   cmd_dbg_regs, 0, 0},  {0},
-  {"rp",      cmd_rp,      0, "dbg RedPitaya cmds"},
+  {"regs",   cmd_dbg_regs, 0, 0},
+  {"ser",    cmd_dbg_ser, 0, 0},
+  {"rp",     cmd_rp,      0, "dbg RedPitaya cmds"},
   {0}};
 
 cmd_info_t qsdc_cmds_info[]={
