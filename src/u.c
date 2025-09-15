@@ -1149,8 +1149,19 @@ int main(int argc, char *argv[]) {
   if (e)
     err("cant read tvars.txt");
 
-  
-  if (qregs_init()) err("qregs fail");
+
+  ini_val_t *vars_cfg_all;
+  e =  ini_read("cfg/ini_all.txt", &vars_cfg_all);
+  if (e)
+    printf("can read ini_all.txt err %d\n",e);
+  char *tty0_p, *tty1_p;
+  e = ini_get_string(vars_cfg_all,"tty0", &tty0_p);
+  if (e) tty0_p=0;
+  e = ini_get_string(vars_cfg_all,"tty1", &tty1_p);
+  if (e) tty1_p=0;
+  printf("tty0 %s\n", tty0_p);
+  if (qregs_init(tty0_p, tty1_p)) err("qregs fail");
+  ini_free(vars_cfg_all);
 
   
   for(i=1;i<argc;++i) {

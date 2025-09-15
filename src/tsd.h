@@ -44,9 +44,6 @@ typedef struct tsd_state_st {
 
 
 
-// calling code defines this function,
-// and tells this module to use it to post errors.
-typedef int tsd_err_fn_t(char *msg, int errcode);
 
 int tsd_cli_do_cmd(char *cmd, char *rsp, int rsp_len);
 
@@ -55,7 +52,7 @@ int tsd_parse_kval(char *key, int *val);
 
 
 int tsd_serve(void);
-int tsd_connect(char *hostname, tsd_err_fn_t *err_fn);
+//int tsd_connect(char *hostname, tsd_err_fn_t *err_fn);
 
 int  lcl_iio_open(lcl_iio_t *p);
 int  lcl_iio_chan_en(struct iio_channel *ch, char *name);
@@ -87,5 +84,12 @@ int tsd_second_action(void);
 int  tsd_iio_create_rxbuf(lcl_iio_t *iio);
 void tsd_iio_destroy_rxbuf(lcl_iio_t *iio);
 int  tsd_iio_read(lcl_iio_t *iio);
+
+
+int wr_str(int soc, char *str);
+
+int tsd_rd_pkt(int soc, char *buf, int buf_sz);
+int tsd_wr_pkt(int soc, char *buf, int pkt_sz);
+int tsd_wr_str(int soc, char *str);
 
 #endif

@@ -57,13 +57,13 @@ extern ssize_t read_file_into_buf(char *fname, void *buf, ssize_t buf_sz);
   e = CALL; \
   if (e) return e; \
   }
-static tsd_err_fn_t *tsd_err_fn;
-#define BUG(MSG) return (*tsd_err_fn)(MSG, QREGC_ERR_BUG);
+//static tsd_err_fn_t *tsd_err_fn;
+#define BUG(MSG)  {return QREGC_ERR_BUG;}
+//   return (*tsd_err_fn)(MSG, 
 
 
 
 
-int cli_soc=0;
 int qna_connected=0;
 
 char rbuf[1024]; // responses
@@ -117,12 +117,14 @@ int tsd_iio_create_rxbuf(lcl_iio_t *iio) {
 					  false);
   if (!iio->adc_buf)
     return err_fail("cant make adc buffer");
+
   // printf("made adc buf size %zd asamps\n", (ssize_t)buf_len_asamps);
   // creating ADC buffer commences DMA in hdl
   return 0;
 }
 
 void tsd_iio_destroy_rxbuf(lcl_iio_t *iio) {
+  printf("iio_buffer_destroy(adc)\n");  
   iio_buffer_destroy(iio->adc_buf);
 }
 
@@ -641,7 +643,7 @@ int tsd_iio_read(lcl_iio_t *iio) {
 
 
 
-int rd_pkt(int soc, char *buf, int buf_sz) {
+int tsd_rd_pkt(int soc, char *buf, int buf_sz) {
 // returns num bytes read  
   char len_buf[4];
   int l;
@@ -656,12 +658,12 @@ int rd_pkt(int soc, char *buf, int buf_sz) {
   return sz;
 }
 
-int wr_pkt(int soc, char *buf, int pkt_sz) {
+int tsd_wr_pkt(int soc, char *buf, int pkt_sz) {
   char len_buf[4];
   uint32_t l;
   ssize_t sz;
   l = htonl(pkt_sz);
-  printf("wr %d\n", pkt_sz);
+  // printf("wr %d\n", pkt_sz);
   sz = write(soc, (void *)&l, 4);
   if (sz<4) err("write pktsz failed");
   
@@ -674,9 +676,9 @@ int wr_pkt(int soc, char *buf, int pkt_sz) {
   return 0;
 }
 
-int wr_str(int soc, char *str) {
+int tsd_wr_str(int soc, char *str) {
   int l = strlen(str);
-  return wr_pkt(soc, str, l);
+  return tsd_wr_pkt(soc, str, l);
 }
 
 int check(char *buf, char *key, int *param) {
@@ -905,7 +907,7 @@ void lcl_iio_create_dac_bufs(lcl_iio_t *p, int sz_bytes) {
 
 
 // local IIO accesses
-int lcl_iio_open(  lcl_iio_t *p) {
+int lcl_iio_open(lcl_iio_t *p) {
 
   ssize_t sz, buf_sz;
   void *rval;
@@ -1240,45 +1242,8 @@ int cmd_qna_timo(int arg) {
 
 
 
-int tsd_rd(int soc) {
-  int n, e, i, l = rd_pkt(soc, rxbuf, 1023);
-  rxbuf[l]=0;
-  // printf("rx: ");  util_print_all(rxbuf); printf("\n");
-  n = sscanf(rxbuf, "%d", &e);
-  if (n!=1) BUG("no errcode rsp");
-  if (e) {
-    u_print_all(rxbuf);
-    BUG(rxbuf);
-  }
-}
 
-int tsd_cli_do_cmd(char *cmd, char *rsp, int rsp_len) {
-  char buf[2048], *p;
-  int e;
-  //  printf("buf %s\n", buf);
-  DO(wr_str(cli_soc, cmd));
-  e = tsd_rd(cli_soc);
-  p=strstr(rxbuf, " ");
-  p = p?(p+1):rxbuf; // ptr to string after first space
-  if (e) {
-    return((*tsd_err_fn)(p, e));
-  }
-  strncpy(rsp, p, strlen(p));
-  return 0;
-}
 
-int tsd_remote_setup(tsd_setup_params_t *params) {
-  int e;
-  sprintf(txbuf, "setup is_alice=%d mode=%d sync=%d, qsdctx=%d",
-	  params->is_alice,
-	  params->mode,
-	  params->alice_syncing,
-	  params->alice_txing,
-	  params->alice_syncing);
-  e=tsd_cli_do_cmd(txbuf, rbuf, 1024);
-  
-  return e;
-}
 
 
 char qnarsp[1024];
@@ -1301,15 +1266,31 @@ int cmd_qna(int arg) {
 hdl_cdm_cfg_t cdm_cfg;
 
 int tsd_lcl_cdm_cfg(hdl_cdm_cfg_t *cfg_p, ssize_t *rx_buf_sz_bytes) {
+
+  qregs_txrx(0);  // clean up just in case
   qregs_set_cdm_cfg(cfg_p, rx_buf_sz_bytes);
   return 0;
 }
 
 int tsd_lcl_cdm_go(void) {
-  qregs_set_tx_same_hdrs(1);
+  qregs_set_tx_same_hdrs(0);
+  qregs_set_tx_pilot_pm_en(0);
+  qregs_search_en(0);
+  h_w_fld(H_DAC_CTL_CIPHER_EN, 0);
+  h_w_fld(H_ADC_ACTL_DECIPHER_EN,0);
+
+
+  qregs_set_save_after_init(0);
+  qregs_set_save_after_pwr(0);
+  qregs_set_save_after_hdr(0);
+  qregs_set_alice_txing(0);
+  printf(" using tx_go condition %c\n", st.tx_go_condition);
+
+
   if (cdm_cfg.is_passive) {
     // set switches in QNA2,1
   }else {
+    printf("    txrx 1\n");
     qregs_txrx(1);
   }
 }
@@ -1382,7 +1363,7 @@ void handle(int soc) {
   printf("\nopened\n");
   while(!done) {
     tsd_errmsg[0]=0;
-    l = rd_pkt(soc, buf, 255);
+    l = tsd_rd_pkt(soc, buf, 255);
     if (!l) {
       printf("WARN: abnormal close (client did not issue q)\n");
       break;
@@ -1396,7 +1377,7 @@ void handle(int soc) {
     
     // printf("RSP: %s\n", rbuf);
     
-    l = wr_str(soc, rbuf);
+    l = tsd_wr_str(soc, rbuf);
     if (e==CMD_ERR_QUIT) break;
     if (e)
       printf("WARN: cmd '%s' returning err %d\n", buf, e);
@@ -1437,65 +1418,6 @@ int err_qna(char *s, int e) {
 */
 
 
-int tsd_connect(char *hostname, tsd_err_fn_t *err_fn) {
-// err_fn: function to use to report errors.
-  int e, l;
-  char rx[16];
-  struct sockaddr_in srvr_addr;
-
-  tsd_err_fn = err_fn;
-  cli_soc = socket(AF_INET, SOCK_STREAM, 0);
-  if (cli_soc<0) BUG("cant make socket to connect on ");
-  
-  memset((void *)&srvr_addr, 0, sizeof(srvr_addr));
-
-  srvr_addr.sin_family = AF_INET;
-  srvr_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-  srvr_addr.sin_port = htons(5000);
-
-  if (!isdigit(hostname[0])) {
-    struct hostent *hent;
-    struct in_addr **al;
-    hent = gethostbyname(hostname);
-    if (!hent) {
-      printf("ERR: cant lookup %s\n", hostname);
-      herror("failed");
-    }
-    al = (struct in_addr **)hent->h_addr_list;
-    printf("is %s\n", inet_ntoa(*al[0]));
-  }
-  
-  e=inet_pton(AF_INET, hostname, &srvr_addr.sin_addr);
-  //  e=inet_pton(AF_INET, "10.0.0.5", &srvr_addr.sin_addr);
-  if (e<0) BUG("cant convert ip addr");
-
-  e = connect(cli_soc, (struct sockaddr *)&srvr_addr, sizeof(srvr_addr));
-  if (e<0) {
-    sprintf(tsd_errmsg, "could not connect to host %s", hostname);
-    BUG(tsd_errmsg);
-  }
-  socklen_t sz = sizeof(int);
-  l=1;
-  e= setsockopt(cli_soc, IPPROTO_TCP, TCP_NODELAY, (void *)&l, sz);
-  //  e= setsockopt(cli_soc, IPPROTO_TCP, O_NDELAY, (void *)&l, sz);
-  if (e) {
-    sprintf(tsd_errmsg, "cant set TCP_NODELAY");
-    BUG(tsd_errmsg);
-  }
-
-  
-  //  e= getsockopt(soc, IPPROTO_TCP, TCP_NODELAY, &l, &sz);
-  //  printf("get e %d  l %d\n", e, l);
-  //       int setsockopt(int sockfd, int level, int optname,
-  //                      const void *optval, socklen_t optlen);
-  
-
-  // Capablities are determined by the firmware version,
-  // and the demon might not be running on the latest and greatest,
-
-  
-  return 0;
-}
 
 
 int tsd_serve(void) {
@@ -1532,8 +1454,9 @@ int tsd_serve(void) {
   show_ipaddr();  
   printf("   port %d\n", QREGD_PORT);
   
+  // already inited in ts.c
+  //  if (qregs_init()) err("qregs fail");
   
-  if (qregs_init()) err("qregs fail");
   qregs_set_use_lfsr(1);
   qregs_set_tx_always(0);
   qregs_set_tx_pilot_pm_en(1);

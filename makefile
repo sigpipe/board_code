@@ -1,25 +1,25 @@
 
 
-QSRCS = h qregd cmd parse util qregs ini mx qna rp
+QSRCS = h cmd parse util qregs ini mx qna qna_usb rp
 QOBJS = $(QSRCS:%=obj/%.o)
 
-TSRCS = h util corr qregs ini mx parse qna rp qregc
+TSRCS = h util corr qregs ini mx parse qna qna_usb rp qregc
 TOBJS = obj/tst.o $(TSRCS:%=obj/%.o)
 THDRS = $(TSRCS:%=src/%.h)
 
 
-TSSRCS = h util corr qregs ini mx parse qna rp tsd cmd hdl
+TSSRCS = h util corr qregs ini mx parse qna qna_usb rp tsd cmd hdl
 TSOBJS = obj/ts.o $(TSSRCS:%=obj/%.o)
 
 
-USRCS = h util corr mx ini parse h_vhdl_extract cmd qregs qregc qna rp i2c
+USRCS = h util corr mx ini parse h_vhdl_extract cmd qregs qregc qna qna_usb rp i2c
 UOBJS = $(USRCS:%=obj/%.o)
 
 VARSRCS = ini mx parse
 VAROBJS = $(VARSRCS:%=obj/%.o)
 
 
-all: obj tst u qregd ts
+all: obj tst u ts
 
 
 #libvars.a: $(VAROBJS)

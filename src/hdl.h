@@ -1,9 +1,11 @@
 #ifndef _HDL_H_
 #define _HDL_H_
 
-#define HDR_ERR_NONE  (0)
-#define HDR_ERR_PARAMCHANGE (1)
-#define HDR_ERR_FAIL (2)
+#define HDL_ERR_NONE   (0)
+#define HDL_ERR_PARAM_CHANGE (1)
+#define HDL_ERR_FAIL   (2)
+#define HDL_ERR_BUG    (3)
+
 
 
 typedef struct hdl_cdm_cfg_st {
@@ -15,6 +17,15 @@ typedef struct hdl_cdm_cfg_st {
   int probe_len_asamps;
   int num_iter;
 } hdl_cdm_cfg_t;
+
+
+// calling code defines this function,
+// and tells this module to use it to post errors.
+//typedef int tsd_err_fn_t(char *msg, int errcode);
+
+
+int hdl_connect(char *hostname);
+int hdl_disconnect(void);
 
 int hdl_cdm_cfg(hdl_cdm_cfg_t *cfg);
 int hdl_cdm_go(void);

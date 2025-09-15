@@ -21,7 +21,7 @@
 #include "util.h"
 #include "h_vhdl_extract.h"
 #include "h.h"
-#include "tsd.h"
+//#include "tsd.h"
 
 #define QNICLL_LINKED (0)
 #define QREGC_LINKED (0)
@@ -197,6 +197,28 @@ int search=0;
 int is_alice=0;
 int cipher_en=0;
 int cdm_en=0;
+
+
+// IIO state
+// This is not always used.  The qregd does not always do
+// local IIO accesses.  But it can.
+typedef struct lcl_iio_struct {
+  int    open; // 0 or 1
+
+  struct iio_context *ctx;
+  struct iio_device *dac, *adc;
+  struct iio_channel *dac_ch0, *dac_ch1, *adc_ch0, *adc_ch1;
+  struct iio_buffer *dac_buf, *adc_buf;
+  void *adc_buf_p;
+
+  ssize_t tx_buf_sz_bytes;
+  ssize_t rx_buf_sz_bytes;
+  int rx_num_bufs;
+
+  int num_iter;
+  
+} lcl_iio_t;
+
 
 lcl_iio_t lcl_iio={0};
 
@@ -902,12 +924,19 @@ int main(int argc, char *argv[]) {
 
   e = ini_read("tvars.txt", &tvars);
   if (e)
-    printf("ini err %d\n",e);
+    printf("err reading tvars.txt err %d\n",e);
   e =  ini_read("cfg/ini_all.txt", &vars_cfg_all);
   if (e)
-    printf("ini err %d\n",e);
+    printf("err reading ini_all.txt err %d\n",e);
 
-  if (qregs_init()) err("qregs fail");
+
+  char *tty0_p, *tty1_p;
+  e = ini_get_string(vars_cfg_all,"tty0", &tty0_p);
+  if (e) tty0_p=0;
+  e = ini_get_string(vars_cfg_all,"tty1", &tty1_p);
+  if (e) tty1_p=0;
+
+  if (qregs_init(tty0_p,tty1_p)) err("qregs fail");
   // printf("just called qregs init\n");
   //  qregs_print_adc_status();   printf("\n");
 

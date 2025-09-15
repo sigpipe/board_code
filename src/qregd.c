@@ -284,7 +284,7 @@ void *iio_thread_func(void *arg) {
 	done=1;
         break;
       case IIO_THREAD_CMD_CAP:
-	iio_cap();
+	// iio_cap();
 	break;
     }
     pthread_mutex_unlock(&p->lock);

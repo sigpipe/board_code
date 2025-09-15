@@ -19,7 +19,7 @@
 #define IBUF_LEN (2048)
 char ibuf[IBUF_LEN];
 
-int fd=0;
+int qna_fd[2]={0};
 qna_set_err_fn *my_set_errmsg_fn;
 int qna_timo_s = 1;
 
@@ -69,26 +69,26 @@ static int set_attrib(int fd, int speed) {
 
 int dbg=1;
 
-int wr(char *str) {
+int qna_wr(int idx, char *str) {
   size_t l;
   ssize_t n;
   l=strlen(str);
   if (dbg) {
     printf("qna_usb w: ");
-    util_print_all(str);
+    u_print_all(str);
     printf("\n");
   }
-  n = write(fd, str, l);
+  n = write(qna_fd[idx], str, l);
   if (n<0) RBUG("write failed");
   if (n!=l) {
     sprintf(umsg, "did not write %zd chars", l);
     RBUG(umsg);
   }
-  if (tcdrain(fd)) RBUG("drain failed");
+  if (tcdrain(qna_fd[idx])) RBUG("drain failed");
   return 0;  
 }
 
-int rd(char *ibuf, int ibuf_len, int timo_ms) {
+static int qna_rd(int idx, char *ibuf, int ibuf_len, int timo_ms) {
   ssize_t sz;
   int i;
   char *p;
@@ -100,7 +100,7 @@ int rd(char *ibuf, int ibuf_len, int timo_ms) {
   
   p=ibuf;
   for(i=0; i<ibuf_len-1; ) {
-    sz = read(fd, p, 1);
+    sz = read(qna_fd[idx], p, 1);
     
     if (sz<0) {
       if (errno==EAGAIN)
@@ -121,7 +121,7 @@ int rd(char *ibuf, int ibuf_len, int timo_ms) {
   *p=0;
 
   if (dbg) {  
-    util_print_all(ibuf);
+    u_print_all(ibuf);
     printf("\n");
   }
   /*  
@@ -162,31 +162,34 @@ int findkey(char *buf, char *key, char *val, int *val_len) {
   return -1;
 }
 
-int qna_isconnected(void) {
-  return (fd>0);
+int qna_isconnected(int idx) {
+  return (qna_fd[idx]>0);
 }
 
-int qna_usb_connect(char *devname,  qna_set_err_fn *set_errmsg_fn) {
+int qna_usb_connect(int idx, char *devname,  qna_set_err_fn *set_errmsg_fn) {
   char irsp[IBUF_LEN];
   int il;
+  int fd;
+  char key[16];
   my_set_errmsg_fn = set_errmsg_fn;
-  fd=open(devname, O_RDWR | O_NOCTTY | O_SYNC | O_NONBLOCK );
-  if (fd<0) {
+  qna_fd[idx]=open(devname, O_RDWR | O_NOCTTY | O_SYNC | O_NONBLOCK );
+  if (qna_fd[idx]<0) {
     sprintf(umsg, "cant open usb device %s", devname);
     RBUG(umsg);
   }
   printf("* opened %s\n", devname);
-  if (set_attrib(fd, B115200))
+  if (set_attrib(qna_fd[idx], B115200))
     RBUG("cant set serial usb port attributes");
 
-  DO(wr("\r"));
-  DO(rd(ibuf, IBUF_LEN, 1));
+  DO(qna_wr(idx, "\r"));
+  DO(qna_rd(idx, ibuf, IBUF_LEN, 1));
   
-  DO(wr("i\r"));
-  DO(rd(ibuf, IBUF_LEN, 1));
-  util_print_all(ibuf);
+  DO(qna_wr(idx, "i\r"));
+  DO(qna_rd(idx, ibuf, IBUF_LEN, 1));
+  u_print_all(ibuf);
   il = IBUF_LEN;
-  if (findkey(ibuf, "QNA", irsp, &il))
+  sprintf(key, "QNA%d", idx+1);
+  if (findkey(ibuf, key, irsp, &il))
     RBUG("did not iden QNA");
   
   printf("got rsp QNA %s\n", irsp);
@@ -198,16 +201,16 @@ void qna_set_timo_s(int s) {
   qna_timo_s = s;
 }
 
-int qna_usb_do_cmd(char *cmd, char *rsp, int rsp_len) {
+int qna_usb_do_cmd(int idx, char *cmd, char *rsp, int rsp_len) {
   ssize_t n;
   int p_len, ll;
   ssize_t cl, rl;
   char *p;
   
-  DO(tcflush(fd, TCIOFLUSH));
-  DO(wr(cmd));
-  DO(wr("\r"));
-  DO(rd(ibuf, 1024, qna_timo_s));
+  DO(tcflush(qna_fd[idx], TCIOFLUSH));
+  DO(qna_wr(idx, cmd));
+  //  DO(qna_wr(idx, "\r")); cmd must have \r
+  DO(qna_rd(idx, ibuf, 1024, qna_timo_s));
   p = strstr(ibuf, "\n");
   if (p) {
     strncpy(rsp, p+1, rsp_len-1);
@@ -238,6 +241,12 @@ int qna_usb_do_cmd(char *cmd, char *rsp, int rsp_len) {
   return 0;
 }
 
-int qna_usb_disconnect(void) {
-  close(fd);
+int qna_usb_disconnect() {
+  int i;
+  for(i=0;i<2;++i) {
+    if (qna_fd[i]>0)
+      close(qna_fd[i]);
+    qna_fd[i] = 0;
+  }
+  return 0;
 }

@@ -323,8 +323,12 @@ int opt_srv=0;
   read_ini_files();
   
 
-  
-  if (qregs_init()) err("qregs fail");
+  char *tty0_p, *tty1_p;
+  e = ini_get_string(vars_cfg_all,"tty0", &tty0_p);
+  if (e) tty0_p=0;
+  e = ini_get_string(vars_cfg_all,"tty1", &tty1_p);
+  if (e) tty1_p=0;
+  if (qregs_init(tty0_p, tty1_p)) err("qregs fail");
   // printf("just called qregs init\n");
   //  qregs_print_adc_status();   printf("\n");
 
@@ -341,7 +345,7 @@ int opt_srv=0;
 	printf("ERR: ini_<host>.txt lacks remote_ipaddr value\n");
 	return 0;
       }
-      e=tsd_connect(ia, &remote_err_handler);
+      e=hdl_connect(ia);
       if (e) return 0;
     }
   }
@@ -502,7 +506,7 @@ int opt_srv=0;
     search = ini_ask_yn(tvars, "search for probe/pilot", "search", 1);
   
 
-  lcl_iio_open();
+  lcl_iio_open(&lcl_iio);
   printf("done lcl iio open\n");
 
 
@@ -573,6 +577,11 @@ int opt_srv=0;
   
   //  e=tsd_first_action(&params);
 
+  qregs_clr_adc_status();
+  qregs_clr_tx_status();
+  qregs_clr_corr_status();
+
+  
   
   switch (mode) {
     ssize_t rx_buf_sz_bytes;
@@ -624,18 +633,26 @@ int opt_srv=0;
 	}
 	
 	printf("local go\n");	
-	tsd_lcl_cdm_go();	tsd_iio_read(iio);
-	tsd_iio_destroy_rxbuf(iio);
+	tsd_lcl_cdm_go();
+	
+	tsd_iio_read(iio);
+
+
 
 	if (is_cli) {
-	  printf("tell cli to stop\n");
+	  printf("tell remote to stop\n");
 	  e=hdl_cdm_stop();
 	  if (e)
-	    printf("ERR: remote start failed\n");
+	    printf("ERR: remote stop failed\n");
 	}
 
 
 	tsd_lcl_cdm_stop();
+
+
+
+	// I ought to be able to do this, but it causes illegal instr
+	//	tsd_iio_destroy_rxbuf(iio);
 	
 	//	printf("seconed action\n");	
 	//	e=tsd_second_action();
@@ -649,6 +666,11 @@ int opt_srv=0;
   } // switch
   
 
+  if (is_cli) {
+    e=hdl_disconnect();
+    if (e)
+      printf("ERR: disconnect failed\n");
+  }
 
   
 

@@ -115,6 +115,8 @@ typedef struct qregs_lo_settings_st {
 
 typedef struct qregs_struct {
   qregs_version_info_t ver_info;
+
+  int qna_is_usb[2];
   
   int use_lfsr;
   int lfsr_rst_st;
@@ -196,7 +198,8 @@ int qregs_dur_us2samps(double us);
 double qregs_dur_samps2us(int s);
 void qregs_set_rx_subcyc_dly_asamps(int dly);
 
-int  qregs_init();
+int  qregs_init(char *tty0, char *tty1);
+// set to 0 or "" if not using ttyUSB
 int  qregs_done();
 
 void qregs_set_meas_noise(int en);

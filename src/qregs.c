@@ -12,6 +12,7 @@
 #include "qregs.h"
 #include "qregs_ll.h"
 #include "qna.h"
+#include "qna_usb.h"
 #include "util.h"
 #include "h.h"
 #include "rp.h"
@@ -817,12 +818,31 @@ void qregs_print_settings(void) {
   printf("             %.6f %.6f];\n", st.rebal.m21, st.rebal.m22);
 }
 
+int dflt_qna_set_err_fn(char *msg, int err){
+  qregs_lasterr = err;
+  strncpy(qregs_errmsg, msg, QREGS_ERRMSG_LEN-1);
+  qregs_errmsg[QREGS_ERRMSG_LEN-1]=0;
+  printf("ERR: errhandler: %s\n", msg);
+  return err;
+}
 
-int qregs_init(void) {
+int qregs_init(char *tty0, char *tty1) {
+// set to 0 or "" if using mem map  
   int i, rs, e, v;
   int qregs_fd;
-
   int *p;
+
+
+  if (tty0 && tty0[0]) {
+    e=qna_usb_connect(0, tty0, dflt_qna_set_err_fn);
+    st.qna_is_usb[0]=!e;
+  }
+  if (tty1 && tty1[0]) {
+    e=qna_usb_connect(1, tty1, dflt_qna_set_err_fn);
+    st.qna_is_usb[1]=!e;
+  }
+    
+  
   //  printf("DBG: myiiio_init\n");
   qregs_fd = open("/dev/mem", O_RDWR | O_SYNC);
   if (qregs_fd < 0)

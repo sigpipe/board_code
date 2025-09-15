@@ -3,6 +3,7 @@
 #include <string.h>
 #include <math.h>
 #include "qna.h"
+#include "qna_usb.h"
 #include "qregs.h"
 #include "qregs.h"
 #include "qregs_ll.h"
@@ -29,27 +30,34 @@ int qna_do_cmd(int ser_sel) {
 // ser_sel: one of QREGS_SER_SEL*
   int e;
   char *p;
-  qregs_ser_flush();
-  qregs_ser_sel(ser_sel);
-  if (qna_dbg) {
-    printf("QNA tx:");
-    u_print_all(qna_cmd);
-    printf("\n");
-  }
-  e=qregs_ser_do_cmd(qna_cmd, qna_rsp, CMD_LEN, 1);
-  if (qna_dbg) {
-    printf("QNA rx:");
-    u_print_all(qna_rsp);
-    printf("\n");
-  }
-  p=strstr(qna_rsp,"ERR:");
-  if (p) {
-    strncpy(qna_errmsg, p, CMD_LEN-1);
-    qna_errmsg[CMD_LEN-1]=0;
-    p=strstr(qna_errmsg,"\n");
-    if (p) *p=0;
-    printf("QNA ERR: %s\n", qna_errmsg);
-    return qregs_err_fail(qna_errmsg);
+  // printf("is usb(%d) %d\n", ser_sel, st.qna_is_usb[0l]);
+  if ((ser_sel==QREGS_SER_SEL_QNA1) && st.qna_is_usb[0]) {
+    e=qna_usb_do_cmd(0, qna_cmd, qna_rsp, CMD_LEN);
+  }else if ((ser_sel==QREGS_SER_SEL_QNA2) && st.qna_is_usb[1]) {
+    e=qna_usb_do_cmd(1, qna_cmd, qna_rsp, CMD_LEN);
+  }else {
+    qregs_ser_flush();
+    qregs_ser_sel(ser_sel);
+    if (qna_dbg) {
+      printf("QNA tx:");
+      u_print_all(qna_cmd);
+      printf("\n");
+    }
+    e=qregs_ser_do_cmd(qna_cmd, qna_rsp, CMD_LEN, 1);
+    if (qna_dbg) {
+      printf("QNA rx:");
+      u_print_all(qna_rsp);
+      printf("\n");
+    }
+    p=strstr(qna_rsp,"ERR:");
+    if (p) {
+      strncpy(qna_errmsg, p, CMD_LEN-1);
+      qna_errmsg[CMD_LEN-1]=0;
+      p=strstr(qna_errmsg,"\n");
+      if (p) *p=0;
+      printf("QNA ERR: %s\n", qna_errmsg);
+      return qregs_err_fail(qna_errmsg);
+    }
   }
   return e;
 }
