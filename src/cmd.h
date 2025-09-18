@@ -21,10 +21,12 @@ typedef int cmd_t(int arg);
 #define CMD_ERR_FAIL      9
 #define CMD_ERR_QUIT      10
 
+struct cmd_info_st;
+
 typedef struct cmd_info_st {
   char  *name; // name of command. or super-command if last in list
   cmd_t *fn;   // pointer to function that performs cmd.  0 marks end of list
-  int    arg;  // 
+  const struct cmd_info_st *arg;
   CMD_DESC(char  *desc;) // 0 if no description.  CMD_ALIAS if same desc as prev.
   char  *usage;
 } cmd_info_t;

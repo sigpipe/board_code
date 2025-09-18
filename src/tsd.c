@@ -1264,6 +1264,9 @@ int cmd_qna(int arg) {
 
 
 hdl_cdm_cfg_t cdm_cfg;
+hdl_loop_cfg_t loop_cfg;
+hdl_qsdc_cfg_t qsdc_cfg;
+hdl_noise_cfg_t noise_cfg;
 
 int tsd_lcl_cdm_cfg(hdl_cdm_cfg_t *cfg_p, ssize_t *rx_buf_sz_bytes) {
 
@@ -1299,6 +1302,50 @@ int tsd_lcl_cdm_stop(void) {
   qregs_txrx(0);
 }
 
+int tsd_lcl_loop_cfg(hdl_loop_cfg_t *cfg)
+{
+  return 0;
+}
+
+int tsd_lcl_loop_go(void)
+{
+  return 0;
+}
+
+int tsd_lcl_loop_stop(int delay)
+{
+  return 0;
+}
+
+int tsd_lcl_qsdc_cfg(hdl_qsdc_cfg_t *cfg)
+{
+  return 0;
+}
+
+int tsd_lcl_qsdc_go(void)
+{
+  return 0;
+}
+
+int tsd_lcl_qsdc_stop(void)
+{
+  return 0;
+}
+
+int tsd_lcl_noise_cfg(hdl_noise_cfg_t *cfg)
+{
+  return 0;
+}
+
+int tsd_lcl_noise_go(void)
+{
+  return 0;
+}
+
+int tsd_lcl_noise_stop(void)
+{
+  return 0;
+}
 
 int cmd_cdm_cfg(int arg) {
   ssize_t rx_buf_sz_bytes;
@@ -1331,23 +1378,105 @@ int cmd_cdm_stop(int arg) {
   
 }
 
+int cmd_loop_cfg(int arg)
+{
+  printf("\nCMD: loop cfg\n");
+  tsd_lcl_loop_cfg(&loop_cfg);
+  return 0;
+}
+
+int cmd_loop_go(int arg)
+{
+  printf("\nCMD: loop go\n");
+  tsd_lcl_loop_go();
+  return 0;
+}
+
+int cmd_loop_stop(int arg)
+{
+  printf("\nCMD: loop stop\n");
+  int delay; // delay in number of samples
+  DO(tsd_parse_kval("delay=", &delay));
+  tsd_lcl_loop_stop(delay);
+  return 0;
+}
+
+int cmd_qsdc_cfg(int arg)
+{
+  printf("\nCMD: qsdc cfg\n");
+  tsd_lcl_qsdc_cfg(&qsdc_cfg);
+  return 0;
+}
+
+int cmd_qsdc_go(int arg)
+{
+  printf("\nCMD: qsdc go\n");
+  return 0;
+}
+
+int cmd_qsdc_stop(int arg)
+{
+  printf("\nCMD: qsdc stop\n");
+  return 0;
+}
+
+int cmd_noise_cfg(int arg)
+{
+  printf("\nCMD: noise cfg\n");
+  tsd_lcl_noise_cfg(&noise_cfg);
+  return 0;
+}
+
+int cmd_noise_go(int arg)
+{
+  printf("\nCMD: noise go\n");
+  tsd_lcl_noise_go();
+  return 0;
+}
+
+int cmd_noise_stop(int arg)
+{
+  printf("\nCMD: noise stop\n");
+  tsd_lcl_noise_stop();
+  return 0;
+}
 
 cmd_info_t cdm_cmds_info[]={
   {"cfg",    cmd_cdm_cfg,   0, 0},
   {"go",     cmd_cdm_go,      0, 0},
   {"stop",   cmd_cdm_stop,    0, 0},
-  {0}};  
+  {0}};
+
+cmd_info_t loop_cmds_info[]={
+  {"cfg",    cmd_loop_cfg,   0, 0},
+  {"go",     cmd_loop_go,      0, 0},
+  {"stop",   cmd_loop_stop,    0, 0},
+  {0}};
+
+cmd_info_t qsdc_cmds_info[]={
+  {"cfg",    cmd_qsdc_cfg,   0, 0},
+  {"go",     cmd_qsdc_go,      0, 0},
+  {"stop",   cmd_qsdc_stop,    0, 0},
+  {0}};
+
+cmd_info_t qsdc_noise_info[]={
+  {"cfg",    cmd_noise_cfg,   0, 0},
+  {"go",     cmd_noise_go,      0, 0},
+  {"stop",   cmd_noise_stop,    0, 0},
+  {0}};
 
 cmd_info_t cmds_info[]={
   {"bob_sync",  cmd_bob_sync,  0, 0},
   {"iioopen",   cmd_iioopen,   0, 0},
   //  {"qna",       cmd_qna,       0, 0},
   //  {"qna_timo",  cmd_qna_timo,  0, 0},
-  {"cdm",       cmd_subcmd,  (int)cdm_cmds_info, 0},
+  {"cdm",       cmd_subcmd,  cdm_cmds_info, 0},
+  {"loop",	cmd_subcmd, loop_cmds_info, 0 },
   {"tx",        cmd_tx,        0, 0},
   {"txrx",      cmd_txrx,      0, 0},
   {"tx_always", cmd_tx_always, 0, 0},
   {"pilot_pm_en",  cmd_tx_pilot_pm_en,    0, 0},
+  {"qsdc",	cmd_subcmd, qsdc_cmds_info, 0 },
   {"frame_pd",  cmd_frame_pd,  0, 0},
   {"frame_qty", cmd_frame_qty, 0, 0},
   {"fwver",     cmd_fwver,     0, 0},
