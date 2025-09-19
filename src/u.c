@@ -385,7 +385,7 @@ int cmd_rx(int arg) {
       printf("timo\n");
       break;
     }
-    printf("%c", c, c);
+    printf("%c", c);
     if (c=='>') break;
   }
   printf("\n");
@@ -1084,7 +1084,7 @@ cmd_info_t lo_cmds_info[]={
   {"wl",     cmd_lo_wl,     0, "set wavelength", "nm"},  
   {0}};  
   
-cmd_info_t cal_cmds_info[]={
+const cmd_info_t cal_cmds_info[]={
   {"measdark",  cmd_cal_measdark,   0, "set dark lvl on dets", ""},
   {"norebal",   cmd_cal_norebal,    0, "turn off HDL IQ rebalance", ""},
   {0}};
@@ -1106,27 +1106,27 @@ cmd_info_t sync_cmds_info[]={
 cmd_info_t cmds_info[]={
   //  {"calbpsk", cmd_cal,       0, 0},
   {"always",  cmd_always,   0, "0|1"},
-  {"cal",     cmd_subcmd, (int)cal_cmds_info, 0, 0},
+  {"cal",     cmd_subcmd, cal_cmds_info, 0, 0},
   {"circ",    cmd_circ,   0,   "0|1"},
   {"ciph",    cmd_ciph,   0,      0},
-  {"dbg",     cmd_subcmd, (int)dbg_cmds_info, 0, 0},
-  {"lo",      cmd_subcmd, (int)lo_cmds_info, 0, 0},
-  {"dly",     cmd_subcmd, (int)dly_cmds_info, 0, 0},
+  {"dbg",     cmd_subcmd, dbg_cmds_info, 0, 0},
+  {"lo",      cmd_subcmd, lo_cmds_info, 0, 0},
+  {"dly",     cmd_subcmd, dly_cmds_info, 0, 0},
   {"help",    help,       0, 0},
   {"pm_dly",  cmd_pm_dly, 0, 0},
   {"phest",  cmd_phest,  0, "set auto phase est0", "0|1"}, 
   {"im_dly",  cmd_im_dly, 0, 0}, 
   {"pm_sin",  cmd_pm_sin, 0, 0}, 
   {"init",    cmd_init,   0, "initializes HDL"}, 
-  {"sfp",     cmd_subcmd, (int)sfp_cmds_info, 0, 0}, 
+  {"sfp",     cmd_subcmd, sfp_cmds_info, 0, 0}, 
   {"tx",      cmd_tx,     0, 0},
   {"rx",      cmd_rx,   0, 0},
 
   {"pwr",     cmd_pwr,     0, "querry RedPitaya for power"},
   {"proto",   cmd_proto,   0, "asks for protocol params", 0},
-  {"qsdc",    cmd_subcmd, (int)qsdc_cmds_info, 0, 0},
+  {"qsdc",    cmd_subcmd, qsdc_cmds_info, 0, 0},
   {"sweep",   cmd_sweep, 0, 0},
-  {"sync",    cmd_subcmd, (int)sync_cmds_info, 0, 0},
+  {"sync",    cmd_subcmd, sync_cmds_info, 0, 0},
   {"rst",     cmd_rst,   0, 0},
 #if QREGC_LINKED  
   {"r",       cmd_r,     0, 0},

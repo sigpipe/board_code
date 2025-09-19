@@ -18,6 +18,14 @@ typedef struct hdl_cdm_cfg_st {
   int num_iter;
 } hdl_cdm_cfg_t;
 
+typedef struct hdl_loop_cfg_st {
+} hdl_loop_cfg_t;
+
+typedef struct hdl_qsdc_cfg_st {
+} hdl_qsdc_cfg_t;
+
+typedef struct hdl_noise_cfg_st {
+} hdl_noise_cfg_t;
 
 // calling code defines this function,
 // and tells this module to use it to post errors.
