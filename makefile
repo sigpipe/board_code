@@ -18,6 +18,8 @@ UOBJS = $(USRCS:%=obj/%.o)
 VARSRCS = ini mx parse
 VAROBJS = $(VARSRCS:%=obj/%.o)
 
+HDLSRCS = common util parse
+HDLOBJS = obj/hdl.o $(HDLSRCS:%=obj/%.o)
 
 all: obj tst u ts
 
@@ -32,6 +34,9 @@ qregd: $(QOBJS)
 libqregs.a: obj/qregs.o
 	echo $(QOBJS)
 	ar r $@ obj/qregs.o
+
+libhdl.a: $(HDLOBJS)
+	ar r $@ $^
 
 obj/qregs.o: src/h_vhdl_extract.h
 

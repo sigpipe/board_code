@@ -38,6 +38,19 @@
 char req[REQ_SZ];
 char rsp[REQ_SZ];
 
+/*
+#define HDL_ERR_NONE   (0)
+#define HDL_ERR_PARAM_CHANGE (1)
+#define HDL_ERR_FAIL   (2)
+#define HDL_ERR_BUG    (3)
+*/
+const char *hdl_errors[] = {
+	"HDL_ERR_NONE",
+	"HDL_ERR_PARAM_CHANGE",
+	"HDL_ERR_FAIL",
+	"HDL_ERR_BUG",
+	"" // sentinel
+};
 
 // The last error message, in case Caller cares
 char hdl_errmsg[REQ_SZ];
@@ -54,7 +67,7 @@ int cli_soc=0;
 
 
 #define BUG(msg) { \
-    sprintf(hdl_errmsg, "BUG: %s", msg); \
+    snprintf(hdl_errmsg, sizeof(hdl_errmsg), "BUG: %s", msg); \
     printf("BUG: %s\n", msg); \
     return HDL_ERR_BUG; }
 
@@ -159,8 +172,7 @@ int hdl_setup(tsd_setup_params_t *params) {
 	  params->is_alice,
 	  params->mode,
 	  params->alice_syncing,
-	  params->alice_txing,
-	  params->alice_syncing);
+	  params->alice_txing);
   e=hdl_do_cmd(req, rsp, REQ_SZ);
 
   // TODO parse rsp
@@ -185,8 +197,9 @@ int hdl_cdm_cfg(hdl_cdm_cfg_t *cfg) {
   tsd_parse_kval("probe_len=", &cfg->probe_len_asamps);
   tsd_parse_kval("frame_pd=",  &cfg->frame_pd_asamps);  
   tsd_parse_kval("num_iter=",  &cfg->num_iter);
+  //tsd_parse_kval("rx_bytes=",  &cfgrsp->rx_bytes);
   if (!e)
-    if (memcmp((void *)cfg, (void *)&sav, sizeof(cfg)))
+    if (memcmp((void *)cfg, (void *)&sav, sizeof(*cfg)))
       e = HDL_ERR_PARAM_CHANGE;
   return e;
 }
@@ -206,6 +219,88 @@ int hdl_cdm_stop(void) {
   return e;
 }
 
+int hdl_loop_cfg(hdl_loop_cfg_t *cfg, hdl_loop_cfg_rsp_t *cfgrsp) {
+  int e;
+  hdl_loop_cfg_t sav = *cfg;
+  snprintf(req, REQ_SZ, "loop cfg is_passive=%d",
+	   cfg->is_passive);
+  e=hdl_do_cmd(req, rsp, REQ_SZ);
+
+  if (!e)
+    if (memcmp((void *)cfg, (void *)&sav, sizeof(cfg)))
+      e = HDL_ERR_PARAM_CHANGE;
+  return e;
+}
+
+int hdl_loop_go(void) {
+  int e;
+  snprintf(req, REQ_SZ, "loop go");
+  e=hdl_do_cmd(req, rsp, REQ_SZ);
+  return e;
+}
+
+int hdl_loop_stop(int dly) {
+  int e;
+  snprintf(req, REQ_SZ, "loop stop delay=%d", dly);
+  e=hdl_do_cmd(req, rsp, REQ_SZ);
+  return e;
+}
+
+int hdl_qsdc_cfg(hdl_qsdc_cfg_t *cfg) {
+  int e;
+  hdl_qsdc_cfg_t sav = *cfg;
+  snprintf(req, REQ_SZ, "qsdc cfg is_passive=%d",
+	   cfg->is_passive);
+  e=hdl_do_cmd(req, rsp, REQ_SZ);
+
+  tsd_parse_kval("is_passive=", &cfg->is_passive);
+  if (!e)
+    if (memcmp((void *)cfg, (void *)&sav, sizeof(cfg)))
+      e = HDL_ERR_PARAM_CHANGE;
+  return e;
+}
+
+int hdl_qsdc_go(void) {
+  int e;
+  snprintf(req, REQ_SZ, "qsdc go");
+  e=hdl_do_cmd(req, rsp, REQ_SZ);
+  return e;
+}
+
+int hdl_qsdc_stop(void) {
+  int e;
+  snprintf(req, REQ_SZ, "qsdc stop");
+  e=hdl_do_cmd(req, rsp, REQ_SZ);
+  return e;
+}
+
+int hdl_noise_cfg(hdl_noise_cfg_t *cfg) {
+  int e;
+  hdl_noise_cfg_t sav = *cfg;
+  snprintf(req, REQ_SZ, "noise cfg is_passive=%d",
+	   cfg->is_passive);
+  e=hdl_do_cmd(req, rsp, REQ_SZ);
+
+  if (!e)
+    if (memcmp((void *)cfg, (void *)&sav, sizeof(cfg)))
+      e = HDL_ERR_PARAM_CHANGE;
+  return e;
+}
+
+int hdl_noise_go(void) {
+  int e;
+  snprintf(req, REQ_SZ, "noise go");
+  e=hdl_do_cmd(req, rsp, REQ_SZ);
+  return e;
+}
+
+int hdl_noise_stop(void) {
+  int e;
+  snprintf(req, REQ_SZ, "noise stop");
+  e=hdl_do_cmd(req, rsp, REQ_SZ);
+  return e;
+}
+
 int hdl_disconnect(void) {
   int e;
   snprintf(req, REQ_SZ, "q");
@@ -213,3 +308,15 @@ int hdl_disconnect(void) {
   return e;
 }
 
+void hdl_errcode_to_errname(int err, char **s)
+{
+  if (err >=0 && err <= HDL_ERR_BUG) *s = hdl_errors[err];
+  else *s = "";
+}
+
+void hdl_get_err_msg(char *s, int slen)
+{
+  if (slen < 0) return;
+  if (slen > 1) strncpy(s, hdl_errmsg, slen-1);
+  s[slen-1] = 0;
+}
