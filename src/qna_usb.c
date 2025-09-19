@@ -67,7 +67,7 @@ static int set_attrib(int fd, int speed) {
     return 0;
 }
 
-int dbg=1;
+int dbg=0;
 
 int qna_wr(int idx, char *str) {
   size_t l;
@@ -75,7 +75,7 @@ int qna_wr(int idx, char *str) {
   l=strlen(str);
   if (dbg) {
     printf("qna_usb w: ");
-    u_print_all(str);
+    // u_print_all(str);
     printf("\n");
   }
   n = write(qna_fd[idx], str, l);

@@ -16,20 +16,16 @@ char *qregs_last_err(void);
 void qregs_print_last_err(void);
 
 
-// in qna1:
-#define QREGS_VOA_QUANT_TX (0)
-#define QREGS_VOA_HYB_RX   (1)
-// in qna2:
-#define QREGS_VOA_DATA_TX  (2)
-#define QREGS_VOA_DATA_RX  (3)
-#define QREGS_VOA_QUANT_RX (4)
-#define QREGS_NUM_VOA (5)
-
 
 
 // indexed by error code
 extern char *qregs_errs[];
 #define QREGS_ERRMSG_LEN (1024)
+
+
+// numbers of things
+#define QREGS_NUM_OPSW (3)
+#define QREGS_NUM_VOA (5)
 
 typedef struct version_info_struct {
   int quanet_dac_fwver;
@@ -188,6 +184,7 @@ typedef struct qregs_struct {
   int rx_subcyc_dly_asamps;
 
   double voa_attn_dB[QREGS_NUM_VOA];
+  int opsw_cross[QREGS_NUM_OPSW];
   
 } qregs_st_t;
 
@@ -408,7 +405,33 @@ void qregs_set_phase_est_en(int en, double offset_deg);
 void qregs_qsdc_track_pilots(int en);
 void qregs_set_memtx_to_pm(int en);
 
+
+
+// in box1:
+#define QREGS_VOA_QUANT_TX (0)
+#define QREGS_VOA_HYB_RX   (1)
+// in box2:
+#define QREGS_VOA_DATA_TX  (2)
+#define QREGS_VOA_DATA_RX  (3)
+#define QREGS_VOA_QUANT_RX (4)
+
+extern char *qregs_voa_name[];
+
+
 int qregs_set_voa_attn_dB(int voa_i, double *attn_dB);
 // voa_i: one of QRGES_VOA_*
+
+
+// L is for the loopback switch.  Normally "cross" but Alice
+// sets it to "pass" duing qsdc.
+#define QREGS_OPSW_L   (0)
+// RX1 is the first recieve switch.
+#define QREGS_OPSW_RX1 (2)
+#define QREGS_OPSW_RX2 (1)
+
+extern char *qregs_opsw_name[];
+
+int qregs_set_opsw(int sw_i, int *cross);
+// sw_i: one of: QREGS_OPSW_L
 
 #endif

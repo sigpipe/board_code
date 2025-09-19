@@ -23,17 +23,17 @@ int qna_set_lo_pwr_dBm(double *dBm);
 int qna_set_lo_wl_nm(double *wl_nm);
 int qna_get_lo_status(qregs_lo_status_t *status);
 int qna_set_lo_offset_MHz(int offset_MHz);
-int qna_set_lo_mode(char mode);
+int qna_set_lo_mode(char mode); // mode: 'd'=dither 'w'=whisper  
 int qna_set_lo_fdbk_en(int en);
-// mode: 'd'=dither 'w'=whisper  
 
-
-
-// mapping of voa idx to board
-
-
+int qna_set_opsw(int sw_i, int *cross);
+// sw_i: one of QREGS_OPSW_*
 
 int qna_set_voa_attn_dB(int v_i, double *dBm);
+// m_i: one of QREGS_VOA_*
+
+
+
 
 
 #endif

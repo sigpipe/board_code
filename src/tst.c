@@ -603,6 +603,13 @@ int second_action(void) {
   int refill_err=0;
   // qregs_print_adc_status();	  
 
+  // for cdm:
+  // should call tsd_lcl_cdm_go
+  if (cdm_en) {
+    h_w_fld(H_DAC_HDR_SECOND_IM_IS_PROBE, 1);
+    qregs_set_tx_same_hdrs(0);
+  }
+  
   t0_s = time(0);
 
   //  if (!is_alice) {  

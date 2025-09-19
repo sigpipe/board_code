@@ -46,7 +46,7 @@ int baseaddrs[]={BASEADDR_QREGS, BASEADDR_ADC};
 #define AREG2_PS3_HDR_DET_CNT  (0xffff0000)
 #define AREG2_PS3_HDR_PWR_CNT  (0x0000ffff)
 
-char *qregs_errs[] = {"", "fail", "timeout", "bug"};
+char *qregs_errs[] = {"", "fail", "timeout", "bug","param"};
 
 int  qregs_lasterr=0;
 char qregs_errmsg[QREGS_ERRMSG_LEN];
@@ -529,7 +529,6 @@ int qregs_measure_frame_pwrs(qregs_frame_pwrs_t *pwrs) {
   return e || e1;
 }
 
-
 int qregs_rp_info(char *str, int strlen) {
   return rp_info(str, strlen);
 }
@@ -749,7 +748,12 @@ char *qregs_go_cond_ctos(char c) {
   return "?";
 }
 
+char *qregs_voa_name[]={"qtx","hrx","datatx","datarx","qrx"};
+
+char *qregs_opsw_name[]={"lpbk","rx1","rx2"};
+
 void qregs_print_settings(void) {
+  int i;
   printf("halfduplex_is_bob %d\n", st.is_bob);
   printf("DLYS:  pm_dly_cycs %d   \tim_dly_cycs %d\n", st.pm_dly_cycs, st.hdr_im_dly_cycs);
   printf("       round_trip_asamps %d\n", st.round_trip_asamps);
@@ -809,6 +813,15 @@ void qregs_print_settings(void) {
 	 st.init_pwr_thresh, st.hdr_pwr_thresh, st.hdr_corr_thresh);
   printf("sync_ref %c\n", st.sync_ref);
 
+  printf("VOAS: ");
+  for(i=0;i<QREGS_NUM_VOA;++i)
+    printf(" %s=%.2f", qregs_voa_name[i], st.voa_attn_dB[i]);
+  printf("\n");
+  
+  printf("OPSW: ");
+  for(i=0;i<QREGS_NUM_OPSW;++i)
+    printf(" %s=%d", qregs_opsw_name[i], st.opsw_cross[i]);
+  printf("\n");
 
   printf("SER: sel %d  baud %d  parity %d  xonxoff %d\n",
 	 st.ser_state.sel,
@@ -1680,6 +1693,11 @@ int qregs_done() {
 int qregs_set_voa_attn_dB(int voa_i, double *attn_dB) {
   // voa_i: one of QRGES_VOA_* 
   return qna_set_voa_attn_dB(voa_i, attn_dB);
+}
+
+int qregs_set_opsw(int sw_i, int *cross) {
+  // voa_i: one of QRGES_OPSW_*
+  return qna_set_opsw(sw_i, cross);
 }
 
 void qregs_qsdc_track_pilots(int en) {

@@ -56,6 +56,13 @@ void err(char *str) {
   exit(1);
 }
 
+
+void qerr(char *msg) {
+  printf("ERR: %s\n", qregs_last_err());
+  printf("     %s\n", msg);
+}
+
+
 ini_val_t *tvars;
 int shutdown=0;
 
@@ -206,6 +213,7 @@ int cmd_rst(int arg) {
   qregs_set_tx_mem_circ(0);
   qregs_set_memtx_to_pm(0);
   h_w_fld(H_DAC_CTL_ALICE_SYNCING, 0);
+  h_w_fld(H_DAC_HDR_SECOND_IM_IS_PROBE, 0);  
   printf("rst\n");
   return 0;
 }
@@ -504,6 +512,9 @@ int cmd_init(int arg) {
     printf("%s\n", ini_err_msg());
     return CMD_ERR_FAIL;
   }
+
+  // I think second zhl amp is inverting
+  h_w_fld(H_DAC_ALICE_PM_INVERT, 0);
 
   get_ini_int(ivars, "ser_baud_Hz", &i);
   st.ser_state.baud_Hz       = i;
@@ -1011,6 +1022,27 @@ int cmd_qsdc_cfg(int arg) {
   return 0;
 }
 
+int cmd_opsw(int arg) {
+  int idx, cross;
+  if (parse_int(&swi))   return CMD_ERR_SYNTAX;
+  if (parse_int(&cross)) return CMD_ERR_SYNTAX;
+  e = qregs_set_opsw(swi, &cross);
+  if (e) qerr("setting opsw");
+  printf("%d\n", cross);
+  return 0;
+}
+
+int cmd_voa(int arg) {
+  int idx;
+  double attn_dBm
+  if (parse_int(&idx))   return CMD_ERR_SYNTAX;
+  if (parse_double(&attn_dBm)) return CMD_ERR_SYNTAX;
+  e = qregs_set_voa_attn_dB(idx, &attn_dBm);
+  if (e) qerr("setting voa");
+  printf("%.2f\n", attn_dBm);
+  return 0;
+}
+
 int cmd_dbg_search(int arg) {
   printf("dbg search for hdr\n");
   qregs_print_adc_status();
@@ -1122,6 +1154,7 @@ cmd_info_t cmds_info[]={
   {"tx",      cmd_tx,     0, 0},
   {"rx",      cmd_rx,   0, 0},
 
+  {"opsw",    cmd_opsw,   0, 0},
   {"pwr",     cmd_pwr,     0, "querry RedPitaya for power"},
   {"proto",   cmd_proto,   0, "asks for protocol params", 0},
   {"qsdc",    cmd_subcmd, qsdc_cmds_info, 0, 0},
@@ -1135,7 +1168,8 @@ cmd_info_t cmds_info[]={
   {"stat",     cmd_stat,   0, 0},
   {"shutdown", cmd_shutdown,   0, 0},
   {"thresh",   cmd_thresh, 0, "set detection thersholds", "[<pwr> <corr> [<ini>]]"}, 
-  {"twopi",   cmd_twopi,   0, 0}, 
+  {"twopi",   cmd_twopi,   0, 0},
+  {"voa",     cmd_voa,   0, 0},
   {"ver",     cmd_ver,   0, 0}, 
   {0}};
 
